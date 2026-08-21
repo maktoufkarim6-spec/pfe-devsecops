@@ -1,0 +1,7 @@
+node_modules/
+server/database/data/
+*.env
+.env
+build/
+dist/
+get-docker.sh
