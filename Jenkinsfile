@@ -5,6 +5,7 @@ pipeline {
         DOCKERHUB = credentials('dockerhub')
         IMAGE_SERVER = "kariimm557/app-cobaye-server"
         IMAGE_CLIENT = "kariimm557/app-cobaye-client"
+        SCANNER_HOME = tool 'sonar-scanner'
     }
 
     stages {
@@ -12,6 +13,15 @@ pipeline {
             steps {
                 echo 'Récupération du code depuis Git...'
                 checkout scm
+            }
+        }
+
+        stage('Analyse SonarQube') {
+            steps {
+                echo 'Analyse de la qualite du code avec SonarQube...'
+                withSonarQubeEnv('sonarqube') {
+                    sh '$SCANNER_HOME/bin/sonar-scanner -Dsonar.projectKey=app-cobaye -Dsonar.sources=.'
+                }
             }
         }
 
@@ -57,7 +67,7 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline terminé avec succès ! Images scannées et poussées.'
+            echo 'Pipeline terminé avec succès ! Code analysé, images scannées et poussées.'
         }
         failure {
             echo 'Le pipeline a échoué. Vérifiez les logs.'
