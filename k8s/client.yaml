@@ -14,8 +14,7 @@ spec:
     spec:
       containers:
         - name: client
-          image: app-cobaye-client:latest
-          imagePullPolicy: Never
+          image: kariimm557/app-cobaye-client:latest
           ports:
             - containerPort: 80
 ---

@@ -14,8 +14,7 @@ spec:
     spec:
       containers:
         - name: server
-          image: app-cobaye-server:latest
-          imagePullPolicy: Never
+          image: kariimm557/app-cobaye-server:latest
           command: ["./wait-for-it.sh", "postgres-db:5432", "--", "node", "main.js"]
           env:
             - name: SECRET
