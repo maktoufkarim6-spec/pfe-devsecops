@@ -29,6 +29,14 @@ pipeline {
             }
         }
 
+        stage('Scan securite Trivy') {
+            steps {
+                echo 'Analyse des vulnerabilites avec Trivy...'
+                sh 'trivy image --severity CRITICAL,HIGH --exit-code 0 --no-progress $IMAGE_SERVER:latest'
+                sh 'trivy image --severity CRITICAL,HIGH --exit-code 0 --no-progress $IMAGE_CLIENT:latest'
+            }
+        }
+
         stage('Login Docker Hub') {
             steps {
                 echo 'Connexion à Docker Hub...'
@@ -49,7 +57,7 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline terminé avec succès ! Images poussées sur Docker Hub.'
+            echo 'Pipeline terminé avec succès ! Images scannées et poussées.'
         }
         failure {
             echo 'Le pipeline a échoué. Vérifiez les logs.'
