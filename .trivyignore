@@ -1,0 +1,5 @@
+# Exceptions Trivy documentees (failles CRITIQUES acceptees temporairement).
+# Format : CVE-AAAA-NNNN exp:AAAA-MM-JJ   # paquet - justification
+# Chaque exception expire : a la date indiquee, la faille rebloque le pipeline
+# et doit etre corrigee (mise a jour de la dependance) ou re-justifiee.
+# Toute NOUVELLE faille critique corrigeable bloque le pipeline.

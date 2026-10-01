@@ -14,13 +14,59 @@ spec:
     spec:
       containers:
         - name: server
-          image: kariimm557/app-cobaye-server:latest
+          image: kariimm557/app-cobaye-server:7
           command: ["./wait-for-it.sh", "postgres-db:5432", "--", "node", "main.js"]
           env:
+            # Secrets lus dans le Secret Kubernetes app-cobaye-secrets (jamais dans Git)
             - name: SECRET
-              value: "changeme"
+              valueFrom:
+                secretKeyRef:
+                  name: app-cobaye-secrets
+                  key: jwt-secret
+            # TypeORM lit sa configuration dans ces variables (prioritaires sur ormconfig.json)
+            - name: TYPEORM_CONNECTION
+              value: postgres
+            - name: TYPEORM_HOST
+              value: postgres-db
+            - name: TYPEORM_PORT
+              value: "5432"
+            - name: TYPEORM_DATABASE
+              value: demo
+            - name: TYPEORM_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-cobaye-secrets
+                  key: postgres-user
+            - name: TYPEORM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-cobaye-secrets
+                  key: postgres-password
+            - name: TYPEORM_SYNCHRONIZE
+              value: "true"
+            - name: TYPEORM_LOGGING
+              value: "false"
+            - name: TYPEORM_ENTITIES
+              value: "./**/*.entity.js"
           ports:
             - containerPort: 5500
+          readinessProbe:
+            tcpSocket:
+              port: 5500
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5500
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              memory: 384Mi
 ---
 apiVersion: v1
 kind: Service

@@ -16,14 +16,38 @@ spec:
         - name: postgres
           image: postgres:16
           env:
+            # Identifiants lus dans le Secret Kubernetes app-cobaye-secrets (jamais dans Git)
             - name: POSTGRES_USER
-              value: admin
+              valueFrom:
+                secretKeyRef:
+                  name: app-cobaye-secrets
+                  key: postgres-user
             - name: POSTGRES_PASSWORD
-              value: admin
+              valueFrom:
+                secretKeyRef:
+                  name: app-cobaye-secrets
+                  key: postgres-password
             - name: POSTGRES_DB
               value: demo
           ports:
             - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\""]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\""]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
 ---
 apiVersion: v1
 kind: Service

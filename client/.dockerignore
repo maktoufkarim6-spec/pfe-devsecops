@@ -1,3 +1,4 @@
 node_modules
-npm-debug
+build
+npm-debug.log
 .git
