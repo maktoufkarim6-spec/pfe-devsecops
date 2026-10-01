@@ -3,3 +3,9 @@
 # Chaque exception expire : a la date indiquee, la faille rebloque le pipeline
 # et doit etre corrigee (mise a jour de la dependance) ou re-justifiee.
 # Toute NOUVELLE faille critique corrigeable bloque le pipeline.
+
+# Exceptions initiales, inventaire du 01/10/2026 (scripts/preparer-vps.sh)
+CVE-2022-33171 exp:2026-12-30   # typeorm 0.2.25 -> 0.3.0 : version majeure incompatible (API modifiee), migration a planifier
+CVE-2019-18413 exp:2026-12-30   # class-validator 0.12.2 -> 0.14.0 : change le comportement de validation (forbidUnknownValues), a tester avant migration
+# Corrigees au lieu d'etre ignorees : libcrypto3 (apk upgrade), tar (npm retire de l'image),
+# minimist 1.2.8 et sha.js 2.4.12 (overrides dans server/package.json).
