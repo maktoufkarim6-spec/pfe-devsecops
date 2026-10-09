@@ -12,6 +12,7 @@ spec:
       labels:
         app: server
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: server
           image: kariimm557/app-cobaye-server:7
@@ -50,6 +51,18 @@ spec:
               value: "./**/*.entity.js"
           ports:
             - containerPort: 5500
+          securityContext:
+            # 1000 = utilisateur "node" de l'image (numerique : verifiable par Kubernetes)
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             tcpSocket:
               port: 5500
@@ -65,8 +78,15 @@ spec:
             requests:
               cpu: 50m
               memory: 96Mi
+              ephemeral-storage: 16Mi
             limits:
+              cpu: 500m
               memory: 384Mi
+              ephemeral-storage: 64Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
 ---
 apiVersion: v1
 kind: Service

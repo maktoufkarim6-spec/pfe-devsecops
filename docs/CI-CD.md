@@ -10,15 +10,16 @@ git push main ──► Jenkins (CI) ──────────────�
 
 | Contrôle | Comportement |
 |---|---|
-| SonarQube | Démarré par le pipeline s'il est arrêté, puis ré-arrêté. **Bloquant** si le Quality Gate échoue. |
+| SonarQube | Démarré par le pipeline s'il est arrêté, puis ré-arrêté. Reçoit la couverture des tests. **Bloquant** si le Quality Gate échoue ; les conditions en échec, hotspots et problèmes du code nouveau sont alors affichés dans le journal Jenkins. |
 | Trivy | **Bloquant** sur toute faille CRITIQUE corrigeable non listée dans `.trivyignore`. Les HIGH sont affichées sans bloquer. |
 | Tag d'image | `<n° de build>-<commit court>` (ex. `8-76ada39`), écrit dans `k8s/` : chaque déploiement est un commit traçable. |
 | Anti-boucle | Le commit `[skip ci]` de Jenkins ne relance pas la CI (build marqué NOT_BUILT). |
 | Concurrence | Un seul build à la fois ; arrêt automatique après 30 min. |
 | Secrets | Plus aucun secret dans Git : les pods lisent le Secret Kubernetes `app-cobaye-secrets` (copie dans Vault `secret/app-cobaye-k8s`). |
 | AIOps | Le pipeline pose la fenêtre de maintenance du moteur AIOps pendant le build. |
-| Tests | 24 tests unitaires de l'API (authentification, mots de passe, droits sur les tâches) exécutés pendant le build de l'image serveur : **bloquants**. |
-| Pods | Sondes de disponibilité et de vie, requêtes et limites mémoire. |
+| Tests | 27 tests unitaires de l'API (authentification, mots de passe, droits sur les tâches, contrôleurs), environ 93 % des lignes couvertes, exécutés dans l'étape *Tests serveur et couverture* : **bloquants**. |
+| Pods | Sondes de disponibilité et de vie ; limites CPU, mémoire et disque ; aucun conteneur root (utilisateurs 1000, 101 et 999), système de fichiers en lecture seule, capabilities retirées, pas de jeton de compte de service. |
+| Images | Copies explicites (pas de `COPY . .`) ; client servi par nginx non-root sur le port 8080. |
 | Données | PostgreSQL sur un volume persistant (`postgres-data`, provisionneur local-path de k3s) : les données survivent aux redémarrages. |
 
 Jenkins n'a **aucun accès au cluster** : il n'écrit que dans Git.

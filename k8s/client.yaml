@@ -12,29 +12,49 @@ spec:
       labels:
         app: client
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: client
           image: kariimm557/app-cobaye-client:7
           ports:
-            - containerPort: 80
+            - containerPort: 8080
+          securityContext:
+            # 101 = utilisateur nginx de l'image nginx-unprivileged
+            runAsUser: 101
+            runAsGroup: 101
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             httpGet:
               path: /
-              port: 80
+              port: 8080
             initialDelaySeconds: 3
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /
-              port: 80
+              port: 8080
             initialDelaySeconds: 15
             periodSeconds: 20
           resources:
             requests:
               cpu: 10m
               memory: 16Mi
+              ephemeral-storage: 16Mi
             limits:
+              cpu: 200m
               memory: 128Mi
+              ephemeral-storage: 64Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
 ---
 apiVersion: v1
 kind: Service
@@ -45,7 +65,7 @@ spec:
     app: client
   ports:
     - port: 80
-      targetPort: 80
+      targetPort: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

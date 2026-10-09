@@ -1,11 +1,16 @@
-# ---------- build : tests unitaires puis compilation TypeScript ----------
+# ---------- build : tests unitaires (avec couverture) puis compilation TypeScript ----------
 FROM node:18-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
+RUN chown node:node /app
+USER node
+COPY --chown=node:node package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY . .
+# Copie explicite (pas de "COPY . .") : aucun fichier inattendu (.env, cles...) n'entre dans l'image
+COPY --chown=node:node tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY --chown=node:node src ./src
 # Porte de qualite : si un test echoue, l'image n'est pas construite et le pipeline s'arrete.
-RUN npm test -- --ci
+# Le rapport coverage/lcov.info est recupere par Jenkins pour SonarQube.
+RUN npm test -- --ci --coverage --coverageReporters=lcov --coverageReporters=text-summary
 RUN npm run build
 
 # ---------- runtime : uniquement les dependances de production (moins de failles, image plus legere) ----------

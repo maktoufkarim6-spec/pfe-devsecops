@@ -16,6 +16,12 @@ spec:
       labels:
         app: postgres
     spec:
+      automountServiceAccountToken: false
+      # Utilisateur postgres (999) : le processus et les fichiers de donnees ne sont jamais root
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
         - name: postgres
           image: postgres:16
@@ -40,6 +46,11 @@ spec:
               mountPath: /var/lib/postgresql/data
           ports:
             - containerPort: 5432
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             exec:
               command: ["sh", "-c", "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\""]
@@ -55,8 +66,11 @@ spec:
             requests:
               cpu: 50m
               memory: 64Mi
+              ephemeral-storage: 32Mi
             limits:
+              cpu: 500m
               memory: 512Mi
+              ephemeral-storage: 256Mi
       volumes:
         - name: data
           persistentVolumeClaim:

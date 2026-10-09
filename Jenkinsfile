@@ -53,6 +53,25 @@ pipeline {
             }
         }
 
+        stage('Tests serveur et couverture') {
+            when { expression { env.SKIP != 'true' } }
+            steps {
+                // Les 27 tests unitaires de l'API tournent dans l'etape "build" du Dockerfile :
+                // un test en echec arrete le pipeline ici. Le rapport de couverture est extrait pour SonarQube.
+                sh '''
+                    docker build --target build -t app-cobaye-server-tests:$TAG ./server
+                    rm -rf server/coverage && mkdir -p server/coverage
+                    cid=$(docker create app-cobaye-server-tests:$TAG)
+                    docker cp "$cid:/app/coverage/lcov.info" server/coverage/lcov.info
+                    docker rm "$cid" >/dev/null
+                    docker rmi app-cobaye-server-tests:$TAG >/dev/null || true
+                    # Chemins relatifs a la racine du depot, attendus par SonarQube
+                    sed -i 's#^SF:src/#SF:server/src/#' server/coverage/lcov.info
+                    echo "Fichiers couverts : $(grep -c '^SF:' server/coverage/lcov.info)"
+                '''
+            }
+        }
+
         stage('Analyse SonarQube') {
             when { expression { env.SKIP != 'true' } }
             steps {
@@ -74,23 +93,45 @@ pipeline {
                         done
                         echo "SonarQube indisponible apres 5 min"; exit 1
                     '''
-                    // qualitygate.wait : le scanner attend le verdict et echoue si le Quality Gate echoue.
-                    sh '''
-                        $SCANNER_HOME/bin/sonar-scanner \
-                          -Dsonar.projectKey=app-cobaye \
-                          -Dsonar.sources=. \
-                          -Dsonar.exclusions=**/node_modules/**,**/build/**,**/*.png \
-                          -Dsonar.qualitygate.wait=true \
-                          -Dsonar.qualitygate.timeout=300
-                    '''
+                    script {
+                        // qualitygate.wait : le scanner attend le verdict et echoue si le Quality Gate echoue.
+                        def rc = sh(returnStatus: true, script: '''
+                            $SCANNER_HOME/bin/sonar-scanner \
+                              -Dsonar.projectKey=app-cobaye \
+                              -Dsonar.sources=. \
+                              -Dsonar.exclusions=**/node_modules/**,**/build/**,**/coverage/**,**/*.png,**/*.ico,**/*.spec.ts,**/*.test.tsx \
+                              -Dsonar.tests=server/src \
+                              -Dsonar.test.inclusions=**/*.spec.ts \
+                              -Dsonar.javascript.lcov.reportPaths=server/coverage/lcov.info \
+                              -Dsonar.qualitygate.wait=true \
+                              -Dsonar.qualitygate.timeout=300
+                        ''')
+                        if (rc != 0) {
+                            // Diagnostic dans le journal Jenkins : quelles conditions, quels fichiers.
+                            // set +x : le jeton SonarQube n'apparait jamais dans le journal.
+                            sh '''
+                                set +x
+                                api() { curl -s -u "$SONAR_AUTH_TOKEN:" "$SONAR_HOST_URL/api/$1"; }
+                                echo "===== Conditions du Quality Gate en echec ====="
+                                api "qualitygates/project_status?projectKey=app-cobaye" | grep -o '{"status":"ERROR","metricKey"[^}]*}' || echo "(aucune)"
+                                echo "===== Security Hotspots a revoir (code nouveau) ====="
+                                api "hotspots/search?project=app-cobaye&status=TO_REVIEW&inNewCodePeriod=true&ps=100" \
+                                  | grep -o '"component":"[^"]*"\\|"line":[0-9]*\\|"message":"[^"]*"' || echo "(aucun)"
+                                echo "===== Problemes non resolus (code nouveau) ====="
+                                api "issues/search?componentKeys=app-cobaye&inNewCodePeriod=true&resolved=false&ps=100" \
+                                  | grep -o '"severity":"[^"]*"\\|"component":"[^"]*"\\|"line":[0-9]*\\|"message":"[^"]*"' || echo "(aucun)"
+                            '''
+                            error('Quality Gate SonarQube en echec : conditions detaillees ci-dessus.')
+                        }
+                    }
                 }
             }
         }
 
-        stage('Tests + build image serveur') {
+        stage('Build image serveur') {
             when { expression { env.SKIP != 'true' } }
             steps {
-                // Les tests unitaires de l'API tournent pendant le build (Dockerfile) : un test en echec arrete le pipeline.
+                // Reutilise le cache de l'etape "Tests serveur" : les tests ne sont pas relances inutilement.
                 sh 'docker build --pull -t $IMAGE_SERVER:$TAG -t $IMAGE_SERVER:latest ./server'
             }
         }

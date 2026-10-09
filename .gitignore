@@ -5,3 +5,4 @@ server/database/data/
 build/
 dist/
 get-docker.sh
+server/coverage/
