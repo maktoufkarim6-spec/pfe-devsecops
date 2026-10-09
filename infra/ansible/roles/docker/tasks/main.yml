@@ -1,0 +1,24 @@
+- name: Vérifier si Docker est déjà installé
+  ansible.builtin.command: docker version --format "{{ '{{' }}.Server.Version{{ '}}' }}"
+  register: docker_check
+  changed_when: false
+  failed_when: false
+
+- name: Installer Docker (paquet Debian) s'il est absent
+  ansible.builtin.apt:
+    name: docker.io
+    state: present
+    update_cache: true
+  when: docker_check.rc != 0
+
+- name: Installer la bibliothèque Python Docker (modules community.docker)
+  ansible.builtin.apt:
+    name: python3-docker
+    state: present
+    update_cache: "{{ docker_check.rc != 0 }}"
+
+- name: Docker démarré au boot
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true

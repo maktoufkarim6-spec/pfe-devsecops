@@ -1,0 +1,5 @@
+- name: Appliquer le pare-feu des collecteurs
+  ansible.builtin.systemd_service:
+    name: pfe-exporters-firewall
+    state: restarted
+    daemon_reload: true

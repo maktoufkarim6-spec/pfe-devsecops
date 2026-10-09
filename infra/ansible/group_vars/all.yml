@@ -1,0 +1,35 @@
+# Serveur de supervision (seule adresse autorisée à lire les collecteurs des nœuds)
+monitoring_ip: "{{ hostvars[groups['monitoring'][0]].ansible_host }}"
+
+# Images (versions figées ; cAdvisor « latest » requis pour le stockage containerd de Docker récent)
+image_node_exporter: quay.io/prometheus/node-exporter:v1.8.2
+image_cadvisor: gcr.io/cadvisor/cadvisor:latest
+image_cadvisor_k3s: gcr.io/cadvisor/cadvisor:v0.49.1
+image_prometheus: prom/prometheus:v2.53.0
+image_alertmanager: prom/alertmanager:v0.27.0
+image_grafana: grafana/grafana:11.6.0
+
+# Ports des collecteurs sur chaque nœud (réseau de l'hôte, filtrés par le pare-feu)
+port_node_exporter: 9100
+port_cadvisor: 8081
+port_cadvisor_k3s: 8082
+
+# Plages autorisées en plus du serveur de supervision : local, réseaux Docker, pods k3s
+exporters_allowed_extra: ["127.0.0.0/8", "172.16.0.0/12", "10.42.0.0/16"]
+
+# Dossier où Jenkins (ou un opérateur) annonce une maintenance (lu par node-exporter)
+textfile_dir: /var/lib/node_exporter/textfile
+
+# Supervision
+monitoring_dir: /opt/pfe-monitoring
+repo_url: https://github.com/maktoufkarim6-spec/pfe-devsecops.git
+repo_dir: /opt/pfe-devsecops
+prometheus_retention: 15d
+aiops_version: "3.1.0"
+
+# Alertes par e-mail (Gmail). Vide : alertes visibles dans Alertmanager et Grafana seulement.
+# Le mot de passe d'application n'est jamais écrit ici : variable d'environnement PFE_SMTP_PASSWORD.
+alert_email_to: ""
+alert_email_from: ""
+smtp_smarthost: smtp.gmail.com:587
+smtp_password: "{{ lookup('ansible.builtin.env', 'PFE_SMTP_PASSWORD') }}"

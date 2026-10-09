@@ -1,0 +1,32 @@
+# À lancer APRÈS avoir vérifié le nouveau Grafana : arrête l'ancienne supervision du VPS applicatif
+# pour libérer sa RAM. Rien n'est supprimé (conteneurs, volumes et données restent) : retour arrière
+# possible avec « docker start <nom> » et « docker update --restart unless-stopped <nom> ».
+
+- name: Arrêt de l'ancienne supervision mono-serveur
+  hosts: nodes
+  become: true
+  vars:
+    anciens: [prometheus, grafana, alertmanager, aiops-engine, netdata]
+  tasks:
+    - name: Ne plus redémarrer automatiquement
+      ansible.builtin.command: docker update --restart=no {{ item }}
+      loop: "{{ anciens }}"
+      register: update
+      changed_when: update.rc == 0
+      failed_when: false
+
+    - name: Arrêter
+      ansible.builtin.command: docker stop {{ item }}
+      loop: "{{ anciens }}"
+      register: stop
+      changed_when: stop.rc == 0
+      failed_when: false
+
+    - name: Mémoire disponible après l'arrêt
+      ansible.builtin.command: free -h
+      register: mem
+      changed_when: false
+
+    - name: Résultat
+      ansible.builtin.debug:
+        msg: "{{ mem.stdout_lines }}"

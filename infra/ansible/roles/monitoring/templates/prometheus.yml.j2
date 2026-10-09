@@ -1,0 +1,33 @@
+# {{ ansible_managed }}
+# Chaque collecteur porte l'étiquette node : Grafana et le moteur AIOps filtrent par nœud.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["mon-alertmanager:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: aiops-engine
+    static_configs:
+      - targets: ["mon-aiops-engine:8000"]
+
+{% for job, port, only_app in [("node-exporter", port_node_exporter, false), ("cadvisor", port_cadvisor, false), ("cadvisor-k3s", port_cadvisor_k3s, true)] %}
+  - job_name: {{ job }}
+    static_configs:
+{% for host in groups['all'] if (not only_app) or (hostvars[host].node_app | bool) %}
+      - targets: ["{{ 'host.docker.internal' if host in groups['monitoring'] else hostvars[host].ansible_host }}:{{ port }}"]
+        labels:
+          node: {{ hostvars[host].node_name }}
+{% endfor %}
+
+{% endfor %}

@@ -1,0 +1,74 @@
+# Règles d'alerte du parc (toutes par nœud). Fichier statique : les {{ }} sont des modèles Prometheus.
+groups:
+  - name: infrastructure
+    rules:
+      - alert: NoeudInjoignable
+        expr: up{job="node-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Nœud {{ $labels.node }} injoignable"
+          description: "Prometheus ne parvient plus à lire node-exporter sur {{ $labels.node }} depuis 2 minutes (serveur arrêté, réseau ou pare-feu)."
+
+      - alert: CpuEleve
+        expr: 100 - avg by (node) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU à {{ $value | printf \"%.0f\" }} % sur {{ $labels.node }}"
+
+      - alert: RamElevee
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RAM à {{ $value | printf \"%.0f\" }} % sur {{ $labels.node }}"
+
+      - alert: DisquePlein
+        expr: 100 - node_filesystem_avail_bytes{mountpoint="/",fstype="ext4"} / node_filesystem_size_bytes{mountpoint="/",fstype="ext4"} * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disque à {{ $value | printf \"%.0f\" }} % sur {{ $labels.node }}"
+
+  - name: aiops
+    rules:
+      - alert: AnomalieAIOps
+        expr: aiops_anomaly_active == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Anomalie détectée par le moteur AIOps sur {{ $labels.node }}"
+          description: >-
+            Variable la plus déviante :
+            {{ with printf "max by (feature) (aiops_top_feature{node=\"%s\"} == 1)" $labels.node | query }}{{ range . }}{{ .Labels.feature }}{{ end }}{{ end }}
+            (z = {{ with printf "aiops_top_feature_zscore{node=\"%s\"}" $labels.node | query }}{{ . | first | value | printf "%.1f" }}{{ end }}).
+
+      - alert: DisquePleinPrevu
+        expr: aiops_forecast_hours_to_saturation{resource="disk"} < 24 and on (node) aiops_forecast_reliable{resource="disk"} == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disque plein prévu dans {{ $value | printf \"%.0f\" }} h sur {{ $labels.node }} (tendance Theil-Sen fiable)"
+
+      - alert: AIOpsAveugle
+        expr: aiops_data_quality == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Le moteur AIOps ne reçoit plus de données fiables pour {{ $labels.node }}"
+
+      - alert: MoteurAIOpsArrete
+        expr: up{job="aiops-engine"} == 0 or absent(up{job="aiops-engine"})
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Le moteur AIOps ne répond plus : aucune détection d'anomalie en cours"

@@ -1,0 +1,1955 @@
+{
+  "uid": "pfe-supervision",
+  "title": "PFE - Supervision multi-nœuds + AIOps",
+  "tags": [
+    "pfe",
+    "devsecops",
+    "aiops"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "node",
+        "label": "Nœud",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "efx9ykc7u57nkf"
+        },
+        "query": {
+          "query": "label_values(up{job=\"node-exporter\"}, node)",
+          "refId": "A"
+        },
+        "definition": "label_values(up{job=\"node-exporter\"}, node)",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 1
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "VUE D'ENSEMBLE",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Pods de l'app",
+      "id": 2,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "count(count by (container_label_io_kubernetes_container_name) (container_memory_working_set_bytes{job=\"cadvisor-k3s\", container_label_io_kubernetes_pod_namespace=\"default\", container_label_io_kubernetes_container_name!=\"\", container_label_io_kubernetes_container_name!=\"POD\",node=\"$node\"})) or vector(0)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 3
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Nombre de conteneurs de l'application actifs dans k3s (client, server, postgres). Vert = 3/3."
+    },
+    {
+      "type": "stat",
+      "title": "Alertes actives",
+      "id": 3,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "CPU serveur",
+      "id": 4,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\",node=\"$node\"}[2m])) * 100)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "RAM serveur",
+      "id": 5,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "(1 - node_memory_MemAvailable_bytes{node=\"$node\"} / node_memory_MemTotal_bytes{node=\"$node\"}) * 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 75
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Disque",
+      "id": 6,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "100 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype=\"ext4\",node=\"$node\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype=\"ext4\",node=\"$node\"} * 100)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 75
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Utilisation du disque racine (/) du VPS."
+    },
+    {
+      "type": "stat",
+      "title": "Uptime",
+      "id": 7,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "time() - node_boot_time_seconds{node=\"$node\"}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Temps écoulé depuis le dernier démarrage du VPS."
+    },
+    {
+      "type": "row",
+      "title": "APPLICATION (pods k3s : client / server / postgres)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 10,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU des pods",
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "sum by (container_label_io_kubernetes_container_name) (rate(container_cpu_usage_seconds_total{job=\"cadvisor-k3s\", container_label_io_kubernetes_pod_namespace=\"default\", container_label_io_kubernetes_container_name!=\"\", container_label_io_kubernetes_container_name!=\"POD\",node=\"$node\"}[2m])) * 100",
+          "legendFormat": "{{container_label_io_kubernetes_container_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "decimals": 2,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "RAM des pods",
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "sum by (container_label_io_kubernetes_container_name) (container_memory_working_set_bytes{job=\"cadvisor-k3s\", container_label_io_kubernetes_pod_namespace=\"default\", container_label_io_kubernetes_container_name!=\"\", container_label_io_kubernetes_container_name!=\"POD\",node=\"$node\"})",
+          "legendFormat": "{{container_label_io_kubernetes_container_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "SERVEUR DANS LE TEMPS",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "id": 20,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU serveur",
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\",node=\"$node\"}[2m])) * 100)",
+          "legendFormat": "CPU utilisé"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "RAM serveur",
+      "id": 22,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "(1 - node_memory_MemAvailable_bytes{node=\"$node\"} / node_memory_MemTotal_bytes{node=\"$node\"}) * 100",
+          "legendFormat": "RAM utilisée"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Réseau serveur",
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|veth.*|docker.*|br-.*|cni.*|flannel.*\",node=\"$node\"}[2m]))",
+          "legendFormat": "Reçu"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|docker.*|br-.*|cni.*|flannel.*\",node=\"$node\"}[2m]))",
+          "legendFormat": "Envoyé"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "OUTILLAGE DEVSECOPS (Docker)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 30,
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "CPU des outils",
+          "id": 31,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 25
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "efx9ykc7u57nkf"
+              },
+              "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"jenkins|sonarqube|sonar-db|vault|mon-.*|aiops-engine|cadvisor.*|node-exporter\",node=\"$node\"}[2m])) * 100",
+              "legendFormat": "{{name}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "decimals": 2,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "RAM des outils",
+          "id": 32,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 25
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "efx9ykc7u57nkf"
+              },
+              "expr": "sum by (name) (container_memory_working_set_bytes{name=~\"jenkins|sonarqube|sonar-db|vault|mon-.*|aiops-engine|cadvisor.*|node-exporter\",node=\"$node\"})",
+              "legendFormat": "{{name}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "AIOPS : détection d'anomalies et comparaison des méthodes",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 101,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "État AIOps",
+      "id": 102,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 26
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "aiops_anomaly_active{node=\"$node\"}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "NORMAL",
+                  "color": "green",
+                  "index": 0
+                },
+                "1": {
+                  "text": "ANOMALIE",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Décision finale du moteur aiops-engine (z-score robuste OU Isolation Forest validé par la porte de pertinence)."
+    },
+    {
+      "type": "stat",
+      "title": "Données",
+      "id": 103,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 26
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "aiops_data_quality{node=\"$node\"}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "AVEUGLE",
+                  "color": "orange",
+                  "index": 0
+                },
+                "1": {
+                  "text": "OK",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "OK si toutes les variables sont présentes, plausibles et fraîches (< 2 min). AVEUGLE : le moteur s'abstient."
+    },
+    {
+      "type": "stat",
+      "title": "Mode",
+      "id": 104,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 26
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "clamp_max(aiops_maintenance{node=\"$node\"} * 2 + aiops_warmup{node=\"$node\"}, 2)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "SURVEILLANCE",
+                  "color": "green",
+                  "index": 0
+                },
+                "1": {
+                  "text": "CHAUFFE",
+                  "color": "blue",
+                  "index": 1
+                },
+                "2": {
+                  "text": "MAINTENANCE",
+                  "color": "purple",
+                  "index": 2
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "SURVEILLANCE normale, CHAUFFE (20 cycles après démarrage) ou MAINTENANCE (fichier /data/maintenance < 30 min) : pas d'ouverture d'alerte."
+    },
+    {
+      "type": "stat",
+      "title": "Effet E",
+      "id": 105,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 26
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "aiops_combined_effect{node=\"$node\"}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "E = racine de la somme des (écart directionnel / effet minimal)². E ≥ 1 : l'écart global atteint un effet minimal complet."
+    },
+    {
+      "type": "stat",
+      "title": "Variable clé",
+      "id": 106,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 26
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "max by (feature) (aiops_top_feature{node=\"$node\"} == 1)",
+          "legendFormat": "{{feature}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "name",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Variable dont le z-score directionnel est le plus élevé en ce moment (explication de l'alerte)."
+    },
+    {
+      "type": "stat",
+      "title": "Modèle",
+      "id": 107,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 26
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "aiops_model_version{node=\"$node\"}",
+          "legendFormat": "version",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "sum(aiops_regime_changes_total{node=\"$node\"}) or vector(0)",
+          "legendFormat": "régimes",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Version du modèle en service et nombre de changements de régime acceptés automatiquement."
+    },
+    {
+      "type": "timeseries",
+      "title": "Z-score robuste (seuil 3,5)",
+      "id": 108,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 31
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "(aiops_zscore_max_smoothed{node=\"$node\"}) and on() (aiops_model_ready{node=\"$node\"} == 1)",
+          "legendFormat": "z lissé"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "(aiops_zscore_max{node=\"$node\"}) and on() (aiops_model_ready{node=\"$node\"} == 1)",
+          "legendFormat": "z brut"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 3.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "z = 0,6745 (x − médiane) / MAD_eff, limité au sens dangereux. Brut et lissé par EWMA (λ). Alerte si 3 des 4 derniers lissés > 3,5."
+    },
+    {
+      "type": "timeseries",
+      "title": "Isolation Forest",
+      "id": 109,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 31
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "(aiops_iforest_score_smoothed{node=\"$node\"}) and on() (aiops_model_ready{node=\"$node\"} == 1) and on() (aiops_iforest_score_smoothed{node=\"$node\"} > 0)",
+          "legendFormat": "score lissé"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "(aiops_iforest_threshold_high{node=\"$node\"}) and on() (aiops_model_ready{node=\"$node\"} == 1) and on() (aiops_iforest_threshold_high{node=\"$node\"} > 0)",
+          "legendFormat": "seuil ouverture"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "(aiops_iforest_threshold_low{node=\"$node\"}) and on() (aiops_model_ready{node=\"$node\"} == 1) and on() (aiops_iforest_threshold_low{node=\"$node\"} > 0)",
+          "legendFormat": "seuil fermeture"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Score s(x,n) = 2^(−E[h(x)]/c(n)) lissé. Seuil d'ouverture = percentile 99,5 appris ; seuil de fermeture plus bas (hystérésis)."
+    },
+    {
+      "type": "timeseries",
+      "title": "Effet combiné E (seuil 1)",
+      "id": 110,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 31
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "aiops_combined_effect{node=\"$node\"} and on() (aiops_model_ready{node=\"$node\"} == 1)",
+          "legendFormat": "E"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Porte de pertinence : l'Isolation Forest ne peut alerter que si E ≥ 1 sur 3 des 4 derniers cycles."
+    },
+    {
+      "type": "bargauge",
+      "title": "Z-score par variable",
+      "id": 111,
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 39
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "clamp_min(aiops_zscore{feature=~\"cpu_host|ram_host|disk_host|cpu_server\",node=\"$node\"}, 0) or aiops_zscore{feature!~\"cpu_host|ram_host|disk_host|cpu_server\",node=\"$node\"}",
+          "legendFormat": "{{feature}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": -6,
+          "max": 6,
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": -3.5
+              },
+              {
+                "color": "red",
+                "value": 3.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Z-score de chaque variable dans le sens dangereux uniquement (ex. une baisse du disque compte 0). Rouge au-delà de 3,5."
+    },
+    {
+      "type": "state-timeline",
+      "title": "Comparaison des méthodes",
+      "id": 112,
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 39
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "aiops_anomaly_active{node=\"$node\"}",
+          "legendFormat": "Décision AIOps (finale)"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "aiops_zscore_anomaly{node=\"$node\"}",
+          "legendFormat": "Z-score robuste"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "aiops_iforest_anomaly{node=\"$node\"}",
+          "legendFormat": "Isolation Forest (porte)"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "(100 - avg(rate(node_cpu_seconds_total{mode=\"idle\",node=\"$node\"}[2m])) * 100) > bool 80",
+          "legendFormat": "Seuil statique CPU > 80 %"
+        },
+        {
+          "refId": "F",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "clamp_max(aiops_maintenance{node=\"$node\"} * 2 + aiops_warmup{node=\"$node\"}, 2)",
+          "legendFormat": "Mode (chauffe / maintenance)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "normal",
+                  "color": "transparent",
+                  "index": 0
+                },
+                "1": {
+                  "text": "détection",
+                  "color": "red",
+                  "index": 1
+                },
+                "2": {
+                  "text": "maintenance",
+                  "color": "purple",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mode (chauffe / maintenance)"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "surveillance",
+                        "color": "transparent",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "chauffe",
+                        "color": "blue",
+                        "index": 1
+                      },
+                      "2": {
+                        "text": "maintenance",
+                        "color": "purple",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showValue": "never",
+        "rowHeight": 0.8,
+        "mergeValues": true,
+        "alignValue": "left",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "description": "Frise des détections : moteur AIOps (décision finale, z-score, Isolation Forest), Netdata ML, seuil statique CPU > 80 %, et périodes de chauffe/maintenance."
+    },
+    {
+      "type": "stat",
+      "title": "Disque plein dans",
+      "id": 113,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 47
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "aiops_forecast_hours_to_saturation{resource=\"disk\",node=\"$node\"} and on() (aiops_forecast_reliable{resource=\"disk\",node=\"$node\"} == 1)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 24
+              },
+              {
+                "color": "green",
+                "value": 168
+              }
+            ]
+          },
+          "decimals": 0,
+          "noValue": "Aucune tendance fiable"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Régression de Theil-Sen sur 6 h. Affichée seulement si la tendance est fiable (R² ≥ 0,7) et croissante."
+    },
+    {
+      "type": "stat",
+      "title": "RAM saturée dans",
+      "id": 114,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 47
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "aiops_forecast_hours_to_saturation{resource=\"ram\",node=\"$node\"} and on() (aiops_forecast_reliable{resource=\"ram\",node=\"$node\"} == 1)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "green",
+                "value": 24
+              }
+            ]
+          },
+          "decimals": 0,
+          "noValue": "Aucune tendance fiable"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Régression de Theil-Sen sur 6 h. Affichée seulement si la tendance est fiable (R² ≥ 0,7) et croissante."
+    },
+    {
+      "type": "stat",
+      "title": "Fiabilité (R²)",
+      "id": 115,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 47
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "clamp_min(aiops_forecast_r2{resource=\"disk\",node=\"$node\"}, 0)",
+          "legendFormat": "disque"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "clamp_min(aiops_forecast_r2{resource=\"ram\",node=\"$node\"}, 0)",
+          "legendFormat": "RAM"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.7
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Coefficient de détermination de la tendance. Une prévision n'est utilisée que si R² ≥ 0,7."
+    },
+    {
+      "type": "stat",
+      "title": "Collecteurs joignables",
+      "id": 116,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 47
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "sum(up{node=\"$node\"}) / count(up{node=\"$node\"}) * 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 100
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Collecteurs du nœud (node-exporter, cAdvisor) que Prometheus parvient à joindre."
+    }
+  ]
+}

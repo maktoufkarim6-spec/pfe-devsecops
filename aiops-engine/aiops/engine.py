@@ -17,6 +17,9 @@ from .mathlib import hours_to_saturation, psi
 from .model import AnomalyModel, train_champion_challenger
 
 log = logging.getLogger("aiops")
+# Maintenance annoncée par un nœud : fichier texte lu par node-exporter (collecteur textfile),
+# contenant pfe_maintenance_until_seconds <horodatage de fin>. Voir infra/ et le Jenkinsfile.
+MAINTENANCE_METRIC = "pfe_maintenance_until_seconds"
 
 
 class _NodeLog(logging.LoggerAdapter):
@@ -82,8 +85,26 @@ class Engine:
         name = f"{stem}.{ext}" if self.target.legacy else f"{stem}-{self.target.name}.{ext}"
         return os.path.join(self.cfg.data_dir, name)
 
+    def announced_maintenance(self, now):
+        """Maintenance annoncée par le nœud lui-même via Prometheus (multi-nœuds, sans accès au moteur).
+        Une annonce plus longue que maintenance_max_minutes est ignorée : jamais de silence permanent."""
+        sel = f'{{node="{self.target.node}"}}' if self.target.node else ""
+        try:
+            until = float(self.prom.instant(f"max({MAINTENANCE_METRIC}{sel})"))
+        except Exception:  # métrique absente, Prometheus indisponible : pas de maintenance
+            return False
+        if not math.isfinite(until) or until <= now:
+            return False
+        if until - now > self.cfg.maintenance_max_minutes * 60 + 60:
+            self.log.warning("Maintenance annoncée trop longue (%.0f min) : ignorée", (until - now) / 60)
+            return False
+        return True
+
     def maintenance_active(self, now):
-        """Fenêtre de maintenance : fichier témoin (global ou du nœud) de moins de maintenance_max_minutes."""
+        """Fenêtre de maintenance : annoncée par le nœud, ou fichier témoin (global ou du nœud) récent."""
+        if self.announced_maintenance(now):
+            self._maintenance_expired_logged = False
+            return True
         ages = []
         for path in self.maintenance_paths:
             try:

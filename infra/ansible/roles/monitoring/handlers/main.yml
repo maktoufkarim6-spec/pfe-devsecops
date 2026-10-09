@@ -1,0 +1,6 @@
+- name: Redémarrer la supervision
+  community.docker.docker_container:
+    name: "{{ item }}"
+    state: started
+    restart: true
+  loop: [mon-prometheus, mon-alertmanager, mon-grafana]

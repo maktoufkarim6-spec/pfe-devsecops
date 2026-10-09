@@ -45,11 +45,14 @@ class FakeProm:
         self.train = {k: dict(zip(train_ts.astype(int), train_X[:, k])) for k in range(train_X.shape[1])}
         self.current = None
         self.staleness = 5.0
+        self.maintenance_until = float("nan")  # pfe_maintenance_until_seconds annoncé par le nœud
 
     def range(self, expr, start, end, step):
         return {t: v for t, v in self.train[self.expr_index[expr]].items() if start <= t <= end}
 
     def instant(self, expr, at=None):
+        if expr.startswith("max(pfe_maintenance_until_seconds"):
+            return self.maintenance_until
         if expr in self.freshness:
             return self.staleness
         return float(self.current[self.expr_index[expr]])

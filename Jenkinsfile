@@ -48,8 +48,15 @@ pipeline {
         stage('Fenetre de maintenance AIOps') {
             when { expression { env.SKIP != 'true' } }
             steps {
-                // Le build charge le serveur : on previent le moteur AIOps (expire seule apres 30 min).
-                sh 'docker exec aiops-engine touch /data/maintenance || echo "aiops-engine absent : ignore"'
+                // Le build charge le serveur : il annonce 30 min de maintenance au moteur AIOps.
+                // Multi-noeuds : fichier lu par node-exporter de CE noeud, puis par le moteur du serveur
+                // de supervision (pfe_maintenance_until_seconds). Ancien mode mono-serveur conserve en secours.
+                sh '''
+                    docker run --rm -v /var/lib/node_exporter/textfile:/t alpine:3.20 sh -c \
+                      'echo "pfe_maintenance_until_seconds $(( $(date +%s) + 1800 ))" > /t/.maintenance && mv /t/.maintenance /t/maintenance.prom' \
+                      || echo "Annonce de maintenance impossible : ignore"
+                    docker exec aiops-engine touch /data/maintenance 2>/dev/null || true
+                '''
             }
         }
 

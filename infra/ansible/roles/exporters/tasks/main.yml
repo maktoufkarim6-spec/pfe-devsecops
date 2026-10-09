@@ -1,0 +1,95 @@
+# Collecteurs de métriques d'un nœud, en réseau hôte, lisibles seulement par le serveur de supervision.
+
+- name: Dossier des annonces de maintenance (collecteur textfile de node-exporter)
+  ansible.builtin.file:
+    path: "{{ textfile_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Collecteur node-exporter (métriques système du nœud)
+  community.docker.docker_container:
+    name: node-exporter
+    image: "{{ image_node_exporter }}"
+    network_mode: host
+    pid_mode: host
+    read_only: true
+    restart_policy: unless-stopped
+    volumes:
+      - "/:/host:ro,rslave"
+      - "{{ textfile_dir }}:/textfile:ro"
+    command:
+      - "--path.rootfs=/host"
+      - "--web.listen-address=:{{ port_node_exporter }}"
+      - "--collector.textfile.directory=/textfile"
+
+- name: Collecteur cAdvisor (conteneurs Docker du nœud)
+  community.docker.docker_container:
+    name: cadvisor
+    image: "{{ image_cadvisor }}"
+    network_mode: host
+    privileged: true
+    restart_policy: unless-stopped
+    devices: ["/dev/kmsg"]
+    volumes:
+      - "/:/rootfs:ro"
+      - "/var/run:/var/run:ro"
+      - "/sys:/sys:ro"
+      - "/var/lib/docker/:/var/lib/docker:ro"
+      - "/dev/disk/:/dev/disk:ro"
+    command: ["--port={{ port_cadvisor }}"]
+
+- name: Collecteur cAdvisor k3s (pods de l'application, via containerd)
+  community.docker.docker_container:
+    name: cadvisor-k3s
+    image: "{{ image_cadvisor_k3s }}"
+    network_mode: host
+    privileged: true
+    restart_policy: unless-stopped
+    devices: ["/dev/kmsg"]
+    volumes:
+      - "/:/rootfs:ro"
+      - "/sys:/sys:ro"
+      - "/dev/disk/:/dev/disk:ro"
+      - "/run/k3s/containerd/containerd.sock:/run/k3s/containerd/containerd.sock:ro"
+    command:
+      - "--port={{ port_cadvisor_k3s }}"
+      - "--containerd=/run/k3s/containerd/containerd.sock"
+      - "--containerd-namespace=k8s.io"
+  when: node_app | bool
+
+- name: Règles de pare-feu des collecteurs (table nftables dédiée, sans toucher aux autres règles)
+  ansible.builtin.template:
+    src: exporters.nft.j2
+    dest: /etc/pfe-exporters.nft
+    mode: "0644"
+  notify: Appliquer le pare-feu des collecteurs
+
+- name: Service qui réapplique le pare-feu au démarrage
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/pfe-exporters-firewall.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Pare-feu des collecteurs de supervision (PFE)
+      After=network-online.target docker.service
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/sbin/nft -f /etc/pfe-exporters.nft
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: Appliquer le pare-feu des collecteurs
+
+- name: Paquet nftables installé
+  ansible.builtin.apt:
+    name: nftables
+    state: present
+
+- name: Pare-feu des collecteurs actif au démarrage
+  ansible.builtin.systemd_service:
+    name: pfe-exporters-firewall
+    enabled: true
+    daemon_reload: true

@@ -1,0 +1,196 @@
+# Serveur de supervision : Prometheus, Alertmanager, Grafana et moteur AIOps.
+
+- name: Conteneurs en cours d'exécution sur le serveur de supervision
+  ansible.builtin.command: docker ps --format "{{ '{{' }}.Names{{ '}}' }}"
+  register: monitoring_running
+  changed_when: false
+
+- name: Ports nécessaires déjà occupés ?
+  ansible.builtin.command:
+    argv: [ss, -ltnH, "( sport = :3000 or sport = :9090 or sport = :9093 or sport = :8010 )"]
+  register: monitoring_busy_ports
+  changed_when: false
+
+- name: Arrêt si une ancienne pile occupe les ports (rien n'est supprimé automatiquement)
+  ansible.builtin.assert:
+    that: >-
+      monitoring_busy_ports.stdout | length == 0
+      or (monitoring_running.stdout_lines | select('match', '^mon-') | list | length > 0)
+    fail_msg: >-
+      Des ports de la supervision (3000, 9090, 9093 ou 8010) sont déjà utilisés par une autre application.
+      Conteneurs actifs : {{ monitoring_running.stdout_lines | join(', ') }}.
+      Arrêtez l'ancienne pile (docker stop <nom>) puis relancez le déploiement.
+
+- name: Dossiers de la supervision
+  ansible.builtin.file:
+    path: "{{ monitoring_dir }}/{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop:
+    - { path: prometheus }
+    - { path: alertmanager }
+    - { path: grafana/provisioning/datasources }
+    - { path: grafana/provisioning/dashboards }
+    - { path: grafana/dashboards }
+    - { path: secrets, mode: "0711" }
+    - { path: aiops-data, owner: "10001", mode: "0750" }
+
+- name: Mot de passe administrateur Grafana (généré une fois, conservé sur le serveur)
+  ansible.builtin.set_fact:
+    monitoring_grafana_admin_password: >-
+      {{ lookup('ansible.builtin.password', lookup('env', 'HOME') + '/.pfe-secrets/grafana-admin',
+                length=24, chars=['ascii_letters', 'digits']) }}
+  no_log: true
+
+- name: Fichiers secrets (jamais dans Git, lisibles par leur seul service)
+  ansible.builtin.copy:
+    dest: "{{ monitoring_dir }}/secrets/{{ item.name }}"
+    content: "{{ item.value }}"
+    owner: "{{ item.owner }}"
+    mode: "0400"
+  loop:
+    - { name: grafana-admin-password, value: "{{ monitoring_grafana_admin_password }}", owner: "472" }
+    - { name: smtp-password, value: "{{ smtp_password }}", owner: "65534" }
+  when: item.value | length > 0
+  no_log: true
+  notify: Redémarrer la supervision
+
+- name: Pas d'e-mail sans mot de passe SMTP
+  ansible.builtin.assert:
+    that: not alert_email_to or smtp_password | length > 0
+    fail_msg: "alert_email_to est renseigné mais PFE_SMTP_PASSWORD est vide."
+
+- name: Configuration Prometheus
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ monitoring_dir }}/prometheus/prometheus.yml"
+    mode: "0644"
+  notify: Redémarrer la supervision
+
+- name: Règles d'alerte
+  ansible.builtin.copy:
+    src: alert-rules.yml
+    dest: "{{ monitoring_dir }}/prometheus/alert-rules.yml"
+    mode: "0644"
+  notify: Redémarrer la supervision
+
+- name: Configuration Alertmanager
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: "{{ monitoring_dir }}/alertmanager/alertmanager.yml"
+    mode: "0644"
+  notify: Redémarrer la supervision
+
+- name: Source de données Grafana
+  ansible.builtin.template:
+    src: grafana-datasource.yml.j2
+    dest: "{{ monitoring_dir }}/grafana/provisioning/datasources/prometheus.yml"
+    mode: "0644"
+  notify: Redémarrer la supervision
+
+- name: Tableaux de bord Grafana (versionnés dans le dépôt)
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ monitoring_dir }}/grafana/{{ item.dest }}"
+    mode: "0644"
+  loop:
+    - { src: grafana-dashboards.yml, dest: provisioning/dashboards/pfe.yml }
+    - { src: dashboards/pfe-supervision.json, dest: dashboards/pfe-supervision.json }
+
+- name: Code du moteur AIOps
+  ansible.builtin.git:
+    repo: "{{ repo_url }}"
+    dest: "{{ repo_dir }}"
+    version: main
+    depth: 1
+    force: true
+  register: monitoring_repo
+
+- name: Image du moteur AIOps (ses 56 tests tournent pendant la construction)
+  community.docker.docker_image:
+    name: aiops-engine
+    tag: "{{ aiops_version }}"
+    source: build
+    build:
+      path: "{{ repo_dir }}/aiops-engine"
+    force_source: "{{ monitoring_repo.changed }}"
+
+- name: Réseau Docker de la supervision
+  community.docker.docker_network:
+    name: pfe-monitoring
+
+- name: Prometheus (accessible seulement depuis le serveur et Grafana)
+  community.docker.docker_container:
+    name: mon-prometheus
+    image: "{{ image_prometheus }}"
+    restart_policy: unless-stopped
+    networks: [{ name: pfe-monitoring }]
+    published_ports: ["127.0.0.1:9090:9090"]
+    etc_hosts: { host.docker.internal: host-gateway }
+    volumes:
+      - "{{ monitoring_dir }}/prometheus:/etc/prometheus:ro"
+      - "pfe-prometheus-data:/prometheus"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time={{ prometheus_retention }}"
+
+- name: Alertmanager
+  community.docker.docker_container:
+    name: mon-alertmanager
+    image: "{{ image_alertmanager }}"
+    restart_policy: unless-stopped
+    networks: [{ name: pfe-monitoring }]
+    published_ports: ["127.0.0.1:9093:9093"]
+    volumes:
+      - "{{ monitoring_dir }}/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"
+      - "{{ monitoring_dir }}/secrets:/etc/alertmanager/secrets:ro"
+      - "pfe-alertmanager-data:/alertmanager"
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+
+- name: Grafana (seul service exposé, avec authentification)
+  community.docker.docker_container:
+    name: mon-grafana
+    image: "{{ image_grafana }}"
+    restart_policy: unless-stopped
+    networks: [{ name: pfe-monitoring }]
+    published_ports: ["3000:3000"]
+    env:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-admin-password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/pfe-supervision.json
+    volumes:
+      - "{{ monitoring_dir }}/grafana/provisioning:/etc/grafana/provisioning:ro"
+      - "{{ monitoring_dir }}/grafana/dashboards:/var/lib/grafana/dashboards:ro"
+      - "{{ monitoring_dir }}/secrets/grafana-admin-password:/run/secrets/grafana-admin-password:ro"
+      - "pfe-grafana-data:/var/lib/grafana"
+
+- name: Moteur AIOps multi-nœuds (non-root, lecture seule, ressources limitées)
+  community.docker.docker_container:
+    name: mon-aiops-engine
+    image: "aiops-engine:{{ aiops_version }}"
+    restart_policy: unless-stopped
+    networks: [{ name: pfe-monitoring }]
+    published_ports: ["127.0.0.1:8010:8000"]
+    read_only: true
+    tmpfs: ["/tmp:rw,size=64m"]
+    capabilities_drop: [ALL]
+    security_opts: ["no-new-privileges:true"]
+    memory: 600m
+    cpus: 1.0
+    env:
+      PROM_URL: http://mon-prometheus:9090
+      AIOPS_TARGETS: "{{ aiops_targets | to_json }}"
+    volumes:
+      - "{{ monitoring_dir }}/aiops-data:/data"
+    recreate: "{{ monitoring_repo.changed }}"
+  vars:
+    aiops_targets: "{{ _target_list | from_yaml }}"
+    _target_list: |
+      {% for h in groups['all'] %}
+      - {"node": "{{ hostvars[h].node_name }}", "app": {{ (hostvars[h].node_app | bool) | to_json }}}
+      {% endfor %}

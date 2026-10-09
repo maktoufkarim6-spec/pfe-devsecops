@@ -115,3 +115,40 @@ def test_noeud_injoignable_isole(tmp_path):
     assert ea.run_once() is None and eb.run_once() is not None
     assert metric("aiops_data_quality", "app-1") == 0
     assert metric("aiops_data_quality", "monitoring") == 1
+
+
+def test_maintenance_annoncee_par_le_noeud_via_prometheus(tmp_path):
+    """Jenkins annonce sa maintenance sur le nœud applicatif (métrique node-exporter) :
+    seul ce nœud est en maintenance, et l'annonce expire seule."""
+    rng = np.random.default_rng(6)
+    a = Target("app-1", "app-1", app=True)
+    b = Target("monitoring", "monitoring", app=False)
+    ea, pa, ca = make(tmp_path, a, normal(rng, 800))
+    eb, pb, cb = make(tmp_path, b, host_normal(rng, 800))
+    now = T0
+    pa.maintenance_until = now + 30 * 60
+    assert ea.maintenance_active(now) and not eb.maintenance_active(now)
+    assert not ea.maintenance_active(now + 31 * 60)  # expirée
+
+
+def test_maintenance_annoncee_trop_longue_ignoree(tmp_path):
+    rng = np.random.default_rng(7)
+    a = Target("app-1", "app-1", app=True)
+    ea, pa, _ = make(tmp_path, a, normal(rng, 800))
+    pa.maintenance_until = T0 + 24 * 3600  # « silence » d'une journée : refusé
+    assert not ea.maintenance_active(T0)
+
+
+def test_alerte_supprimee_pendant_maintenance_annoncee(tmp_path):
+    rng = np.random.default_rng(8)
+    a = Target("app-1", "app-1", app=True)
+    ea, pa, ca = make(tmp_path, a, normal(rng, 1440))
+    stream = normal(rng, 30)
+    stream[:, 0] = 95
+    pa.maintenance_until = T0 + 20 * 60
+    for i in range(30):
+        ca["now"] = T0 + i * CYCLE
+        pa.current = stream[i]
+        ea.run_once()
+    assert not ea.active
+    assert metric("aiops_maintenance", "app-1") == 1

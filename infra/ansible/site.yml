@@ -1,0 +1,17 @@
+# Déploiement de la supervision multi-nœuds. Lancé par ../deploy.sh depuis le serveur de supervision.
+# 1) supervision centrale  2) collecteurs sur chaque nœud (y compris le serveur de supervision lui-même)
+
+- name: Docker sur tous les serveurs
+  hosts: all
+  become: true
+  roles: [docker]
+
+- name: Serveur de supervision
+  hosts: monitoring
+  become: true
+  roles: [monitoring]
+
+- name: Collecteurs et pare-feu sur chaque nœud
+  hosts: all
+  become: true
+  roles: [exporters]

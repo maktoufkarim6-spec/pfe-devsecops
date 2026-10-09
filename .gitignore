@@ -6,3 +6,6 @@ build/
 dist/
 get-docker.sh
 server/coverage/
+__pycache__/
+*.pyc
+.pytest_cache/

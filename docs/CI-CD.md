@@ -16,7 +16,7 @@ git push main ──► Jenkins (CI) ──────────────�
 | Anti-boucle | Le commit `[skip ci]` de Jenkins ne relance pas la CI (build marqué NOT_BUILT). |
 | Concurrence | Un seul build à la fois ; arrêt automatique après 30 min. |
 | Secrets | Plus aucun secret dans Git : les pods lisent le Secret Kubernetes `app-cobaye-secrets` (copie dans Vault `secret/app-cobaye-k8s`). |
-| AIOps | Le pipeline pose la fenêtre de maintenance du moteur AIOps pendant le build. |
+| AIOps | Le pipeline annonce 30 min de maintenance au moteur AIOps (métrique `pfe_maintenance_until_seconds` via node-exporter, voir `infra/README.md`). |
 | Tests | 27 tests unitaires de l'API (authentification, mots de passe, droits sur les tâches, contrôleurs), environ 93 % des lignes couvertes, exécutés dans l'étape *Tests serveur et couverture* : **bloquants**. |
 | Pods | Sondes de disponibilité et de vie ; limites CPU, mémoire et disque ; aucun conteneur root (utilisateurs 1000, 101 et 999), système de fichiers en lecture seule, capabilities retirées, pas de jeton de compte de service. |
 | Images | Copies explicites (pas de `COPY . .`) ; client servi par nginx non-root sur le port 8080. |
