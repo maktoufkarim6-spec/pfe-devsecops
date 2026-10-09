@@ -17,7 +17,9 @@ git push main ──► Jenkins (CI) ──────────────�
 | Concurrence | Un seul build à la fois ; arrêt automatique après 30 min. |
 | Secrets | Plus aucun secret dans Git : les pods lisent le Secret Kubernetes `app-cobaye-secrets` (copie dans Vault `secret/app-cobaye-k8s`). |
 | AIOps | Le pipeline pose la fenêtre de maintenance du moteur AIOps pendant le build. |
+| Tests | 24 tests unitaires de l'API (authentification, mots de passe, droits sur les tâches) exécutés pendant le build de l'image serveur : **bloquants**. |
 | Pods | Sondes de disponibilité et de vie, requêtes et limites mémoire. |
+| Données | PostgreSQL sur un volume persistant (`postgres-data`, provisionneur local-path de k3s) : les données survivent aux redémarrages. |
 
 Jenkins n'a **aucun accès au cluster** : il n'écrit que dans Git.
 
@@ -49,8 +51,7 @@ Ligne dans `.trivyignore` : `CVE-AAAA-NNNN exp:AAAA-MM-JJ   # paquet - justifica
 
 ## Limites connues
 
-- Les tests unitaires de l'application cobaye (squelette Nest.js) ne passent pas : ils ne sont donc pas
-  exécutés par le pipeline. L'application réelle devra fournir des tests fonctionnels, ajoutés avant le build.
+- Tests unitaires seulement : pas encore de tests d'intégration contre une vraie base dans le pipeline.
 - Vault tourne en mode développement (données en mémoire) : le Secret Kubernetes est la copie opérationnelle.
 - Jenkins utilise le Docker de l'hôte : un agent de build isolé serait préférable en production.
-- PostgreSQL n'a pas de volume persistant : les données de démonstration sont recréées à chaque redémarrage du pod.
+- Le volume PostgreSQL est local au VPS : pas de réplication, et les sauvegardes restent à mettre en place (objectif 5, Rundeck).

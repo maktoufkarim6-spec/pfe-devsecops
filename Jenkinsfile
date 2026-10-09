@@ -87,9 +87,10 @@ pipeline {
             }
         }
 
-        stage('Build image serveur') {
+        stage('Tests + build image serveur') {
             when { expression { env.SKIP != 'true' } }
             steps {
+                // Les tests unitaires de l'API tournent pendant le build (Dockerfile) : un test en echec arrete le pipeline.
                 sh 'docker build --pull -t $IMAGE_SERVER:$TAG -t $IMAGE_SERVER:latest ./server'
             }
         }

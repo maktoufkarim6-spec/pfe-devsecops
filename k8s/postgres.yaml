@@ -4,6 +4,10 @@ metadata:
   name: postgres
 spec:
   replicas: 1
+  # Recreate : jamais deux instances PostgreSQL sur le meme volume pendant une mise a jour
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   selector:
     matchLabels:
       app: postgres
@@ -29,6 +33,11 @@ spec:
                   key: postgres-password
             - name: POSTGRES_DB
               value: demo
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
           ports:
             - containerPort: 5432
           readinessProbe:
@@ -48,6 +57,23 @@ spec:
               memory: 64Mi
             limits:
               memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+# Stockage persistant (provisionneur local-path de k3s) : les donnees survivent aux redemarrages du pod
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
 ---
 apiVersion: v1
 kind: Service

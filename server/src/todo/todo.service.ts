@@ -43,8 +43,11 @@ export class TodoService {
 
   createTodo = async (
     userId: string,
-    content: Extract<TodoDTO, 'content'>,
+    content: TodoDTO['content'],
   ): Promise<TodoSO> => {
+    if (typeof content !== 'string' || !content.trim()) {
+      throw new HttpException('Content is required', HttpStatus.BAD_REQUEST);
+    }
     const user = await this.userRepository.findOne({ where: { id: userId } });
     const newTodo = this.todoRepository.create({
       content,

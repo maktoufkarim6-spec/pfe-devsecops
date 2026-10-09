@@ -10,13 +10,12 @@ describe('AppController', () => {
       controllers: [AppController],
       providers: [AppService],
     }).compile();
-
     appController = app.get<AppController>(AppController);
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+  it('renvoie le message de bienvenue', () => {
+    expect(appController.getWelcomeMsg()).toEqual({
+      msg: 'Start building your Postgres-Nest-React Application',
     });
   });
 });

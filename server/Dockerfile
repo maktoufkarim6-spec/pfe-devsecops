@@ -1,9 +1,11 @@
-# ---------- build : compilation TypeScript avec les dependances de developpement ----------
+# ---------- build : tests unitaires puis compilation TypeScript ----------
 FROM node:18-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
+# Porte de qualite : si un test echoue, l'image n'est pas construite et le pipeline s'arrete.
+RUN npm test -- --ci
 RUN npm run build
 
 # ---------- runtime : uniquement les dependances de production (moins de failles, image plus legere) ----------

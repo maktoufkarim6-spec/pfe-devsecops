@@ -28,7 +28,7 @@ export class TodoController {
   @Post('/create')
   createTodo(
     @Req() req,
-    @Body('content') content: Extract<TodoDTO, 'content'>,
+    @Body('content') content: TodoDTO['content'],
   ) {
     const userId = req.user.id;
     return this.todoService.createTodo(userId, content);
