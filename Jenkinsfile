@@ -99,7 +99,7 @@ pipeline {
                             $SCANNER_HOME/bin/sonar-scanner \
                               -Dsonar.projectKey=app-cobaye \
                               -Dsonar.sources=. \
-                              -Dsonar.exclusions=**/node_modules/**,**/build/**,**/coverage/**,**/*.png,**/*.ico,**/*.spec.ts,**/*.test.tsx \
+                              -Dsonar.exclusions=aiops-engine/**,infra/**,**/node_modules/**,**/build/**,**/coverage/**,**/*.png,**/*.ico,**/*.spec.ts,**/*.test.tsx \
                               -Dsonar.tests=server/src \
                               -Dsonar.test.inclusions=**/*.spec.ts \
                               -Dsonar.javascript.lcov.reportPaths=server/coverage/lcov.info \
