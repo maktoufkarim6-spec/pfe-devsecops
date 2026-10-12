@@ -178,7 +178,7 @@
     published_ports: ["127.0.0.1:8010:8000"]
     read_only: true
     tmpfs: ["/tmp:rw,size=64m"]
-    capabilities_drop: [ALL]
+    cap_drop: [ALL]
     security_opts: ["no-new-privileges:true"]
     memory: 600m
     cpus: 1.0
