@@ -2035,7 +2035,7 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto",
+        "textMode": "value",
         "justifyMode": "center",
         "reduceOptions": {
           "calcs": [
@@ -2091,7 +2091,7 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto",
+        "textMode": "value",
         "justifyMode": "center",
         "reduceOptions": {
           "calcs": [
@@ -2165,7 +2165,7 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto",
+        "textMode": "value",
         "justifyMode": "center",
         "reduceOptions": {
           "calcs": [
@@ -2229,7 +2229,7 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto",
+        "textMode": "value",
         "justifyMode": "center",
         "reduceOptions": {
           "calcs": [
@@ -2293,7 +2293,7 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto",
+        "textMode": "value",
         "justifyMode": "center",
         "reduceOptions": {
           "calcs": [
@@ -2325,7 +2325,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "(pfe_backup_restore_test_status{node=\"$node\"} == 0) or (pfe_backup_restore_test_status{node=\"$node\"} and on() pfe_backup_restore_test_last_success_timestamp_seconds{node=\"$node\"} > 0) or vector(-1)"
+          "expr": "max((pfe_backup_restore_test_status{node=\"$node\"} == 0) or (pfe_backup_restore_test_status{node=\"$node\"} and on() pfe_backup_restore_test_last_success_timestamp_seconds{node=\"$node\"} > 0)) or vector(-1)"
         }
       ],
       "description": "Chaque semaine, le dernier jeu est réellement restauré dans un espace de test (base PostgreSQL de test, promtool, intégrité Grafana).",
@@ -2367,7 +2367,7 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto",
+        "textMode": "value",
         "justifyMode": "center",
         "reduceOptions": {
           "calcs": [
