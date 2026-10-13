@@ -14,23 +14,25 @@ import argparse
 import csv
 import json
 import os
-import shlex
 import statistics
 import sys
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from campagne import MON, RESULTATS, S, signaux, ssh  # noqa: E402
+from campagne import RESULTATS, S, TUNNEL, Tunnel, signaux  # noqa: E402
+import urllib.parse  # noqa: E402
+import urllib.request  # noqa: E402
 
 MARGE = 600
 PAS = 15
 
 
 def plage(expr, debut, fin, pas=PAS):
-    q = " ".join("--data-urlencode " + shlex.quote(f"{k}={v}") for k, v in
-                 (("query", expr), ("start", debut), ("end", fin), ("step", pas)))
-    rc, out = ssh(MON, f"curl -s -G localhost:9090/api/v1/query_range {q}")
-    return json.loads(out)["data"]["result"]
+    """Série sur une période, par le tunnel SSH unique de la campagne."""
+    TUNNEL.ouvrir()
+    q = urllib.parse.urlencode({"query": expr, "start": debut, "end": fin, "step": pas})
+    with urllib.request.urlopen(f"http://127.0.0.1:{Tunnel.PORT}/api/v1/query_range?{q}", timeout=60) as r:
+        return json.load(r)["data"]["result"]
 
 
 def episodes(serie):
@@ -98,12 +100,13 @@ def main():
     duree_h = (fin - debut) / 3600
 
     # --- épisodes d'anomalie du moteur et classement vrai / faux positif
-    tp_ep, fp_ep, fp_liste = 0, 0, []
+    tp_ep, fp_ep, fp_liste, tous_episodes = 0, 0, [], []
     for nom_det, metrique in (("ia", "aiops_anomaly_active"),):
         for s in plage(f'{metrique}', debut, fin):
             node = s["metric"].get("node")
             for (d, f) in episodes(s["values"]):
                 lie = any(i["noeud"] == node and i["t0"] - PAS <= d <= i["t_fin_panne"] + MARGE for i in inj)
+                tous_episodes.append({"noeud": node, "debut": d, "fin": f, "lie": lie})
                 if lie:
                     tp_ep += 1
                 else:
@@ -112,15 +115,17 @@ def main():
 
     # --- rappel et délais par détecteur
     attendues = [i for i in inj if i["ia_attendue"]]
-    lignes_det = []
+    lignes_det, detecteurs = [], []
     for det, libelle in (("ia", "Moteur AIOps (z-score ou Isolation Forest)"), ("zscore", "z-score robuste seul"),
                          ("iforest", "Isolation Forest seul"), ("alerte_ia", "Alerte AnomalieAIOps (après 1 min)"),
                          ("seuil", "Seuils fixes (CPU > 80 %, RAM > 85 %, disque > 85 %)")):
         vus = [i["detections"][det] for i in attendues if det in i["detections"]]
+        detecteurs.append({"id": det, "libelle": libelle, "vus": len(vus), "total": len(attendues), "delais": vus})
         lignes_det.append(f"| {libelle} | {pct(len(vus), len(attendues))} | {med(vus)} | "
                           f"{(f'{min(vus):.0f}–{max(vus):.0f} s') if vus else '—'} |")
     dispo = [i for i in inj if S.get(i["scenario"]) and S[i["scenario"]].alerte]
     vus = [i["detections"]["alerte"] for i in dispo if "alerte" in i["detections"]]
+    detecteurs.append({"id": "alerte", "libelle": "Alertes de disponibilité", "vus": len(vus), "total": len(dispo), "delais": vus})
     lignes_det.append(f"| Alertes de disponibilité (collecteur, nœud, moteur muets) | {pct(len(vus), len(dispo))} | "
                       f"{med(vus)} | {(f'{min(vus):.0f}–{max(vus):.0f} s') if vus else '—'} |")
     var_ok = sum(1 for i in attendues if i.get("variable_ia") in i["variables_attendues"])
@@ -140,6 +145,8 @@ def main():
             reparees += 1
             mttr.append(i["repare_par_agent_s"])
         verif = [r["verification"] for r in i["agent"] if r.get("type") == "verification"]
+        i["correct"], i["verifications"] = ok, verif
+        i["decisions"] = [{"t": r.get("t"), "action": r["action"], "decision": r["decision"]} for r in dec]
         agent_lignes.append(
             f"| {i['numero']} | {i['nom']} | {hm(i['t0'])} | "
             + " / ".join(f"{k} {v:.0f} s" for k, v in sorted(i["detections"].items(), key=lambda kv: kv[1]))
@@ -196,6 +203,14 @@ une base de départ, à refaire après la calibration (`aiops.calibrate`).
   l'agent répond « rien à faire », ce qui est correct mais ne répare pas (escalade humaine).
 """
     os.makedirs(RESULTATS, exist_ok=True)
+    synthese = {"debut": debut, "fin": fin, "duree_h": duree_h, "detecteurs": detecteurs,
+                "precision": {"vrais": tp_ep, "faux": fp_ep, "faux_liste": fp_liste}, "episodes": tous_episodes,
+                "diagnostic": {"justes": var_ok, "total": var_vus},
+                "agent": {"correctes": correct, "total": len(inj), "reparees": reparees, "reparables": len(reparables),
+                          "retablissement": mttr, "reaction": reaction},
+                "injections": [{k: v for k, v in i.items() if k != "agent"} for i in inj]}
+    with open(os.path.join(RESULTATS, "synthese.json"), "w", encoding="utf-8") as f:
+        json.dump(synthese, f, ensure_ascii=False, indent=1)
     with open(os.path.join(RESULTATS, "RESULTATS.md"), "w", encoding="utf-8", newline="\n") as f:
         f.write(md)
     with open(os.path.join(RESULTATS, "injections.csv"), "w", encoding="utf-8", newline="") as f:
@@ -212,4 +227,7 @@ une base de départ, à refaire après la calibration (`aiops.calibrate`).
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        TUNNEL.fermer()

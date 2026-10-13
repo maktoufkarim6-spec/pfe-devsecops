@@ -16,16 +16,18 @@ import csv
 import io
 import json
 import os
-import shlex
 import subprocess
 import sys
 import time
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 APP, MON = "57.129.142.176", "54.37.13.100"
 RESULTATS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resultats")
 POLL = 15
+POLL_REPARATION = 30   # vérification de la réparation (une connexion SSH) une fois sur deux
 K = "sudo -n k3s kubectl -n default"
 
 
@@ -39,18 +41,49 @@ def ssh(host, cmd, timeout=180):
     return p.returncode, (p.stdout + p.stderr).strip()
 
 
-def prom(expr, essais=5):
-    """Requête instantanée ; un raté réseau passager est retenté (5 essais, attente croissante)."""
+class Tunnel:
+    """Un seul tunnel SSH permanent vers le Prometheus du serveur de supervision (port local 19090).
+    Une connexion SSH par requête déclenchait la protection anti-abus SSH des serveurs (port 22 bloqué)."""
+    PORT = 19090
+
+    def __init__(self):
+        self.proc = None
+
+    def actif(self):
+        return self.proc is not None and self.proc.poll() is None
+
+    def ouvrir(self):
+        if self.actif():
+            return
+        self.proc = subprocess.Popen(
+            ["ssh", "-N", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes", "-o", "ServerAliveInterval=15",
+             "-o", "ServerAliveCountMax=4", "-L", f"127.0.0.1:{self.PORT}:127.0.0.1:9090", f"debian@{MON}"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(4)
+
+    def fermer(self):
+        if self.actif():
+            self.proc.terminate()
+
+
+TUNNEL = Tunnel()
+
+
+def prom(expr, essais=6):
+    """Requête instantanée par le tunnel ; tunnel rouvert et requête retentée en cas de raté (attente croissante)."""
+    url = f"http://127.0.0.1:{Tunnel.PORT}/api/v1/query?" + urllib.parse.urlencode({"query": expr})
     for n in range(essais):
-        rc, out = ssh(MON, "curl -s -m 20 -G localhost:9090/api/v1/query --data-urlencode " + shlex.quote("query=" + expr))
         try:
-            body = json.loads(out)
+            TUNNEL.ouvrir()
+            with urllib.request.urlopen(url, timeout=20) as r:
+                body = json.load(r)
             if body.get("status") == "success":
                 return body["data"]
             raise RuntimeError(f"PromQL refusée : {expr} -> {body}")
-        except ValueError:
-            log(f"   réponse illisible de Prometheus (essai {n + 1}/{essais}) : {out[:80]!r}")
-            time.sleep(5 * (n + 1))
+        except (OSError, ValueError) as exc:
+            log(f"   Prometheus injoignable (essai {n + 1}/{essais}) : {exc}")
+            TUNNEL.fermer()
+            time.sleep(10 * (n + 1))
     raise RuntimeError(f"Prometheus injoignable après {essais} essais : {expr}")
 
 
@@ -225,7 +258,7 @@ def injecter(sc, numero):
         log(f"injection impossible ({out}) : annulation")
         ssh(sc.hote, sc.annuler)
         return None
-    premiers, variable, repare_a = {}, None, None
+    premiers, variable, repare_a, derniere_verif = {}, None, None, 0.0
     try:
         while now() - t0 < sc.duree:
             t = now()
@@ -237,7 +270,8 @@ def injecter(sc, numero):
                         r = prom(f'max by (feature) (aiops_top_feature{{node="{sc.noeud}"}} == 1)')["result"]
                         variable = r[0]["metric"].get("feature") if r else None
                         log(f"   variable responsable selon l'IA : {variable}")
-            if sc.reparation and t - t0 > 20:
+            if sc.reparation and t - t0 > 20 and t - derniere_verif >= POLL_REPARATION:
+                derniere_verif = t
                 rc, out = ssh(sc.hote, sc.reparation)
                 if out.strip().endswith("ok"):
                     repare_a = round(t - t0, 1)
@@ -313,4 +347,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        TUNNEL.fermer()
