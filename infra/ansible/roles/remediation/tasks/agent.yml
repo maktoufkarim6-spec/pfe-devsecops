@@ -1,0 +1,67 @@
+# Serveur de supervision : conteneur de l'agent de remédiation (après la préparation des nœuds).
+
+- name: Dossiers de l'agent
+  ansible.builtin.file:
+    path: "{{ monitoring_dir }}/{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: remediation, owner: root, mode: "0755" }
+    - { path: remediation-data, owner: "10002", mode: "0750" }
+
+- name: Empreintes SSH des nœuds (nom du nœud -> clé de l'hôte, lues par Ansible sur chaque nœud)
+  ansible.builtin.copy:
+    dest: "{{ monitoring_dir }}/remediation/known_hosts"
+    mode: "0644"
+    content: |
+      {% for h in groups['all'] %}
+      {{ hostvars[h].node_name }} {{ hostvars[h].remediation_host_key }}
+      {% endfor %}
+  register: remediation_known_hosts
+
+- name: Liste des nœuds supervisés par l'agent (adresse SSH, rôle)
+  ansible.builtin.set_fact:
+    remediation_nodes: >-
+      {{ remediation_nodes | default([]) + [{
+           'node': hostvars[item].node_name,
+           'address': 'host.docker.internal' if item in groups['monitoring'] else hostvars[item].ansible_host,
+           'app': hostvars[item].node_app | bool,
+           'monitoring': item in groups['monitoring']}] }}
+  loop: "{{ groups['all'] }}"
+
+- name: Image de l'agent (ses tests tournent pendant la construction)
+  community.docker.docker_image:
+    name: remediation-agent
+    tag: "{{ remediation_version }}"
+    source: build
+    build:
+      path: "{{ repo_dir }}/remediation-agent"
+    force_source: "{{ monitoring_repo.changed }}"
+  register: remediation_image
+
+- name: Agent de remédiation (non-root, lecture seule, ressources limitées, aucun port publié)
+  community.docker.docker_container:
+    name: mon-remediation
+    image: "remediation-agent:{{ remediation_version }}"
+    restart_policy: unless-stopped
+    networks: [{ name: pfe-monitoring }]
+    etc_hosts: { host.docker.internal: host-gateway }
+    read_only: true
+    tmpfs: ["/tmp:rw,size=16m"]
+    cap_drop: [ALL]
+    security_opts: ["no-new-privileges:true"]
+    memory: 128m
+    cpus: 0.5
+    env:
+      AGENT_MODE: "{{ remediation_mode }}"
+      AGENT_DISK_CLEANUP: "{{ remediation_disk_cleanup | bool | string | lower }}"
+      AGENT_MAX_ACTIONS_PER_HOUR: "{{ remediation_max_actions_per_hour | string }}"
+      AGENT_COOLDOWN_MINUTES: "{{ remediation_cooldown_minutes | string }}"
+      AGENT_PROM_URL: http://mon-prometheus:9090
+      AGENT_NODES: "{{ remediation_nodes | to_json }}"
+    volumes:
+      - "{{ monitoring_dir }}/secrets/agent:/secrets:ro"
+      - "{{ monitoring_dir }}/remediation/known_hosts:/config/known_hosts:ro"
+      - "{{ monitoring_dir }}/remediation-data:/data"
+    recreate: "{{ monitoring_repo.changed or remediation_known_hosts.changed or remediation_image.changed }}"

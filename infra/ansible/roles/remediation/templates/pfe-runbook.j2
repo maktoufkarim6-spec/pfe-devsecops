@@ -1,0 +1,86 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# pfe-runbook : les SEULES actions que l'agent de remédiation peut déclencher sur ce nœud ({{ node_name }}).
+# 1) appelé en pfe-agent par la clé SSH bridée (commande forcée) : la demande arrive dans SSH_ORIGINAL_COMMAND ;
+# 2) relancé en root par sudo, qui n'autorise que ce script ; chaque action est revérifiée ici.
+# Codes : 0 fait, 1 échec, 2 usage, 3 rien à faire, 4 refusé (hors liste, build en cours, désactivé).
+# Chaque demande est tracée dans le journal système : journalctl -t pfe-runbook
+set -uo pipefail
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+if [ "$(id -u)" -ne 0 ]; then
+  # La demande n'est jamais exécutée telle quelle : elle est découpée en deux mots au plus
+  read -r action arg extra <<< "${SSH_ORIGINAL_COMMAND:-}"
+  [ -z "${extra:-}" ] || { echo "trop d'arguments"; exit 2; }
+  exec sudo -n /usr/local/sbin/pfe-runbook "${action:-}" "${arg:-}"
+fi
+
+ACTION=${1:-}
+ARG=${2:-}
+NODE={{ node_name }}
+CONTAINERS="{{ runbook_containers | join(' ') }}"
+APP={{ 'oui' if node_app | bool else 'non' }}
+DISK_CLEANUP={{ 'oui' if remediation_disk_cleanup | bool else 'non' }}
+MAINTENANCE_FILE={{ textfile_dir }}/maintenance.prom
+
+say() { echo "$*"; logger -t pfe-runbook -- "[$ACTION $ARG] $*"; }
+in_list() { local x; for x in $2; do [ "$x" = "$1" ] && return 0; done; return 1; }
+running() { [ "$(docker inspect -f '{{ '{{' }}.State.Running{{ '}}' }}' "$1" 2>/dev/null)" = true ]; }
+# Build Jenkins ou opération lourde annoncée (même signal que celui lu par le moteur AIOps)
+maintenance() {
+  local fin
+  fin=$(awk '$1=="pfe_maintenance_until_seconds"{print int($2)}' "$MAINTENANCE_FILE" 2>/dev/null)
+  [ -n "$fin" ] && [ "$fin" -gt "$(date +%s)" ]
+}
+
+[[ "$ACTION" =~ ^[a-z-]{1,30}$ && "$ARG" =~ ^[a-z0-9-]{0,40}$ ]] || { echo "demande invalide"; exit 2; }
+[ "$ACTION" = status ] || logger -t pfe-runbook -- "demande : $ACTION $ARG"
+
+# Une seule action à la fois sur le nœud
+exec 9>/run/pfe-runbook.lock
+flock -w 300 9 || { say "une autre action est en cours"; exit 4; }
+
+case "$ACTION" in
+  status)
+    echo "ok $NODE $(hostname) charge=$(cut -d' ' -f1 /proc/loadavg)"
+    exit 0 ;;
+
+  restart-container)
+    in_list "$ARG" "$CONTAINERS" || { say "conteneur hors liste autorisée ($CONTAINERS)"; exit 4; }
+    docker inspect "$ARG" >/dev/null 2>&1 || { say "conteneur absent"; exit 1; }
+    timeout 120 docker restart "$ARG" >/dev/null || { say "échec du redémarrage"; exit 1; }
+    for _ in $(seq 1 30); do
+      running "$ARG" && { say "conteneur redémarré"; exit 0; }
+      sleep 2
+    done
+    say "redémarré mais arrêté depuis"; exit 1 ;;
+
+  rollout-restart)
+    [ "$APP" = oui ] || { say "nœud sans application"; exit 4; }
+    in_list "$ARG" "server client" || { say "déploiement hors liste autorisée"; exit 4; }
+    maintenance && { say "maintenance ou build en cours : refus"; exit 4; }
+    # Redémarrage progressif : le nouveau pod doit être prêt avant l'arrêt de l'ancien (pas de coupure)
+    k3s kubectl -n default rollout restart "deployment/$ARG" >/dev/null || { say "échec du lancement"; exit 1; }
+    if k3s kubectl -n default rollout status "deployment/$ARG" --timeout=180s >/dev/null; then
+      say "redémarrage progressif terminé"; exit 0
+    fi
+    say "redémarrage progressif non terminé en 180 s (l'ancien pod reste actif)"; exit 1 ;;
+
+  stop-sonarqube)
+    [ "$APP" = oui ] || { say "nœud sans SonarQube"; exit 4; }
+    maintenance && { say "build en cours : SonarQube nécessaire, refus"; exit 4; }
+    running sonarqube || { say "SonarQube déjà arrêté"; exit 3; }
+    docker stop sonarqube >/dev/null || { say "échec de l'arrêt"; exit 1; }
+    say "SonarQube arrêté (le prochain build Jenkins le redémarre)"; exit 0 ;;
+
+  clean-disk)
+    [ "$DISK_CLEANUP" = oui ] || { say "nettoyage disque désactivé (accord du propriétaire requis)"; exit 4; }
+    before=$(df --output=avail -B1M / | tail -1)
+    docker image prune -f >/dev/null 2>&1 || true      # images sans étiquette ni conteneur : reconstructibles
+    journalctl --vacuum-time=14d >/dev/null 2>&1 || true
+    after=$(df --output=avail -B1M / | tail -1)
+    say "nettoyage fait : $(( after - before )) Mo libérés"; exit 0 ;;
+
+  *)
+    say "action inconnue"; exit 2 ;;
+esac

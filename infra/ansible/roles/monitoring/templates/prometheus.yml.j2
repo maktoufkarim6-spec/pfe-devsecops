@@ -21,6 +21,10 @@ scrape_configs:
     static_configs:
       - targets: ["mon-aiops-engine:8000"]
 
+  - job_name: remediation-agent
+    static_configs:
+      - targets: ["mon-remediation:9095"]
+
 {% for job, port, only_app in [("node-exporter", port_node_exporter, false), ("cadvisor", port_cadvisor, false), ("cadvisor-k3s", port_cadvisor_k3s, true)] %}
   - job_name: {{ job }}
     static_configs:

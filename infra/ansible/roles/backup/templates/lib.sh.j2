@@ -1,0 +1,68 @@
+# {{ ansible_managed }}
+# Fonctions communes aux scripts de sauvegarde (sourcé par pfe-backup, pfe-backup-check et pfe-restore).
+# shellcheck shell=bash
+
+NODE={{ node_name }}
+ROOT={{ backup_root }}
+LOCAL=$ROOT/local                 # jeux de ce nœud
+RECEIVED=$ROOT/recu               # jeux reçus des autres nœuds (un dossier par nœud, écrit par pfe-backup)
+STATE=/var/lib/pfe-backup         # horodatages et vérifications déjà faites
+TEXTFILE={{ textfile_dir }}       # métriques lues par node-exporter
+KEEP_DAILY={{ backup_keep_daily }}
+KEEP_WEEKLY={{ backup_keep_weekly }}
+SET_RE='^[0-9]{8}T[0-9]{6}Z$'     # nom d'un jeu : date UTC de la sauvegarde
+
+log() { echo "$(date '+%F %T') $*"; logger -t pfe-backup -- "$*" 2>/dev/null || true; }
+
+# Jeux d'un dossier, du plus récent au plus ancien
+sets_of() { find "$1" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | grep -E "$SET_RE" | sort -r; }
+
+# Âge d'un jeu (secondes) d'après son nom
+set_epoch() { date -u -d "${1:0:4}-${1:4:2}-${1:6:2}T${1:9:2}:${1:11:2}:${1:13:2}Z" +%s; }
+
+# Rotation : les KEEP_DAILY jeux les plus récents, puis le plus récent de chacune des KEEP_WEEKLY semaines
+# précédentes non couvertes par les jeux quotidiens. Seuls des jeux complets (SHA256SUMS présent) sont comptés ; le plus récent est toujours gardé.
+prune() {
+  local dir=$1 s week last_week="" daily=0 weekly=0
+  local -A keep=()
+  while read -r s; do
+    [ -n "$s" ] || continue
+    [ -f "$dir/$s/SHA256SUMS" ] || continue
+    week=$(date -u -d "${s:0:8}" +%G-%V)
+    if (( daily < KEEP_DAILY )); then keep[$s]=1; daily=$((daily + 1)); last_week=$week; continue; fi
+    if (( weekly < KEEP_WEEKLY )) && [ "$week" != "$last_week" ]; then
+      keep[$s]=1; weekly=$((weekly + 1)); last_week=$week
+    fi
+  done < <(sets_of "$dir")
+  (( daily > 0 )) || return 0     # aucun jeu complet : on ne supprime rien
+  while read -r s; do
+    [ -n "$s" ] || continue
+    [ -n "${keep[$s]:-}" ] && continue
+    # Un jeu incomplet récent peut être une copie en cours : gardé 24 h
+    if [ ! -f "$dir/$s/SHA256SUMS" ] && (( $(date +%s) - $(set_epoch "$s") < 86400 )); then continue; fi
+    log "rotation : suppression de $dir/$s"
+    rm -rf -- "${dir:?}/${s:?}"
+  done < <(sets_of "$dir")
+}
+
+# Écriture atomique d'un fichier de métriques (node-exporter ne lit jamais un fichier à moitié écrit)
+write_prom() {
+  local file=$TEXTFILE/$1 tmp
+  tmp=$(mktemp "$TEXTFILE/.$1.XXXXXX")
+  cat > "$tmp"
+  chmod 0644 "$tmp"
+  mv -f "$tmp" "$file"
+}
+
+state_get() { cat "$STATE/$1" 2>/dev/null || echo "${2:-0}"; }
+state_set() { mkdir -p "$STATE"; echo "$2" > "$STATE/$1.tmp" && mv -f "$STATE/$1.tmp" "$STATE/$1"; }
+
+# Annonce d'une courte maintenance au moteur AIOps (sans raccourcir une annonce plus longue, ex. un build)
+announce_maintenance() {
+  local file=$TEXTFILE/maintenance.prom now end current
+  now=$(date +%s); end=$((now + $1))
+  current=$(awk '$1=="pfe_maintenance_until_seconds"{print int($2)}' "$file" 2>/dev/null || true)
+  if [ -z "$current" ] || [ "$current" -lt "$end" ]; then
+    echo "pfe_maintenance_until_seconds $end" | write_prom maintenance.prom
+  fi
+}

@@ -135,6 +135,8 @@
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time={{ prometheus_retention }}"
+      # Instantanés cohérents pour les sauvegardes (API joignable du serveur et du réseau de supervision seulement)
+      - "--web.enable-admin-api"
 
 - name: Alertmanager
   community.docker.docker_container:

@@ -72,3 +72,120 @@ groups:
           severity: critical
         annotations:
           summary: "Le moteur AIOps ne répond plus : aucune détection d'anomalie en cours"
+
+  - name: collecteurs
+    rules:
+      - alert: CollecteurArrete
+        expr: up{job=~"cadvisor|cadvisor-k3s"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Collecteur {{ $labels.job }} muet sur {{ $labels.node }} depuis 2 minutes"
+
+  # Alertes sur l'agent et les sauvegardes : source=agent|backup, l'agent n'agit jamais sur elles.
+  - name: agent
+    rules:
+      - alert: ActionAutomatique
+        expr: time() - pfe_agent_last_action_timestamp_seconds{outcome!="simulee"} < 900
+        labels:
+          severity: warning
+          source: agent
+        annotations:
+          summary: "L'agent a exécuté « {{ $labels.action }} » sur {{ $labels.node }} : {{ $labels.outcome }}"
+          description: "Détail et vérification 5 min après : docker exec mon-remediation python -m agent journal"
+
+      - alert: ActionAutomatiqueSansEffet
+        expr: increase(pfe_agent_verifications_total{result="persistant"}[15m]) > 0
+        labels:
+          severity: warning
+          source: agent
+        annotations:
+          summary: "L'action « {{ $labels.action }} » de l'agent n'a pas fait disparaître l'alerte : intervention humaine"
+
+      - alert: AgentRemediationArrete
+        expr: up{job="remediation-agent"} == 0 or absent(up{job="remediation-agent"})
+        for: 3m
+        labels:
+          severity: critical
+          source: agent
+        annotations:
+          summary: "L'agent de remédiation ne répond plus : plus aucune réparation automatique"
+
+      - alert: AgentRemediationSuspendu
+        expr: pfe_agent_suspended == 1
+        labels:
+          severity: critical
+          source: agent
+        annotations:
+          summary: "L'agent s'est suspendu après des échecs répétés (journal : docker exec mon-remediation python -m agent journal)"
+
+      - alert: AgentNoeudInaccessible
+        expr: pfe_agent_node_reachable == 0
+        for: 10m
+        labels:
+          severity: warning
+          source: agent
+        annotations:
+          summary: "L'agent ne peut plus joindre {{ $labels.node }} en SSH : aucune réparation possible sur ce nœud"
+
+  - name: sauvegardes
+    rules:
+      - alert: SauvegardeEchouee
+        expr: pfe_backup_last_status == 0
+        labels:
+          severity: warning
+          source: backup
+        annotations:
+          summary: "La dernière sauvegarde de {{ $labels.node }} a échoué (journalctl -u pfe-backup)"
+
+      - alert: SauvegardeEnRetard
+        expr: pfe_backup_last_success_timestamp_seconds > 0 and time() - pfe_backup_last_success_timestamp_seconds > 26 * 3600
+        for: 30m
+        labels:
+          severity: warning
+          source: backup
+        annotations:
+          summary: "Aucune sauvegarde réussie de {{ $labels.node }} depuis plus de 26 h"
+
+      - alert: CopieDistanteEnRetard
+        expr: pfe_backup_offsite_last_success_timestamp_seconds > 0 and time() - pfe_backup_offsite_last_success_timestamp_seconds > 26 * 3600
+        for: 30m
+        labels:
+          severity: warning
+          source: backup
+        annotations:
+          summary: "Les sauvegardes de {{ $labels.node }} ne sont plus copiées sur l'autre serveur depuis 26 h"
+
+      - alert: SauvegardeJamaisReussie
+        expr: pfe_backup_last_success_timestamp_seconds == 0 or pfe_backup_offsite_last_success_timestamp_seconds == 0
+        for: 30h
+        labels:
+          severity: warning
+          source: backup
+        annotations:
+          summary: "Aucune sauvegarde complète (locale et copie distante) de {{ $labels.node }} depuis son installation"
+
+      - alert: SauvegardeRecueCorrompue
+        expr: pfe_backup_received_valid == 0
+        labels:
+          severity: critical
+          source: backup
+        annotations:
+          summary: "Le dernier jeu reçu de {{ $labels.source }} sur {{ $labels.node }} a des empreintes incorrectes"
+
+      - alert: TestRestaurationEchoue
+        expr: pfe_backup_restore_test_status == 0
+        labels:
+          severity: critical
+          source: backup
+        annotations:
+          summary: "Le test de restauration de {{ $labels.node }} a échoué : les sauvegardes ne sont peut-être pas utilisables"
+
+      - alert: TestRestaurationEnRetard
+        expr: pfe_backup_restore_test_last_success_timestamp_seconds > 0 and time() - pfe_backup_restore_test_last_success_timestamp_seconds > 8 * 86400
+        labels:
+          severity: warning
+          source: backup
+        annotations:
+          summary: "Aucun test de restauration réussi sur {{ $labels.node }} depuis 8 jours"

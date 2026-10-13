@@ -1,0 +1,152 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# pfe-backup : sauvegarde de {{ node_name }}, puis copie vers {{ hostvars[backup_peer].node_name }} ({{ hostvars[backup_peer].ansible_host }}).
+# Lancé chaque nuit par pfe-backup.timer ; à la main : sudo systemctl start pfe-backup
+# Contenu : {{ ("historique Prometheus, données AIOps et de l'agent, Grafana, Alertmanager, configuration" if inventory_hostname in groups['monitoring'] else '') }}{{ (' + ' if inventory_hostname in groups['monitoring'] and node_app | bool else '') }}{{ ("base PostgreSQL de l'application" if node_app | bool else '') }}
+set -Eeuo pipefail
+umask 077
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# shellcheck source=/dev/null
+. /usr/local/lib/pfe-backup/lib.sh
+
+PEER={{ hostvars[backup_peer].node_name }}
+PEER_ADDR={{ hostvars[backup_peer].ansible_host }}
+MIN_FREE_MB={{ (backup_min_free_gb | int) * 1024 }}
+SSH="ssh -i /root/.ssh/pfe-backup_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/pfe-backup/known_hosts -o HostKeyAlias=$PEER -o ConnectTimeout=20 -o IdentitiesOnly=yes"
+
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+WORK=$LOCAL/.en-cours-$STAMP
+DEST=$LOCAL/$STAMP
+SNAP_DIR=""
+START=$(date +%s)
+
+mkdir -p "$LOCAL" "$STATE"
+exec 9>/run/pfe-backup.lock
+flock -n 9 || { log "une sauvegarde est déjà en cours"; exit 0; }
+
+metrics() {   # $1 statut local, $2 statut de la copie distante
+  write_prom pfe_backup.prom <<EOF
+# HELP pfe_backup_last_status 1 si la dernière sauvegarde locale a réussi
+# TYPE pfe_backup_last_status gauge
+pfe_backup_last_status $1
+# HELP pfe_backup_last_success_timestamp_seconds Fin de la dernière sauvegarde locale réussie
+# TYPE pfe_backup_last_success_timestamp_seconds gauge
+pfe_backup_last_success_timestamp_seconds $(state_get last_success)
+# HELP pfe_backup_last_duration_seconds Durée de la dernière sauvegarde réussie
+# TYPE pfe_backup_last_duration_seconds gauge
+pfe_backup_last_duration_seconds $(state_get last_duration)
+# HELP pfe_backup_last_size_bytes Taille du dernier jeu de sauvegarde
+# TYPE pfe_backup_last_size_bytes gauge
+pfe_backup_last_size_bytes $(state_get last_size)
+# HELP pfe_backup_offsite_status 1 si la dernière copie vers l'autre serveur a réussi
+# TYPE pfe_backup_offsite_status gauge
+pfe_backup_offsite_status $2
+# HELP pfe_backup_offsite_last_success_timestamp_seconds Dernière copie réussie vers l'autre serveur
+# TYPE pfe_backup_offsite_last_success_timestamp_seconds gauge
+pfe_backup_offsite_last_success_timestamp_seconds $(state_get offsite_last_success)
+# HELP pfe_backup_local_sets Nombre de jeux de sauvegarde conservés sur ce nœud
+# TYPE pfe_backup_local_sets gauge
+pfe_backup_local_sets $(sets_of "$LOCAL" | wc -l)
+EOF
+}
+
+cleanup() {
+  [ -n "$SNAP_DIR" ] && rm -rf -- "${SNAP_DIR:?}"
+  rm -rf -- "${WORK:?}"
+}
+fail() {
+  log "ÉCHEC de la sauvegarde (ligne $1) : le jeu partiel est supprimé, les jeux précédents restent intacts"
+  cleanup
+  metrics 0 "$(state_get offsite_status)"
+  exit 1
+}
+trap 'fail $LINENO' ERR
+
+free_mb=$(df --output=avail -BM "$ROOT" | tail -1 | tr -dc 0-9)
+if (( free_mb < MIN_FREE_MB )); then
+  log "espace insuffisant ($free_mb Mo libres, minimum $MIN_FREE_MB Mo) : sauvegarde annulée"
+  false
+fi
+
+log "début de la sauvegarde $STAMP"
+announce_maintenance 900
+mkdir -p "$WORK"
+
+volume() { docker volume inspect -f '{{ '{{' }}.Mountpoint{{ '}}' }}' "$1"; }
+{% if inventory_hostname in groups['monitoring'] %}
+
+# --- Historique Prometheus : instantané cohérent (API d'administration, accessible en local seulement)
+snap=$(curl -fsS -m 300 -X POST http://127.0.0.1:9090/api/v1/admin/tsdb/snapshot | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+[[ "$snap" =~ ^[0-9A-Za-z-]+$ ]] || { log "réponse inattendue de Prometheus pour l'instantané"; false; }
+SNAP_DIR=$(volume pfe-prometheus-data)/snapshots/$snap
+tar -C "$SNAP_DIR" -cf - . | zstd -q -T0 -o "$WORK/prometheus.tar.zst"
+rm -rf -- "${SNAP_DIR:?}"; SNAP_DIR=""
+
+# --- Ce qui s'est passé : détections et incidents AIOps, modèles, journal des actions de l'agent
+present() { local d; for d in "$@"; do [ -e "{{ monitoring_dir }}/$d" ] && echo "$d"; done; return 0; }
+mapfile -t data_dirs < <(present aiops-data remediation-data)
+tar -C {{ monitoring_dir }} -cf - "${data_dirs[@]}" | zstd -q -T0 -o "$WORK/aiops-et-agent.tar.zst"
+
+# --- Grafana : copie cohérente de la base SQLite pendant le fonctionnement
+sqlite3 "$(volume pfe-grafana-data)/grafana.db" ".backup '$WORK/grafana.db'"
+sqlite3 "$WORK/grafana.db" 'PRAGMA integrity_check' | grep -qx ok
+zstd -q --rm "$WORK/grafana.db"
+
+# --- Alertmanager (silences, historique des notifications) et configuration de la supervision (sans secrets)
+tar -C "$(volume pfe-alertmanager-data)" -cf - . | zstd -q -T0 -o "$WORK/alertmanager.tar.zst"
+mapfile -t config_dirs < <(present prometheus alertmanager grafana remediation)
+tar -C {{ monitoring_dir }} --exclude=secrets -cf - "${config_dirs[@]}" | zstd -q -T0 -o "$WORK/configuration.tar.zst"
+{% endif %}
+{% if node_app | bool %}
+
+# --- Base PostgreSQL de l'application (format personnalisé de pg_dump, restaurable table par table)
+k() { k3s kubectl -n default "$@"; }
+# Comptage des lignes au moment de la sauvegarde : référence du test de restauration hebdomadaire
+k exec -i deploy/postgres -- sh -c 'psql -U "$POSTGRES_USER" -d demo -At -v ON_ERROR_STOP=1' \
+  < /usr/local/lib/pfe-backup/comptage.sql > "$WORK/postgres-demo.comptage.txt"
+k exec deploy/postgres -- sh -c 'pg_dump -U "$POSTGRES_USER" -d demo -Fc' > "$WORK/postgres-demo.dump"
+# Contrôle immédiat : le fichier doit être lisible par pg_restore
+k exec -i deploy/postgres -- pg_restore --list < "$WORK/postgres-demo.dump" > "$WORK/postgres-demo.contenu.txt"
+[ -s "$WORK/postgres-demo.contenu.txt" ]
+{% endif %}
+
+# --- Description du jeu et empreintes (le fichier SHA256SUMS marque un jeu complet)
+{
+  echo "noeud=$NODE"
+  echo "date_utc=$STAMP"
+  echo "hote=$(hostname)"
+  echo "fichiers :"
+  (cd "$WORK" && ls -l --time-style=+%F_%T)
+} > "$WORK/MANIFEST.txt"
+(cd "$WORK" && sha256sum -- * > SHA256SUMS)
+mv "$WORK" "$DEST"
+
+size=$(du -sb "$DEST" | cut -f1)
+state_set last_success "$(date +%s)"
+state_set last_duration "$(( $(date +%s) - START ))"
+state_set last_size "$size"
+log "sauvegarde locale terminée : $DEST ($(( size / 1048576 )) Mo)"
+prune "$LOCAL"
+trap - ERR
+
+# --- Copie vers l'autre serveur. Le compte distant est en écriture seule, sans suppression possible :
+# un serveur compromis ne peut ni lire ni effacer les sauvegardes déjà copiées chez l'autre.
+copy() {
+  rsync -a --timeout=300 --exclude SHA256SUMS -e "$SSH" "$DEST/" "pfe-backup@$PEER_ADDR:$STAMP/" &&
+  rsync -a --timeout=300 -e "$SSH" "$DEST/SHA256SUMS" "pfe-backup@$PEER_ADDR:$STAMP/SHA256SUMS"
+}
+offsite=0
+for attempt in 1 2 3; do
+  if copy; then offsite=1; break; fi
+  log "copie vers $PEER : tentative $attempt échouée"
+  [ "$attempt" -lt 3 ] && sleep $((attempt * 60))
+done
+if [ "$offsite" = 1 ]; then
+  state_set offsite_last_success "$(date +%s)"
+  log "copie vers $PEER terminée"
+else
+  log "ÉCHEC de la copie vers $PEER : le jeu local reste disponible, nouvelle tentative la nuit prochaine"
+fi
+state_set offsite_status "$offsite"
+metrics 1 "$offsite"
+[ "$offsite" = 1 ]

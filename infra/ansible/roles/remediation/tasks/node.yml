@@ -1,0 +1,61 @@
+# Chaque nœud : compte pfe-agent dont la seule possibilité est de lancer pfe-runbook (liste fermée d'actions).
+
+- name: Compte système de l'agent (sans mot de passe, accès par clé bridée seulement)
+  ansible.builtin.user:
+    name: pfe-agent
+    system: true
+    shell: /bin/bash
+    home: /var/lib/pfe-agent
+    create_home: true
+    password: "!"
+
+- name: Script des actions autorisées
+  ansible.builtin.template:
+    src: pfe-runbook.j2
+    dest: /usr/local/sbin/pfe-runbook
+    owner: root
+    group: root
+    mode: "0755"
+  vars:
+    runbook_containers: >-
+      {{ ['node-exporter', 'cadvisor']
+         + (['cadvisor-k3s'] if node_app | bool else [])
+         + (['mon-aiops-engine', 'mon-alertmanager', 'mon-grafana', 'mon-prometheus']
+            if inventory_hostname in groups['monitoring'] else []) }}
+
+- name: sudo — le compte de l'agent ne peut lancer que ce script
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/pfe-agent
+    content: "pfe-agent ALL=(root) NOPASSWD: /usr/local/sbin/pfe-runbook\n"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: visudo -cf %s
+
+- name: "Dossier SSH du compte (appartient à root : l'agent ne peut pas modifier ses propres droits)"
+  ansible.builtin.file:
+    path: /var/lib/pfe-agent/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Clé de l'agent bridée (commande forcée, adresse source imposée, ni terminal ni tunnel)
+  ansible.builtin.copy:
+    dest: /var/lib/pfe-agent/.ssh/authorized_keys
+    owner: root
+    group: root
+    mode: "0644"
+    content: >
+      command="/usr/local/sbin/pfe-runbook",restrict,from="{{ '127.0.0.1,172.16.0.0/12'
+      if inventory_hostname in groups['monitoring'] else monitoring_ip }}"
+      {{ hostvars[groups['monitoring'][0]].remediation_agent_pubkey }}
+
+- name: Empreinte SSH du nœud, lue par Ansible (l'agent ne fait jamais confiance au premier contact)
+  ansible.builtin.slurp:
+    src: /etc/ssh/ssh_host_ed25519_key.pub
+  register: remediation_host_key_file
+
+- name: Empreinte mémorisée pour le serveur de supervision
+  ansible.builtin.set_fact:
+    remediation_host_key: "{{ (remediation_host_key_file.content | b64decode).split()[:2] | join(' ') }}"

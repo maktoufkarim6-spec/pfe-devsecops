@@ -1,5 +1,6 @@
 # Déploiement de la supervision multi-nœuds. Lancé par ../deploy.sh depuis le serveur de supervision.
-# 1) supervision centrale  2) collecteurs sur chaque nœud (y compris le serveur de supervision lui-même)
+# 1) supervision centrale  2) collecteurs, compte de l'agent et sauvegardes sur chaque nœud
+# 3) agent de remédiation (une fois les nœuds prêts à le recevoir)
 
 - name: Docker sur tous les serveurs
   hosts: all
@@ -9,9 +10,31 @@
 - name: Serveur de supervision
   hosts: monitoring
   become: true
-  roles: [monitoring]
+  tasks:
+    - name: Identité de l'agent de remédiation (clé SSH et jeton du webhook, avant Alertmanager)
+      ansible.builtin.import_role:
+        name: remediation
+        tasks_from: keys
 
-- name: Collecteurs et pare-feu sur chaque nœud
+    - name: Prometheus, Alertmanager, Grafana et moteur AIOps
+      ansible.builtin.import_role:
+        name: monitoring
+
+- name: Collecteurs, accès de l'agent et sauvegardes sur chaque nœud
   hosts: all
   become: true
-  roles: [exporters]
+  roles: [exporters, backup]
+  tasks:
+    - name: Compte pfe-agent et liste fermée des actions autorisées
+      ansible.builtin.import_role:
+        name: remediation
+        tasks_from: node
+
+- name: Agent de remédiation
+  hosts: monitoring
+  become: true
+  tasks:
+    - name: Conteneur de l'agent
+      ansible.builtin.import_role:
+        name: remediation
+        tasks_from: agent

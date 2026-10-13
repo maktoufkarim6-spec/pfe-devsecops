@@ -1,0 +1,76 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# pfe-restore : consulter et restaurer les sauvegardes de ce nœud ({{ node_name }}).
+set -euo pipefail
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# shellcheck source=/dev/null
+. /usr/local/lib/pfe-backup/lib.sh
+
+usage() {
+  cat <<'EOF'
+Utilisation (en root : sudo pfe-restore ...)
+  pfe-restore liste                          jeux locaux et reçus : date, taille, état
+  pfe-restore verifier <jeu>                 contrôle des empreintes d'un jeu
+  pfe-restore tester                         test de restauration complet maintenant (sans rien modifier)
+  pfe-restore extraire <jeu> <dossier>       décompresse tout le jeu dans un dossier vide (sans rien modifier)
+  pfe-restore postgres <jeu> --confirmer     REMPLACE la base « demo » de l'application par celle du jeu
+<jeu> : nom (ex. 20261013T023000Z) ou chemin complet. Un nom est cherché d'abord dans les jeux locaux,
+puis dans les jeux reçus des autres nœuds.
+EOF
+}
+
+find_set() {
+  local s=$1 d
+  if [ -d "$s" ] && [ -f "$s/MANIFEST.txt" ]; then echo "$s"; return; fi
+  [[ "$s" =~ $SET_RE ]] || { echo "jeu invalide : $s" >&2; exit 2; }
+  for d in "$LOCAL/$s" "$RECEIVED"/*/"$s"; do
+    [ -d "$d" ] && { echo "$d"; return; }
+  done
+  echo "jeu introuvable : $s" >&2; exit 2
+}
+
+verify() { (cd "$1" && sha256sum --quiet --strict -c SHA256SUMS) && echo "empreintes correctes : $1"; }
+
+case "${1:-}" in
+  liste)
+    for dir in "$LOCAL" "$RECEIVED"/*; do
+      [ -d "$dir" ] || continue
+      echo "== $dir"
+      while read -r s; do
+        state=complet; [ -f "$dir/$s/SHA256SUMS" ] || state=INCOMPLET
+        printf '  %s  %8s  %s\n' "$s" "$(du -sh "$dir/$s" | cut -f1)" "$state"
+      done < <(sets_of "$dir")
+    done ;;
+  verifier)
+    verify "$(find_set "${2:?jeu manquant}")" ;;
+  tester)
+    exec /usr/local/sbin/pfe-backup-check --test ;;
+  extraire)
+    set_dir=$(find_set "${2:?jeu manquant}")
+    out=${3:?dossier de destination manquant}
+    mkdir -p "$out"
+    [ -z "$(ls -A "$out")" ] || { echo "le dossier $out n'est pas vide"; exit 2; }
+    verify "$set_dir"
+    for f in "$set_dir"/*; do
+      name=$(basename "$f")
+      case "$name" in
+        *.tar.zst) mkdir -p "$out/${name%.tar.zst}"; zstd -dc "$f" | tar -C "$out/${name%.tar.zst}" -xf - ;;
+        *.zst)     zstd -q -dc "$f" > "$out/${name%.zst}" ;;
+        *)         cp -p "$f" "$out/" ;;
+      esac
+    done
+    echo "jeu extrait dans $out (procédures de remise en place : infra/README.md, section Sauvegardes)" ;;
+  postgres)
+    set_dir=$(find_set "${2:?jeu manquant}")
+    [ "${3:-}" = "--confirmer" ] || { echo "Opération destructive : ajoutez --confirmer pour remplacer la base demo."; exit 2; }
+    [ -f "$set_dir/postgres-demo.dump" ] || { echo "ce jeu ne contient pas de base PostgreSQL"; exit 2; }
+    verify "$set_dir"
+    echo "$(date '+%F %T') restauration de la base demo depuis $set_dir" | logger -t pfe-restore
+    # Une seule transaction : en cas d'erreur, la base reste dans son état précédent
+    k3s kubectl -n default exec -i deploy/postgres -- sh -c \
+      'pg_restore -U "$POSTGRES_USER" -d demo --clean --if-exists --no-owner --no-privileges --single-transaction --exit-on-error' \
+      < "$set_dir/postgres-demo.dump"
+    echo "base demo restaurée depuis $(basename "$set_dir")" ;;
+  *)
+    usage; exit 2 ;;
+esac

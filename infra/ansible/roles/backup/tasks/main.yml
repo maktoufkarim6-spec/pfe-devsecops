@@ -1,0 +1,164 @@
+# Sauvegardes croisées : chaque nuit, chaque nœud sauvegarde ses données puis les copie sur son pair
+# (backup_peer). Le compte de réception est en écriture seule et sans suppression (rrsync -wo -no-del).
+
+- name: Outils de sauvegarde (rsync et rrsync, SQLite, zstd)
+  ansible.builtin.apt:
+    name: [rsync, sqlite3, zstd]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: rrsync accepte l'écriture seule sans suppression (-wo -no-del)
+  ansible.builtin.command: grep -q -- "no-del" /usr/bin/rrsync
+  changed_when: false
+
+- name: Compte de réception des sauvegardes des autres nœuds (accès par clé bridée seulement)
+  ansible.builtin.user:
+    name: pfe-backup
+    system: true
+    shell: /bin/sh
+    home: /var/lib/pfe-backup-recu
+    create_home: true
+    password: "!"
+
+- name: Dossiers des sauvegardes
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ backup_root }}", mode: "0755" }
+    - { path: "{{ backup_root }}/local", mode: "0700" }
+    - { path: "{{ backup_root }}/recu", mode: "0755" }
+    - { path: /var/lib/pfe-backup, mode: "0700" }
+    - { path: /usr/local/lib/pfe-backup, mode: "0755" }
+    - { path: /etc/pfe-backup, mode: "0755" }
+    - { path: /var/lib/pfe-backup-recu/.ssh, mode: "0755" }
+
+- name: Clé d'envoi des sauvegardes (générée une fois sur le nœud, jamais dans Git)
+  ansible.builtin.command:
+    cmd: ssh-keygen -q -t ed25519 -N "" -C pfe-backup@{{ node_name }} -f /root/.ssh/pfe-backup_ed25519
+    creates: /root/.ssh/pfe-backup_ed25519
+
+- name: Clé publique d'envoi et empreinte SSH du nœud
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop: [/root/.ssh/pfe-backup_ed25519.pub, /etc/ssh/ssh_host_ed25519_key.pub]
+  register: backup_keys
+
+- name: Clés mémorisées pour les autres nœuds
+  ansible.builtin.set_fact:
+    backup_pubkey: "{{ backup_keys.results[0].content | b64decode | trim }}"
+    backup_host_key: "{{ (backup_keys.results[1].content | b64decode).split()[:2] | join(' ') }}"
+
+- name: Dossier de réception de chaque nœud qui envoie ici
+  ansible.builtin.file:
+    path: "{{ backup_root }}/recu/{{ hostvars[item].node_name }}"
+    state: directory
+    owner: pfe-backup
+    mode: "0700"
+  loop: "{{ groups['all'] | select('ne', inventory_hostname) | list }}"
+  when: hostvars[item].backup_peer == inventory_hostname
+
+- name: Clés des nœuds qui envoient ici (écriture seule dans leur dossier, sans suppression, adresse imposée)
+  ansible.builtin.copy:
+    dest: /var/lib/pfe-backup-recu/.ssh/authorized_keys
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {% for h in groups['all'] if h != inventory_hostname and hostvars[h].backup_peer == inventory_hostname %}
+      command="/usr/bin/rrsync -wo -no-del {{ backup_root }}/recu/{{ hostvars[h].node_name }}",restrict,from="{{ hostvars[h].ansible_host }}" {{ hostvars[h].backup_pubkey }}
+      {% endfor %}
+
+- name: "Empreinte SSH du pair (lue par Ansible : pas de confiance au premier contact)"
+  ansible.builtin.copy:
+    dest: /etc/pfe-backup/known_hosts
+    mode: "0644"
+    content: "{{ hostvars[backup_peer].node_name }} {{ hostvars[backup_peer].backup_host_key }}\n"
+
+- name: Bibliothèque et requête de comptage
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/usr/local/lib/pfe-backup/{{ item.dest }}"
+    mode: "0644"
+  loop:
+    - { src: lib.sh.j2, dest: lib.sh }
+    - { src: comptage.sql.j2, dest: comptage.sql }
+
+- name: Scripts de sauvegarde, de vérification et de restauration
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/usr/local/sbin/{{ item }}"
+    mode: "0750"
+  loop: [pfe-backup, pfe-backup-check, pfe-restore]
+
+- name: Métriques initiales (aucune sauvegarde encore faite ; jamais écrasées ensuite par Ansible)
+  ansible.builtin.copy:
+    dest: "{{ textfile_dir }}/pfe_backup.prom"
+    force: false
+    mode: "0644"
+    content: |
+      pfe_backup_last_status 1
+      pfe_backup_last_success_timestamp_seconds 0
+      pfe_backup_offsite_status 1
+      pfe_backup_offsite_last_success_timestamp_seconds 0
+
+- name: Services et minuteries systemd (rattrapage au démarrage si une nuit a été manquée)
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    mode: "0644"
+    content: "{{ item.content }}"
+  loop:
+    - name: pfe-backup.service
+      content: |
+        [Unit]
+        Description=Sauvegarde PFE de {{ node_name }} et copie vers {{ hostvars[backup_peer].node_name }}
+        After=network-online.target docker.service
+        Wants=network-online.target
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/pfe-backup
+        Nice=10
+        IOSchedulingClass=idle
+        TimeoutStartSec=2h
+    - name: pfe-backup.timer
+      content: |
+        [Unit]
+        Description=Sauvegarde PFE chaque nuit
+        [Timer]
+        OnCalendar=*-*-* {{ backup_time }}:00
+        RandomizedDelaySec=600
+        Persistent=true
+        [Install]
+        WantedBy=timers.target
+    - name: pfe-backup-check.service
+      content: |
+        [Unit]
+        Description=Vérification des sauvegardes reçues et test de restauration hebdomadaire
+        After=docker.service
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/pfe-backup-check
+        Nice=10
+        IOSchedulingClass=idle
+        TimeoutStartSec=2h
+    - name: pfe-backup-check.timer
+      content: |
+        [Unit]
+        Description=Vérification des sauvegardes chaque nuit
+        [Timer]
+        OnCalendar=*-*-* {{ backup_check_time }}:00
+        RandomizedDelaySec=600
+        Persistent=true
+        [Install]
+        WantedBy=timers.target
+
+- name: Minuteries actives
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop: [pfe-backup.timer, pfe-backup-check.timer]

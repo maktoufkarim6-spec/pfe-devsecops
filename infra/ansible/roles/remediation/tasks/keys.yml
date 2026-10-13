@@ -1,0 +1,47 @@
+# Serveur de supervision : identité de l'agent (clé SSH et jeton du webhook), générée une fois, jamais dans Git.
+
+- name: Dossier des secrets de l'agent (lisible par l'agent seul)
+  ansible.builtin.file:
+    path: "{{ monitoring_dir }}/secrets/agent"
+    state: directory
+    owner: "10002"
+    mode: "0700"
+
+- name: Clé SSH de l'agent
+  ansible.builtin.command:
+    cmd: ssh-keygen -q -t ed25519 -N "" -C pfe-agent@{{ node_name }} -f {{ monitoring_dir }}/secrets/agent/id_ed25519
+    creates: "{{ monitoring_dir }}/secrets/agent/id_ed25519"
+
+- name: Droits de la clé de l'agent
+  ansible.builtin.file:
+    path: "{{ monitoring_dir }}/secrets/agent/{{ item.name }}"
+    owner: "10002"
+    mode: "{{ item.mode }}"
+  loop:
+    - { name: id_ed25519, mode: "0400" }
+    - { name: id_ed25519.pub, mode: "0444" }
+
+- name: Clé publique de l'agent (installée ensuite sur chaque nœud)
+  ansible.builtin.slurp:
+    src: "{{ monitoring_dir }}/secrets/agent/id_ed25519.pub"
+  register: remediation_pubkey_file
+
+- name: Jeton du webhook Alertmanager -> agent (généré une fois, conservé sur le serveur)
+  ansible.builtin.set_fact:
+    remediation_agent_pubkey: "{{ remediation_pubkey_file.content | b64decode | trim }}"
+    remediation_webhook_token: >-
+      {{ lookup('ansible.builtin.password', lookup('env', 'HOME') + '/.pfe-secrets/agent-webhook-token',
+                length=40, chars=['ascii_letters', 'digits']) }}
+  no_log: true
+
+- name: Jeton du webhook (une copie pour l'agent, une pour Alertmanager)
+  ansible.builtin.copy:
+    dest: "{{ item.dest }}"
+    content: "{{ remediation_webhook_token }}"
+    owner: "{{ item.owner }}"
+    mode: "0400"
+  loop:
+    - { dest: "{{ monitoring_dir }}/secrets/agent/webhook-token", owner: "10002" }
+    - { dest: "{{ monitoring_dir }}/secrets/agent-webhook-token", owner: "65534" }
+  no_log: true
+  notify: Redémarrer la supervision

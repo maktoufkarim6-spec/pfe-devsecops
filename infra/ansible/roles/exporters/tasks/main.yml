@@ -36,6 +36,9 @@
       - "/sys:/sys:ro"
       - "/var/lib/docker/:/var/lib/docker:ro"
       - "/dev/disk/:/dev/disk:ro"
+    # En réseau hôte, le test de santé de l'image viserait localhost:8080 (Jenkins sur app-1)
+    env:
+      CADVISOR_HEALTHCHECK_URL: "http://localhost:{{ port_cadvisor }}/healthz"
     command: ["--port={{ port_cadvisor }}"]
 
 - name: Collecteur cAdvisor k3s (pods de l'application, via containerd)
@@ -51,6 +54,8 @@
       - "/sys:/sys:ro"
       - "/dev/disk/:/dev/disk:ro"
       - "/run/k3s/containerd/containerd.sock:/run/k3s/containerd/containerd.sock:ro"
+    env:
+      CADVISOR_HEALTHCHECK_URL: "http://localhost:{{ port_cadvisor_k3s }}/healthz"
     command:
       - "--port={{ port_cadvisor_k3s }}"
       - "--containerd=/run/k3s/containerd/containerd.sock"

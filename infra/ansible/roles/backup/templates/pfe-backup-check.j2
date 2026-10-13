@@ -1,0 +1,137 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# pfe-backup-check : 1) vérifie les empreintes des jeux reçus des autres nœuds et applique leur rotation ;
+# 2) une fois par semaine, RESTAURE réellement le dernier jeu local dans un espace de test pour prouver
+#    qu'il est utilisable. Lancé chaque nuit par pfe-backup-check.timer ; test immédiat : pfe-backup-check --test
+set -uo pipefail
+umask 077
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# shellcheck source=/dev/null
+. /usr/local/lib/pfe-backup/lib.sh
+
+FORCE_TEST=0
+[ "${1:-}" = "--test" ] && FORCE_TEST=1
+exec 9>/run/pfe-backup-check.lock
+flock -n 9 || { log "vérification déjà en cours"; exit 0; }
+mkdir -p "$STATE/verifie"
+
+prom=""
+add() { prom+="$*"$'\n'; }
+
+# ------------------------------------------------------------------ 1. jeux reçus
+add "# HELP pfe_backup_received_last_timestamp_seconds Date du dernier jeu complet reçu de chaque nœud"
+add "# TYPE pfe_backup_received_last_timestamp_seconds gauge"
+add "# HELP pfe_backup_received_valid 1 si les empreintes du dernier jeu reçu sont correctes"
+add "# TYPE pfe_backup_received_valid gauge"
+add "# HELP pfe_backup_received_sets Nombre de jeux reçus conservés"
+add "# TYPE pfe_backup_received_sets gauge"
+for dir in "$RECEIVED"/*/; do
+  [ -d "$dir" ] || continue
+  src=$(basename "$dir")
+  [[ "$src" =~ ^[a-z0-9][a-z0-9-]*$ ]] || continue
+  mkdir -p "$STATE/verifie/$src"
+  latest="" latest_ok=0
+  while read -r s; do
+    [ -f "$dir/$s/SHA256SUMS" ] || continue
+    marker=$STATE/verifie/$src/$s
+    if [ ! -f "$marker" ]; then
+      if (cd "$dir/$s" && sha256sum --quiet --strict -c SHA256SUMS >/dev/null 2>&1); then
+        echo ok > "$marker"
+      else
+        echo corrompu > "$marker"
+        log "jeu reçu de $src CORROMPU : $s"
+      fi
+    fi
+    if [ -z "$latest" ]; then
+      latest=$s
+      [ "$(cat "$marker")" = ok ] && latest_ok=1
+    fi
+  done < <(sets_of "$dir")
+  prune "$dir"
+  # Marqueurs des jeux supprimés par la rotation
+  for m in "$STATE/verifie/$src"/*; do
+    [ -e "$m" ] && [ ! -d "$dir/$(basename "$m")" ] && rm -f -- "$m"
+  done
+  add "pfe_backup_received_last_timestamp_seconds{source=\"$src\"} $([ -n "$latest" ] && set_epoch "$latest" || echo 0)"
+  add "pfe_backup_received_valid{source=\"$src\"} $latest_ok"
+  add "pfe_backup_received_sets{source=\"$src\"} $(sets_of "$dir" | wc -l)"
+  log "jeux reçus de $src : dernier=${latest:-aucun} valide=$latest_ok"
+done
+
+# ------------------------------------------------------------------ 2. test de restauration hebdomadaire
+last_test=$(state_get restore_test_last_attempt)
+if (( FORCE_TEST == 1 || $(date +%s) - last_test > 6 * 86400 + 43200 )); then
+  state_set restore_test_last_attempt "$(date +%s)"
+  status=0
+  latest=""
+  while read -r s; do [ -f "$LOCAL/$s/SHA256SUMS" ] && { latest=$s; break; }; done < <(sets_of "$LOCAL")
+  if [ -z "$latest" ]; then
+    log "test de restauration : aucun jeu local complet pour l'instant (rien à tester)"
+    status=$(state_get restore_test_status 1)
+  else
+    SET=$LOCAL/$latest
+    TMP=$ROOT/.test-restauration
+    rm -rf -- "${TMP:?}"; mkdir -p "$TMP"
+    log "test de restauration du jeu $latest"
+    restore_test() {
+      (cd "$SET" && sha256sum --quiet --strict -c SHA256SUMS) || { log "empreintes incorrectes"; return 1; }
+{% if inventory_hostname in groups['monitoring'] %}
+      # Prometheus : l'instantané doit s'ouvrir avec promtool et contenir au moins un bloc de données
+      mkdir -p "$TMP/prometheus"
+      zstd -dc "$SET/prometheus.tar.zst" | tar -C "$TMP/prometheus" -xf - || return 1
+      blocks=$(docker run --rm --network none -v "$TMP/prometheus:/s:ro" --entrypoint promtool \
+               {{ image_prometheus }} tsdb list /s | tail -n +2 | grep -c . || true)
+      (( blocks >= 1 )) || { log "instantané Prometheus sans bloc lisible"; return 1; }
+      log "Prometheus : $blocks bloc(s) lisible(s)"
+      # Grafana : base intègre et tableaux de bord présents
+      zstd -dc "$SET/grafana.db.zst" > "$TMP/grafana.db" || return 1
+      [ "$(sqlite3 "$TMP/grafana.db" 'PRAGMA integrity_check')" = ok ] || { log "base Grafana corrompue"; return 1; }
+      dashboards=$(sqlite3 "$TMP/grafana.db" 'select count(*) from dashboard')
+      (( dashboards >= 1 )) || { log "aucun tableau de bord dans la base Grafana"; return 1; }
+      # Historique AIOps et journal de l'agent : archive lisible
+      zstd -dc "$SET/aiops-et-agent.tar.zst" | tar -tf - | grep -q '^aiops-data/' || return 1
+      log "Grafana : $dashboards tableau(x) de bord ; archives AIOps lisibles"
+{% endif %}
+{% if node_app | bool %}
+      # PostgreSQL : restauration réelle dans une base de test, puis comparaison des comptages de lignes
+      local db=pfe_test_restauration
+      k() { k3s kubectl -n default "$@"; }
+      k exec deploy/postgres -- sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$1" && createdb -U "$POSTGRES_USER" "$1"' _ "$db" || return 1
+      local rc=0
+      k exec -i deploy/postgres -- sh -c 'pg_restore -U "$POSTGRES_USER" -d "$1" --no-owner --no-privileges --exit-on-error' _ "$db" \
+        < "$SET/postgres-demo.dump" || rc=1
+      if (( rc == 0 )); then
+        k exec -i deploy/postgres -- sh -c 'psql -U "$POSTGRES_USER" -d "$1" -At -v ON_ERROR_STOP=1' _ "$db" \
+          < /usr/local/lib/pfe-backup/comptage.sql > "$TMP/comptage.txt" || rc=1
+      fi
+      k exec deploy/postgres -- sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$1"' _ "$db" || true
+      (( rc == 0 )) || { log "restauration PostgreSQL impossible"; return 1; }
+      if ! diff -q "$SET/postgres-demo.comptage.txt" "$TMP/comptage.txt" >/dev/null; then
+        log "PostgreSQL : comptages différents après restauration"
+        diff "$SET/postgres-demo.comptage.txt" "$TMP/comptage.txt" | head -20
+        return 1
+      fi
+      log "PostgreSQL : base restaurée, comptages identiques ($(wc -l < "$TMP/comptage.txt") tables)"
+{% endif %}
+      return 0
+    }
+    if restore_test; then
+      status=1
+      state_set restore_test_last_success "$(date +%s)"
+      log "test de restauration RÉUSSI"
+    else
+      log "test de restauration ÉCHOUÉ"
+    fi
+    rm -rf -- "${TMP:?}"
+  fi
+  state_set restore_test_status "$status"
+fi
+
+add "# HELP pfe_backup_restore_test_status 1 si le dernier test de restauration a réussi"
+add "# TYPE pfe_backup_restore_test_status gauge"
+add "pfe_backup_restore_test_status $(state_get restore_test_status 1)"
+add "# HELP pfe_backup_restore_test_last_success_timestamp_seconds Dernier test de restauration réussi"
+add "# TYPE pfe_backup_restore_test_last_success_timestamp_seconds gauge"
+add "pfe_backup_restore_test_last_success_timestamp_seconds $(state_get restore_test_last_success)"
+printf '%s' "$prom" | write_prom pfe_backup_check.prom
+[ "$(state_get restore_test_status 1)" = 1 ]
