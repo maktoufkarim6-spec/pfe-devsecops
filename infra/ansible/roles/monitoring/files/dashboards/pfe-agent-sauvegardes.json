@@ -732,7 +732,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_last_success_timestamp_seconds * 1000 > 0",
+          "expr": "max by (node) (pfe_backup_last_success_timestamp_seconds * 1000 > 0)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -743,7 +743,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_last_status",
+          "expr": "max by (node) (pfe_backup_last_status)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -754,7 +754,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_last_size_bytes",
+          "expr": "max by (node) (pfe_backup_last_size_bytes)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -765,7 +765,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_last_duration_seconds",
+          "expr": "max by (node) (pfe_backup_last_duration_seconds)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -776,7 +776,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_offsite_last_success_timestamp_seconds * 1000 > 0",
+          "expr": "max by (node) (pfe_backup_offsite_last_success_timestamp_seconds * 1000 > 0)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -787,7 +787,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_local_sets",
+          "expr": "max by (node) (pfe_backup_local_sets)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -798,7 +798,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_restore_test_status",
+          "expr": "max by (node) (pfe_backup_restore_test_status)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -809,7 +809,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_restore_test_last_success_timestamp_seconds * 1000 > 0",
+          "expr": "max by (node) (pfe_backup_restore_test_last_success_timestamp_seconds * 1000 > 0)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -1054,7 +1054,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_received_last_timestamp_seconds * 1000 > 0",
+          "expr": "max by (node, source) (pfe_backup_received_last_timestamp_seconds * 1000 > 0)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -1065,7 +1065,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_received_valid",
+          "expr": "max by (node, source) (pfe_backup_received_valid)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -1076,7 +1076,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "pfe_backup_received_sets",
+          "expr": "max by (node, source) (pfe_backup_received_sets)",
           "instant": true,
           "range": false,
           "format": "table"

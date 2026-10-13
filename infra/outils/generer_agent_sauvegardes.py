@@ -130,10 +130,10 @@ def bk(e, r):
 
 
 panels.append(table("État des sauvegardes par serveur", 0, y, 24, 6,
-    [bk('pfe_backup_last_success_timestamp_seconds * 1000 > 0', "A"), bk('pfe_backup_last_status', "B"),
-     bk('pfe_backup_last_size_bytes', "C"), bk('pfe_backup_last_duration_seconds', "D"),
-     bk('pfe_backup_offsite_last_success_timestamp_seconds * 1000 > 0', "E"), bk('pfe_backup_local_sets', "F"),
-     bk('pfe_backup_restore_test_status', "G"), bk('pfe_backup_restore_test_last_success_timestamp_seconds * 1000 > 0', "H")],
+    [bk('max by (node) (pfe_backup_last_success_timestamp_seconds * 1000 > 0)', "A"), bk('max by (node) (pfe_backup_last_status)', "B"),
+     bk('max by (node) (pfe_backup_last_size_bytes)', "C"), bk('max by (node) (pfe_backup_last_duration_seconds)', "D"),
+     bk('max by (node) (pfe_backup_offsite_last_success_timestamp_seconds * 1000 > 0)', "E"), bk('max by (node) (pfe_backup_local_sets)', "F"),
+     bk('max by (node) (pfe_backup_restore_test_status)', "G"), bk('max by (node) (pfe_backup_restore_test_last_success_timestamp_seconds * 1000 > 0)', "H")],
     "Une ligne par serveur : dernière sauvegarde, copie sur l'autre serveur, jeux gardés, dernier test de restauration réel.",
     [{"id": "merge", "options": {}},
      {"id": "organize", "options": {"excludeByName": HIDE,
@@ -147,8 +147,9 @@ panels.append(table("État des sauvegardes par serveur", 0, y, 24, 6,
      colored("Statut", RG, ETAT), colored("Test de restauration", RG, ETAT)]))
 y += 6
 panels.append(table("Sauvegardes reçues des autres serveurs", 0, y, 12, 6,
-    [bk('pfe_backup_received_last_timestamp_seconds * 1000 > 0', "A"), bk('pfe_backup_received_valid', "B"),
-     bk('pfe_backup_received_sets', "C")],
+    [bk('max by (node, source) (pfe_backup_received_last_timestamp_seconds * 1000 > 0)', "A"),
+     bk('max by (node, source) (pfe_backup_received_valid)', "B"),
+     bk('max by (node, source) (pfe_backup_received_sets)', "C")],
     "Jeux déposés par l'autre serveur (compte en écriture seule, sans suppression possible), empreintes vérifiées chaque nuit.",
     [{"id": "merge", "options": {}},
      {"id": "organize", "options": {"excludeByName": HIDE,
