@@ -52,4 +52,5 @@ remédiation automatique (agent). Les résultats de chaque campagne sont dans `r
 python eval/campagne.py                       # campagne complète (depuis le PC, clé SSH vers les deux VPS)
 python eval/campagne.py --seulement cpu_api   # une seule panne
 python eval/analyse.py                        # tableau de résultats -> resultats/RESULTATS.md
+python eval/rapport_pdf.py                    # chapitre PDF -> resultats/evaluation-pannes.pdf (reportlab)
 ```
