@@ -52,5 +52,5 @@ Passer en mode actif : `remediation_mode: actif` dans `infra/ansible/group_vars/
 
 ## Tests
 
-`python -m pytest tests` : 44 tests (politique, garde-fous, travailleur, webhook, commande SSH). Ils s'exécutent
+`python -m pytest tests` : 45 tests (politique, garde-fous, travailleur, webhook, commande SSH). Ils s'exécutent
 pendant `docker build` : un échec empêche l'image d'exister. Bibliothèque standard seulement (aucune dépendance).

@@ -6,7 +6,9 @@ import logging
 import queue
 import time
 import uuid
+from datetime import datetime
 
+from .executor import OUTCOMES
 from .policy import decide
 
 log = logging.getLogger("agent")
@@ -27,6 +29,21 @@ class Agent:
         self.last_probe = 0.0
         metrics.set("pfe_agent_mode", 1 if cfg.mode == "actif" else 0)
         metrics.set("pfe_agent_suspended", 1 if guards.suspended else 0)
+        self._restore_last_actions()
+
+    def _restore_last_actions(self):
+        """Après un redémarrage, la dernière action de chaque nœud reste visible (relue dans le journal)."""
+        for r in self.journal.tail(1000):
+            if r.get("type") != "decision" or r.get("decision") not in ("executee", "simulee"):
+                continue
+            try:
+                t = datetime.strptime(r["horodatage"], "%Y-%m-%dT%H:%M:%S%z").timestamp()
+                code = int(r["code"]) if r.get("code") else None
+            except (ValueError, KeyError):
+                continue
+            outcome = "simulee" if r["decision"] == "simulee" else OUTCOMES.get(code, "echec")
+            self.metrics.set("pfe_agent_last_action_timestamp_seconds", t,
+                             node=r["noeud"], action=r["action"], outcome=outcome)
 
     # ------------------------------------------------------------ entrée
     def submit(self, payload):

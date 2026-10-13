@@ -78,6 +78,15 @@ annonce de plus de 30 min : une maintenance ne peut jamais devenir un silence pe
 cd ~/pfe-devsecops/infra/ansible && ~/.pfe-ansible/bin/ansible-playbook retirer-ancienne-supervision.yml --ask-pass --ask-become-pass
 ```
 
+## Interface graphique
+
+Grafana (http://54.37.13.100:3000), dossier **PFE** :
+
+- **PFE - Supervision multi-nœuds + AIOps** : métriques des serveurs et de l'application, détections du moteur AIOps.
+- **PFE - Agent de remédiation et sauvegardes** : mode de l'agent, réparations, échecs, décisions par alerte,
+  dernières actions ; état des sauvegardes de chaque serveur (dernière sauvegarde, copie distante, taille, test
+  de restauration), jeux reçus et leurs empreintes ; alertes en cours sur tout le parc.
+
 ## Agent de remédiation (auto-réparation)
 
 Conteneur `mon-remediation` sur le serveur de supervision. Alertmanager lui transmet chaque alerte ; il choisit

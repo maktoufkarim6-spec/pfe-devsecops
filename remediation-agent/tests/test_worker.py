@@ -88,6 +88,14 @@ def test_submit_ignore_les_alertes_resolues(tmp_path):
     assert n == 1 and agent.queue.qsize() == 1
 
 
+def test_dernieres_actions_relues_au_redemarrage(tmp_path):
+    agent, _, _, _ = build(tmp_path)
+    agent.handle(alert("CollecteurArrete", job="cadvisor"))
+    agent2, _, m2, clock = build(tmp_path)
+    assert m2.get("pfe_agent_last_action_timestamp_seconds", node="app-1",
+                  action="restart-container cadvisor", outcome="succes") > 0
+
+
 def test_sonde_ssh(tmp_path):
     agent, ex, m, _ = build(tmp_path)
     agent.probe(force=True)

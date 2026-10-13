@@ -35,16 +35,23 @@ def make_handler(agent, token, metrics, healthy):
         def do_POST(self):
             if self.path != "/alert":
                 return self._send(404, "introuvable\n")
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = -1
+            if not 0 < length <= MAX_BODY:
+                metrics.inc("pfe_agent_webhooks_total", status="invalide")
+                self.close_connection = True
+                return self._send(400, "requête invalide : taille invalide\n")
+            # Corps lu avant toute réponse : un refus ne coupe jamais la connexion en pleine émission
+            body = self.rfile.read(length)
             auth = self.headers.get("Authorization", "")
             if not token or not hmac.compare_digest(auth.encode(), f"Bearer {token}".encode()):
                 metrics.inc("pfe_agent_webhooks_total", status="refuse")
                 log.warning("Notification refusée : jeton absent ou invalide (%s)", self.client_address[0])
                 return self._send(401, "jeton invalide\n")
             try:
-                length = int(self.headers.get("Content-Length", "0"))
-                if not 0 < length <= MAX_BODY:
-                    raise ValueError("taille invalide")
-                payload = json.loads(self.rfile.read(length))
+                payload = json.loads(body)
                 if not isinstance(payload, dict) or not isinstance(payload.get("alerts"), list):
                     raise ValueError("format Alertmanager attendu")
             except ValueError as exc:

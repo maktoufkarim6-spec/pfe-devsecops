@@ -97,6 +97,7 @@
   loop:
     - { src: grafana-dashboards.yml, dest: provisioning/dashboards/pfe.yml }
     - { src: dashboards/pfe-supervision.json, dest: dashboards/pfe-supervision.json }
+    - { src: dashboards/pfe-agent-sauvegardes.json, dest: dashboards/pfe-agent-sauvegardes.json }
 
 - name: Code du moteur AIOps
   ansible.builtin.git:
