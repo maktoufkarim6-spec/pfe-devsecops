@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Déploie la supervision multi-nœuds. À lancer sur le SERVEUR DE SUPERVISION (54.37.13.100) :
 #   curl -fsSL https://raw.githubusercontent.com/maktoufkarim6-spec/pfe-devsecops/main/infra/deploy.sh -o deploy.sh && bash deploy.sh
+# Options Ansible en plus (ex. agent en mode actif) : bash deploy.sh -e remediation_mode=actif
 # Relançable sans risque : chaque étape ne change que ce qui diffère de l'état voulu.
 set -euo pipefail
 REPO=https://github.com/maktoufkarim6-spec/pfe-devsecops.git
@@ -42,7 +43,7 @@ read -rp "Lancer le déploiement ? (oui/non) " OK
 [ "$OK" = "oui" ] || { echo "Abandon, rien n'a été modifié."; exit 1; }
 
 echo "== 5/5 Déploiement : Ansible demande le mot de passe SSH puis celui de sudo =="
-"$VENV/bin/ansible-playbook" site.yml --ask-pass --ask-become-pass "${EXTRA[@]}"
+"$VENV/bin/ansible-playbook" site.yml --ask-pass --ask-become-pass "${EXTRA[@]}" "$@"
 
 echo
 echo "Grafana : http://$MONITORING_IP:3000   (utilisateur : admin)"

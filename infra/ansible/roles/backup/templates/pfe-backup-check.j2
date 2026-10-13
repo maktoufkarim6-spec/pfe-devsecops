@@ -79,7 +79,8 @@ if (( FORCE_TEST == 1 || $(date +%s) - last_test > 6 * 86400 + 43200 )); then
       # Prometheus : l'instantané doit s'ouvrir avec promtool et contenir au moins un bloc de données
       mkdir -p "$TMP/prometheus"
       zstd -dc "$SET/prometheus.tar.zst" | tar -C "$TMP/prometheus" -xf - || return 1
-      blocks=$(docker run --rm --network none -v "$TMP/prometheus:/s:ro" --entrypoint promtool \
+      # promtool écrit un dossier temporaire dans l'instantané : copie de test en écriture, réseau coupé
+      blocks=$(docker run --rm --network none --user 0 -v "$TMP/prometheus:/s" --entrypoint promtool \
                {{ image_prometheus }} tsdb list /s | tail -n +2 | grep -c . || true)
       (( blocks >= 1 )) || { log "instantané Prometheus sans bloc lisible"; return 1; }
       log "Prometheus : $blocks bloc(s) lisible(s)"
