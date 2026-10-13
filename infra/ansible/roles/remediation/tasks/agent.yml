@@ -32,18 +32,15 @@
 
 - name: Image de l'agent (ses tests tournent pendant la construction)
   community.docker.docker_image:
-    name: remediation-agent
-    tag: "{{ remediation_version }}"
+    name: "{{ remediation_image_ref }}"
     source: build
     build:
       path: "{{ repo_dir }}/remediation-agent"
-    force_source: "{{ monitoring_repo.changed }}"
-  register: remediation_image
 
 - name: Agent de remédiation (non-root, lecture seule, ressources limitées, aucun port publié)
   community.docker.docker_container:
     name: mon-remediation
-    image: "remediation-agent:{{ remediation_version }}"
+    image: "{{ remediation_image_ref }}"
     restart_policy: unless-stopped
     networks: [{ name: pfe-monitoring }]
     etc_hosts: { host.docker.internal: host-gateway }
@@ -65,4 +62,4 @@
       - "{{ monitoring_dir }}/secrets/agent:/secrets:ro"
       - "{{ monitoring_dir }}/remediation/known_hosts:/config/known_hosts:ro"
       - "{{ monitoring_dir }}/remediation-data:/data"
-    recreate: "{{ monitoring_repo.changed or remediation_known_hosts.changed or remediation_image.changed }}"
+    recreate: "{{ remediation_known_hosts.changed }}"

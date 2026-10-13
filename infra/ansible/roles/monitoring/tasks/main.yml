@@ -122,14 +122,25 @@
     force: true
   register: monitoring_repo
 
+# L'étiquette d'une image contient l'empreinte Git de son dossier : l'image est reconstruite dès que son code
+# change, même si le dépôt avait déjà été mis à jour par un déploiement précédent interrompu.
+- name: Empreinte du code de chaque image construite sur place
+  ansible.builtin.command: git -C {{ repo_dir }} rev-parse --short=12 HEAD:{{ item }}
+  loop: [aiops-engine, remediation-agent]
+  register: monitoring_code_hash
+  changed_when: false
+
+- name: Étiquettes des images (version + empreinte du code)
+  ansible.builtin.set_fact:
+    aiops_image: "aiops-engine:{{ aiops_version }}-{{ monitoring_code_hash.results[0].stdout }}"
+    remediation_image_ref: "remediation-agent:{{ remediation_version }}-{{ monitoring_code_hash.results[1].stdout }}"
+
 - name: Image du moteur AIOps (ses 57 tests tournent pendant la construction)
   community.docker.docker_image:
-    name: aiops-engine
-    tag: "{{ aiops_version }}"
+    name: "{{ aiops_image }}"
     source: build
     build:
       path: "{{ repo_dir }}/aiops-engine"
-    force_source: "{{ monitoring_repo.changed }}"
 
 - name: Réseau Docker de la supervision
   community.docker.docker_network:
@@ -204,7 +215,7 @@
 - name: Moteur AIOps multi-nœuds (non-root, lecture seule, ressources limitées)
   community.docker.docker_container:
     name: mon-aiops-engine
-    image: "aiops-engine:{{ aiops_version }}"
+    image: "{{ aiops_image }}"
     restart_policy: unless-stopped
     networks: [{ name: pfe-monitoring }]
     published_ports: ["127.0.0.1:8010:8000"]
@@ -222,7 +233,6 @@
       AIOPS_APP_DB: "{{ app_db_deployment or 'aucune' }}"
     volumes:
       - "{{ monitoring_dir }}/aiops-data:/data"
-    recreate: "{{ monitoring_repo.changed }}"
   vars:
     aiops_targets: "{{ _target_list | from_yaml }}"
     _target_list: |
