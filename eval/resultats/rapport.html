@@ -1,0 +1,259 @@
+<title>Campagne de pannes PFE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Mise en page : rapport d'essai d'exploitation, chiffres clés puis chronogramme de chaque panne sur un axe commun de 15 min */
+:root {
+  --fond: #f2f4f3; --papier: #fbfcfb; --encre: #17211e; --doux: #5b6863; --trait: #d5dcd9;
+  --accent: #0e7468; --alerte: #b26b12; --repare: #2b7a3d; --panne: #c9d3cf; --trainee: #e6c9a3; --ko: #b4372f;
+  --f-titre: "Archivo", "Helvetica Neue", Arial, sans-serif; --f-texte: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-data: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --fond: #111816; --papier: #18211e; --encre: #e4ebe8; --doux: #9aa8a3; --trait: #2c3935;
+  --accent: #3fb8a6; --alerte: #e0a249; --repare: #62c27a; --panne: #3a4a45; --trainee: #6b5332; --ko: #ef7a70; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --fond: #111816; --papier: #18211e; --encre: #e4ebe8; --doux: #9aa8a3; --trait: #2c3935;
+  --accent: #3fb8a6; --alerte: #e0a249; --repare: #62c27a; --panne: #3a4a45; --trainee: #6b5332; --ko: #ef7a70; color-scheme: dark }
+body { background: var(--fond); color: var(--encre); font: 15px/1.55 var(--f-texte); }
+.page { max-width: 980px; margin: 0 auto; padding-inline: 20px; padding-block: 36px 56px; display: grid; gap: 36px; }
+h1 { font: 800 clamp(26px, 4vw, 38px)/1.1 var(--f-titre); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font: 700 19px/1.25 var(--f-titre); margin: 0 0 12px; text-wrap: balance; }
+.sur { font: 600 12px/1 var(--f-data); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+.chapo { color: var(--doux); max-width: 68ch; margin: 12px 0 0; }
+.tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.tuile { background: var(--papier); border: 1px solid var(--trait); border-radius: 6px; padding: 14px 16px; display: grid; gap: 4px; }
+.t-lib { font-size: 13px; color: var(--doux); }
+.t-val { font: 700 30px/1.1 var(--f-data); font-variant-numeric: tabular-nums; }
+.t-sub { font-size: 13px; color: var(--doux); }
+.legende { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--doux); margin-bottom: 8px; }
+.legende i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.legende .l-panne { border-radius: 2px; background: var(--panne); width: 18px; }
+.legende .l-trainee { border-radius: 2px; background: var(--trainee); width: 18px; }
+.pannes { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.panne-l { background: var(--papier); border: 1px solid var(--trait); border-radius: 6px; padding: 12px 14px; display: grid; gap: 6px; min-width: 0; }
+.p-tete { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.p-num { font: 600 13px var(--f-data); color: var(--doux); }
+.p-nom { font-weight: 700; }
+.p-heure { font: 13px var(--f-data); color: var(--doux); margin-left: auto; }
+.chrono, .axe { width: 100%; height: auto; display: block; }
+.axe line { stroke: var(--doux); }
+.axe text { fill: var(--doux); font: 10px var(--f-data); text-anchor: middle; }
+.axe-l { padding-inline: 14px; }
+.chrono .panne { fill: var(--panne); }
+.chrono .trainee { fill: var(--trainee); }
+.chrono line { stroke-width: 1.5; }
+.m-ia line, .m-ia circle { stroke: var(--accent); fill: var(--accent); }
+.m-alerte line, .m-alerte circle { stroke: var(--alerte); fill: var(--alerte); }
+.m-repare line, .m-repare circle { stroke: var(--repare); fill: var(--repare); }
+.p-faits { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 16px; margin: 0; font-size: 13px; }
+.p-faits div { display: flex; gap: 6px; min-width: 0; }
+.p-faits dt { color: var(--doux); flex: none; }
+.p-faits dd { margin: 0; font-family: var(--f-data); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.bon { color: var(--repare); } .neutre { color: var(--alerte); }
+.pastille { font: 600 11px var(--f-data); padding: 1px 6px; border-radius: 9px; border: 1px solid currentColor; }
+.pastille.ok { color: var(--repare); } .pastille.ko { color: var(--ko); }
+.tableau { overflow-x: auto; background: var(--papier); border: 1px solid var(--trait); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14px; }
+th, td { padding: 9px 12px; border-bottom: 1px solid var(--trait); text-align: left; vertical-align: middle; }
+thead th { font: 600 12px var(--f-data); color: var(--doux); text-transform: uppercase; letter-spacing: .05em; }
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+tbody th { font-weight: 500; }
+td.num, .num { font-family: var(--f-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.j { display: flex; align-items: center; gap: 10px; }
+.jauge { flex: 1; min-width: 80px; height: 8px; background: var(--trait); border-radius: 4px; overflow: hidden; }
+.jauge span { display: block; height: 100%; background: var(--accent); }
+.texte { max-width: 72ch; display: grid; gap: 10px; }
+.texte p, .texte ul { margin: 0; }
+.texte li + li { margin-top: 6px; }
+code { font: 13px var(--f-data); }
+</style>
+<main class="page">
+<header>
+  <p class="sur">PFE DevSecOps · AIOps · évaluation du 13/10/2026</p>
+  <h1>Campagne d'injection de pannes réelles</h1>
+  <p class="chapo">14 pannes provoquées sur les deux VPS entre 01:20 et 07:47 UTC, une à la fois,
+  séparées par des périodes calmes. Pour chacune : quand l'IA l'a vue, quand l'alerte est partie, ce qu'a décidé
+  l'agent et quand le service a été rétabli. Moteur AIOps non calibré (quelques heures d'apprentissage).</p>
+</header>
+
+<section aria-label="Chiffres clés"><div class="tuiles"><div class="tuile"><div class="t-lib">Pannes vues par l&#x27;IA</div><div class="t-val">10/11</div><div class="t-sub">délai médian 62 s</div></div><div class="tuile"><div class="t-lib">Précision de l&#x27;IA</div><div class="t-val">92 %</div><div class="t-sub">1 fausse(s) alerte(s) en 6.4 h</div></div><div class="tuile"><div class="t-lib">Réparées par l&#x27;agent</div><div class="t-val">8/9</div><div class="t-sub">décisions justes : 14/14</div></div><div class="tuile"><div class="t-lib">Rétablissement</div><div class="t-val">2 min 40 s</div><div class="t-sub">dont réaction de l&#x27;agent 18 s</div></div></div></section>
+
+<section>
+  <h2>Chronogramme de chaque panne</h2>
+  <div class="legende"><span><i class="l-panne"></i>panne active</span><span><i class="l-trainee"></i>anomalie encore ouverte</span>
+    <span><i style="background:var(--accent)"></i>détection par l'IA</span><span><i style="background:var(--alerte)"></i>alerte</span>
+    <span><i style="background:var(--repare)"></i>réparée par l'agent</span></div>
+  <div class="axe-l"><svg class="axe" viewBox="0 0 648 20" aria-hidden="true"><line x1="4.0" y1="0" x2="4.0" y2="5"/><text x="4.0" y="17">0 min</text><line x1="132.0" y1="0" x2="132.0" y2="5"/><text x="132.0" y="17">3 min</text><line x1="260.0" y1="0" x2="260.0" y2="5"/><text x="260.0" y="17">6 min</text><line x1="388.0" y1="0" x2="388.0" y2="5"/><text x="388.0" y="17">9 min</text><line x1="516.0" y1="0" x2="516.0" y2="5"/><text x="516.0" y="17">12 min</text><line x1="644.0" y1="0" x2="644.0" y2="5"/><text x="644.0" y="17">15 min</text></svg></div>
+  <ol class="pannes"><li class="panne-l">
+  <div class="p-tete"><span class="p-num">1</span><span class="p-nom">Arrêt du collecteur cAdvisor</span>
+    <span class="p-heure">01:21 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 2 min 27 s, alerte 2 min 15 s, réparée 2 min 23 s"><rect class="panne" x="4.0" y="13" width="105.2" height="10" rx="2"/><rect class="trainee" x="109.2" y="15" width="3.7" height="6" rx="2"/><g class="m-alerte"><line x1="100.0" y1="6" x2="100.0" y2="30"/><circle cx="100.0" cy="18" r="4.5"/><title>alerte : 2 min 15 s</title></g><g class="m-repare"><line x1="105.8" y1="6" x2="105.8" y2="30"/><circle cx="105.8" cy="18" r="4.5"/><title>réparée : 2 min 23 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>—</dd></div>
+    <div><dt>Alerte</dt><dd>2 min 15 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> restart-container cadvisor (exécutée)</dd></div>
+    <div><dt>Réparée</dt><dd>2 min 23 s</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">2</span><span class="p-nom">SonarQube démarré hors build (+2 Go de RAM)</span>
+    <span class="p-heure">01:32 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 2 min 20 s, IA 60 s, alerte 2 min 10 s, réparée 2 min 17 s"><rect class="panne" x="4.0" y="13" width="99.6" height="10" rx="2"/><g class="m-ia"><line x1="46.7" y1="6" x2="46.7" y2="30"/><circle cx="46.7" cy="18" r="4.5"/><title>IA : 60 s</title></g><g class="m-alerte"><line x1="96.4" y1="6" x2="96.4" y2="30"/><circle cx="96.4" cy="18" r="4.5"/><title>alerte : 2 min 10 s</title></g><g class="m-repare"><line x1="101.4" y1="6" x2="101.4" y2="30"/><circle cx="101.4" cy="18" r="4.5"/><title>réparée : 2 min 17 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>60 s · <span class="bon">cpu_host</span></dd></div>
+    <div><dt>Alerte</dt><dd>2 min 10 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> stop-sonarqube (exécutée)</dd></div>
+    <div><dt>Réparée</dt><dd>2 min 17 s</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">3</span><span class="p-nom">Boucle CPU dans le pod de l&#x27;API</span>
+    <span class="p-heure">02:04 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 2 min 47 s, IA 75 s, alerte 2 min 25 s, réparée 2 min 44 s"><rect class="panne" x="4.0" y="13" width="118.9" height="10" rx="2"/><rect class="trainee" x="122.9" y="15" width="305.4" height="6" rx="2"/><g class="m-ia"><line x1="57.3" y1="6" x2="57.3" y2="30"/><circle cx="57.3" cy="18" r="4.5"/><title>IA : 75 s</title></g><g class="m-alerte"><line x1="107.1" y1="6" x2="107.1" y2="30"/><circle cx="107.1" cy="18" r="4.5"/><title>alerte : 2 min 25 s</title></g><g class="m-repare"><line x1="120.8" y1="6" x2="120.8" y2="30"/><circle cx="120.8" cy="18" r="4.5"/><title>réparée : 2 min 44 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>75 s · <span class="bon">cpu_server</span></dd></div>
+    <div><dt>Alerte</dt><dd>2 min 25 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> rollout-restart server (exécutée)</dd></div>
+    <div><dt>Réparée</dt><dd>2 min 44 s</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">4</span><span class="p-nom">Fichier de 6 Go sur le disque</span>
+    <span class="p-heure">03:06 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 15 min 08 s, IA 65 s, alerte 2 min 15 s"><rect class="panne" x="4.0" y="13" width="640.0" height="10" rx="2"/><rect class="trainee" x="644.0" y="15" width="0.0" height="6" rx="2"/><g class="m-ia"><line x1="50.2" y1="6" x2="50.2" y2="30"/><circle cx="50.2" cy="18" r="4.5"/><title>IA : 65 s</title></g><g class="m-alerte"><line x1="100.0" y1="6" x2="100.0" y2="30"/><circle cx="100.0" cy="18" r="4.5"/><title>alerte : 2 min 15 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>65 s · <span class="bon">disk_host</span></dd></div>
+    <div><dt>Alerte</dt><dd>2 min 15 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> aucune action (escalade humaine)</dd></div>
+    <div><dt>Réparée</dt><dd>—</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">5</span><span class="p-nom">Surcharge CPU du serveur (3 cœurs sur 4)</span>
+    <span class="p-heure">04:09 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 10 min 14 s, IA 75 s, alerte 2 min 25 s"><rect class="panne" x="4.0" y="13" width="437.3" height="10" rx="2"/><rect class="trainee" x="441.3" y="15" width="162.8" height="6" rx="2"/><g class="m-ia"><line x1="57.3" y1="6" x2="57.3" y2="30"/><circle cx="57.3" cy="18" r="4.5"/><title>IA : 75 s</title></g><g class="m-alerte"><line x1="107.1" y1="6" x2="107.1" y2="30"/><circle cx="107.1" cy="18" r="4.5"/><title>alerte : 2 min 25 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>75 s · <span class="bon">cpu_host</span></dd></div>
+    <div><dt>Alerte</dt><dd>2 min 25 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> stop-sonarqube (exécutée)</dd></div>
+    <div><dt>Réparée</dt><dd>—</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">6</span><span class="p-nom">Fuite mémoire dans le pod de l&#x27;API (+150 Mo)</span>
+    <span class="p-heure">04:56 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 2 min 41 s, IA 55 s, alerte 2 min 05 s, réparée 2 min 40 s"><rect class="panne" x="4.0" y="13" width="114.9" height="10" rx="2"/><rect class="trainee" x="118.9" y="15" width="324.5" height="6" rx="2"/><g class="m-ia"><line x1="43.1" y1="6" x2="43.1" y2="30"/><circle cx="43.1" cy="18" r="4.5"/><title>IA : 55 s</title></g><g class="m-alerte"><line x1="92.9" y1="6" x2="92.9" y2="30"/><circle cx="92.9" cy="18" r="4.5"/><title>alerte : 2 min 05 s</title></g><g class="m-repare"><line x1="117.9" y1="6" x2="117.9" y2="30"/><circle cx="117.9" cy="18" r="4.5"/><title>réparée : 2 min 40 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>55 s · <span class="bon">ram_server_mb</span></dd></div>
+    <div><dt>Alerte</dt><dd>2 min 05 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> rollout-restart server (exécutée)</dd></div>
+    <div><dt>Réparée</dt><dd>2 min 40 s</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">7</span><span class="p-nom">Arrêt de node-exporter (nœud muet)</span>
+    <span class="p-heure">05:14 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 2 min 42 s, IA 3 min 40 s, alerte 2 min 25 s, réparée 2 min 41 s"><rect class="panne" x="4.0" y="13" width="115.8" height="10" rx="2"/><rect class="trainee" x="119.8" y="15" width="11.9" height="6" rx="2"/><g class="m-ia"><line x1="160.4" y1="6" x2="160.4" y2="30"/><circle cx="160.4" cy="18" r="4.5"/><title>IA : 3 min 40 s</title></g><g class="m-alerte"><line x1="107.1" y1="6" x2="107.1" y2="30"/><circle cx="107.1" cy="18" r="4.5"/><title>alerte : 2 min 25 s</title></g><g class="m-repare"><line x1="118.9" y1="6" x2="118.9" y2="30"/><circle cx="118.9" cy="18" r="4.5"/><title>réparée : 2 min 41 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>3 min 40 s</dd></div>
+    <div><dt>Alerte</dt><dd>2 min 25 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> restart-container node-exporter (exécutée)</dd></div>
+    <div><dt>Réparée</dt><dd>2 min 41 s</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">8</span><span class="p-nom">Pression mémoire du serveur (+2 Go)</span>
+    <span class="p-heure">05:25 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 10 min 15 s, IA 50 s, alerte 2 min 00 s"><rect class="panne" x="4.0" y="13" width="437.3" height="10" rx="2"/><rect class="trainee" x="441.3" y="15" width="87.2" height="6" rx="2"/><g class="m-ia"><line x1="39.6" y1="6" x2="39.6" y2="30"/><circle cx="39.6" cy="18" r="4.5"/><title>IA : 50 s</title></g><g class="m-alerte"><line x1="89.3" y1="6" x2="89.3" y2="30"/><circle cx="89.3" cy="18" r="4.5"/><title>alerte : 2 min 00 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>50 s · <span class="bon">ram_host</span></dd></div>
+    <div><dt>Alerte</dt><dd>2 min 00 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> stop-sonarqube (pause)</dd></div>
+    <div><dt>Réparée</dt><dd>—</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">9</span><span class="p-nom">Pod client supprimé (mise à 0, Argo CD doit le remettre)</span>
+    <span class="p-heure">05:45 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 34 s, réparée 32 s"><rect class="panne" x="4.0" y="13" width="24.0" height="10" rx="2"/><rect class="trainee" x="28.0" y="15" width="0.9" height="6" rx="2"/><g class="m-repare"><line x1="26.9" y1="6" x2="26.9" y2="30"/><circle cx="26.9" cy="18" r="4.5"/><title>réparée : 32 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>—</dd></div>
+    <div><dt>Alerte</dt><dd>—</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> aucune décision</dd></div>
+    <div><dt>Réparée</dt><dd>32 s</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">10</span><span class="p-nom">Boucle CPU dans le pod de l&#x27;API</span>
+    <span class="p-heure">05:54 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 15 min 08 s, IA 70 s, alerte 2 min 20 s"><rect class="panne" x="4.0" y="13" width="640.0" height="10" rx="2"/><rect class="trainee" x="644.0" y="15" width="0.0" height="6" rx="2"/><g class="m-ia"><line x1="53.8" y1="6" x2="53.8" y2="30"/><circle cx="53.8" cy="18" r="4.5"/><title>IA : 70 s</title></g><g class="m-alerte"><line x1="103.6" y1="6" x2="103.6" y2="30"/><circle cx="103.6" cy="18" r="4.5"/><title>alerte : 2 min 20 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>70 s · <span class="bon">cpu_server</span></dd></div>
+    <div><dt>Alerte</dt><dd>2 min 20 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> rollout-restart server (quota)</dd></div>
+    <div><dt>Réparée</dt><dd>—</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">11</span><span class="p-nom">SonarQube démarré hors build (+2 Go de RAM)</span>
+    <span class="p-heure">06:21 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 2 min 40 s, IA 75 s, alerte 2 min 25 s, réparée 2 min 39 s"><rect class="panne" x="4.0" y="13" width="114.4" height="10" rx="2"/><rect class="trainee" x="118.4" y="15" width="97.9" height="6" rx="2"/><g class="m-ia"><line x1="57.3" y1="6" x2="57.3" y2="30"/><circle cx="57.3" cy="18" r="4.5"/><title>IA : 75 s</title></g><g class="m-alerte"><line x1="107.1" y1="6" x2="107.1" y2="30"/><circle cx="107.1" cy="18" r="4.5"/><title>alerte : 2 min 25 s</title></g><g class="m-repare"><line x1="117.6" y1="6" x2="117.6" y2="30"/><circle cx="117.6" cy="18" r="4.5"/><title>réparée : 2 min 39 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>75 s · <span class="bon">cpu_host</span></dd></div>
+    <div><dt>Alerte</dt><dd>2 min 25 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> stop-sonarqube (exécutée)</dd></div>
+    <div><dt>Réparée</dt><dd>2 min 39 s</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">12</span><span class="p-nom">Fuite mémoire dans le pod de l&#x27;API (+150 Mo)</span>
+    <span class="p-heure">06:53 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 2 min 42 s, IA 50 s, alerte 2 min 00 s, réparée 2 min 41 s"><rect class="panne" x="4.0" y="13" width="115.4" height="10" rx="2"/><rect class="trainee" x="119.4" y="15" width="335.1" height="6" rx="2"/><g class="m-ia"><line x1="39.6" y1="6" x2="39.6" y2="30"/><circle cx="39.6" cy="18" r="4.5"/><title>IA : 50 s</title></g><g class="m-alerte"><line x1="89.3" y1="6" x2="89.3" y2="30"/><circle cx="89.3" cy="18" r="4.5"/><title>alerte : 2 min 00 s</title></g><g class="m-repare"><line x1="118.5" y1="6" x2="118.5" y2="30"/><circle cx="118.5" cy="18" r="4.5"/><title>réparée : 2 min 41 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>50 s · <span class="bon">ram_server_mb</span></dd></div>
+    <div><dt>Alerte</dt><dd>2 min 00 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> rollout-restart server (exécutée)</dd></div>
+    <div><dt>Réparée</dt><dd>2 min 41 s</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">13</span><span class="p-nom">Surcharge CPU du serveur (3 cœurs sur 4)</span>
+    <span class="p-heure">07:12 UTC · app-1</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 10 min 00 s, IA 60 s, alerte 2 min 10 s"><rect class="panne" x="4.0" y="13" width="427.2" height="10" rx="2"/><rect class="trainee" x="431.2" y="15" width="184.6" height="6" rx="2"/><g class="m-ia"><line x1="46.7" y1="6" x2="46.7" y2="30"/><circle cx="46.7" cy="18" r="4.5"/><title>IA : 60 s</title></g><g class="m-alerte"><line x1="96.4" y1="6" x2="96.4" y2="30"/><circle cx="96.4" cy="18" r="4.5"/><title>alerte : 2 min 10 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>60 s · <span class="bon">cpu_host</span></dd></div>
+    <div><dt>Alerte</dt><dd>2 min 10 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> stop-sonarqube (exécutée)</dd></div>
+    <div><dt>Réparée</dt><dd>—</dd></div>
+  </dl>
+</li><li class="panne-l">
+  <div class="p-tete"><span class="p-num">14</span><span class="p-nom">Arrêt du moteur AIOps</span>
+    <span class="p-heure">07:34 UTC · monitoring</span></div>
+  <svg class="chrono" viewBox="0 0 648 36" role="img" aria-label="Chronogramme : panne 3 min 08 s, alerte 2 min 35 s, réparée 3 min 07 s"><rect class="panne" x="4.0" y="13" width="133.7" height="10" rx="2"/><rect class="trainee" x="137.7" y="15" width="0.9" height="6" rx="2"/><g class="m-alerte"><line x1="114.2" y1="6" x2="114.2" y2="30"/><circle cx="114.2" cy="18" r="4.5"/><title>alerte : 2 min 35 s</title></g><g class="m-repare"><line x1="137.0" y1="6" x2="137.0" y2="30"/><circle cx="137.0" cy="18" r="4.5"/><title>réparée : 3 min 07 s</title></g></svg>
+  <dl class="p-faits">
+    <div><dt>IA</dt><dd>—</dd></div>
+    <div><dt>Alerte</dt><dd>2 min 35 s</dd></div>
+    <div><dt>Agent</dt><dd><span class="pastille ok">juste</span> restart-container mon-aiops-engine (exécutée)</dd></div>
+    <div><dt>Réparée</dt><dd>3 min 07 s</dd></div>
+  </dl>
+</li></ol>
+</section>
+
+<section>
+  <h2>Détecteurs comparés</h2>
+  <div class="tableau"><table>
+    <thead><tr><th>Détecteur</th><th>Pannes détectées</th><th>Délai médian</th><th>Min – max</th></tr></thead>
+    <tbody><tr><th scope="row">Moteur AIOps (z-score ou Isolation Forest)</th><td class="j"><div class="jauge" role="img" aria-label="10 sur 11"><span style="width:91%"></span></div><span class="num">10/11</span></td><td class="num">62 s</td><td class="num">50 s – 75 s</td></tr><tr><th scope="row">z-score robuste seul</th><td class="j"><div class="jauge" role="img" aria-label="10 sur 11"><span style="width:91%"></span></div><span class="num">10/11</span></td><td class="num">62 s</td><td class="num">50 s – 75 s</td></tr><tr><th scope="row">Isolation Forest seul</th><td class="j"><div class="jauge" role="img" aria-label="0 sur 11"><span style="width:0%"></span></div><span class="num">0/11</span></td><td class="num">—</td><td class="num">—</td></tr><tr><th scope="row">Alerte AnomalieAIOps (après 1 min)</th><td class="j"><div class="jauge" role="img" aria-label="10 sur 11"><span style="width:91%"></span></div><span class="num">10/11</span></td><td class="num">2 min 12 s</td><td class="num">2 min 00 s – 2 min 25 s</td></tr><tr><th scope="row">Seuils fixes (CPU &gt; 80 %, RAM &gt; 85 %, disque &gt; 85 %)</th><td class="j"><div class="jauge" role="img" aria-label="0 sur 11"><span style="width:0%"></span></div><span class="num">0/11</span></td><td class="num">—</td><td class="num">—</td></tr><tr><th scope="row">Alertes de disponibilité</th><td class="j"><div class="jauge" role="img" aria-label="3 sur 3"><span style="width:100%"></span></div><span class="num">3/3</span></td><td class="num">2 min 25 s</td><td class="num">2 min 15 s – 2 min 35 s</td></tr></tbody>
+  </table></div>
+</section>
+
+<section class="texte">
+  <h2>Ce qu'il faut retenir</h2>
+  <ul>
+    <li><strong>L'IA voit ce que les seuils fixes ne voient pas.</strong> Aucune panne n'a franchi les seuils classiques
+      (CPU &gt; 80 %, RAM &gt; 85 %, disque &gt; 85 %) ; le moteur en a vu 10 sur
+      11, avec la bonne variable dans 10 cas sur 10.</li>
+    <li><strong>Seul le z-score robuste a détecté.</strong> L'Isolation Forest, appris sur 2 h seulement puis suspendu
+      après un changement de régime, n'a rien signalé : à réévaluer après 24 h d'historique et calibration.</li>
+    <li>Fausses alertes de l'IA hors des pannes : app-1 03:56–03:58. Une anomalie RAM est aussi apparue 2 min après le
+      redémarrage d'un collecteur (comptée dans la fenêtre de cette panne).</li>
+    <li>La seule panne réparable non réparée l'a été par prudence : le quota de 3 actions par heure était atteint, en
+      partie par une action sans effet. Correction faite : une action sans effet ne compte plus dans le quota.</li>
+    <li>Un démarrage de SonarQube a fait libérer par le noyau le cache mémoire de l'API : sa RAM a baissé durablement et
+      l'anomalie est restée ouverte 30 min, jusqu'à ce que le moteur accepte ce nouveau régime. Correction faite dans
+      l'agent : une baisse n'est plus traitée comme une surcharge.</li>
+    <li>Le pod client supprimé a été remis par Argo CD en une trentaine de secondes, avant même que l'IA ne le voie :
+      l'auto-réparation GitOps couvre ce cas sans l'agent.</li>
+  </ul>
+  <p>Méthode, définitions et limites : <code>eval/README.md</code>. Données brutes : <code>eval/resultats/injections.jsonl</code>.</p>
+</section>
+</main>

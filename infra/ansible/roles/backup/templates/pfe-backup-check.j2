@@ -93,23 +93,23 @@ if (( FORCE_TEST == 1 || $(date +%s) - last_test > 6 * 86400 + 43200 )); then
       zstd -dc "$SET/aiops-et-agent.tar.zst" | tar -tf - | grep -q '^aiops-data/' || return 1
       log "Grafana : $dashboards tableau(x) de bord ; archives AIOps lisibles"
 {% endif %}
-{% if node_app | bool %}
+{% if node_app | bool and app_db_deployment %}
       # PostgreSQL : restauration réelle dans une base de test, puis comparaison des comptages de lignes
       local db=pfe_test_restauration
-      k() { k3s kubectl -n default "$@"; }
-      k exec deploy/postgres -- sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$1" && createdb -U "$POSTGRES_USER" "$1"' _ "$db" || return 1
+      k() { k3s kubectl -n {{ app_namespace }} "$@"; }
+      k exec deploy/{{ app_db_deployment }} -- sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$1" && createdb -U "$POSTGRES_USER" "$1"' _ "$db" || return 1
       local rc=0
-      k exec -i deploy/postgres -- sh -c 'pg_restore -U "$POSTGRES_USER" -d "$1" --no-owner --no-privileges --exit-on-error' _ "$db" \
-        < "$SET/postgres-demo.dump" || rc=1
+      k exec -i deploy/{{ app_db_deployment }} -- sh -c 'pg_restore -U "$POSTGRES_USER" -d "$1" --no-owner --no-privileges --exit-on-error' _ "$db" \
+        < "$SET/postgres-{{ app_db_name }}.dump" || rc=1
       if (( rc == 0 )); then
-        k exec -i deploy/postgres -- sh -c 'psql -U "$POSTGRES_USER" -d "$1" -At -v ON_ERROR_STOP=1' _ "$db" \
+        k exec -i deploy/{{ app_db_deployment }} -- sh -c 'psql -U "$POSTGRES_USER" -d "$1" -At -v ON_ERROR_STOP=1' _ "$db" \
           < /usr/local/lib/pfe-backup/comptage.sql > "$TMP/comptage.txt" || rc=1
       fi
-      k exec deploy/postgres -- sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$1"' _ "$db" || true
+      k exec deploy/{{ app_db_deployment }} -- sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$1"' _ "$db" || true
       (( rc == 0 )) || { log "restauration PostgreSQL impossible"; return 1; }
-      if ! diff -q "$SET/postgres-demo.comptage.txt" "$TMP/comptage.txt" >/dev/null; then
+      if ! diff -q "$SET/postgres-{{ app_db_name }}.comptage.txt" "$TMP/comptage.txt" >/dev/null; then
         log "PostgreSQL : comptages différents après restauration"
-        diff "$SET/postgres-demo.comptage.txt" "$TMP/comptage.txt" | head -20
+        diff "$SET/postgres-{{ app_db_name }}.comptage.txt" "$TMP/comptage.txt" | head -20
         return 1
       fi
       log "PostgreSQL : base restaurée, comptages identiques ($(wc -l < "$TMP/comptage.txt") tables)"

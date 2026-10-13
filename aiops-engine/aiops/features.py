@@ -7,8 +7,14 @@ critical   = niveau au-delà duquel un nouvel état ne peut jamais être accept�
 Multi-nœuds : chaque nœud est identifié dans Prometheus par l'étiquette node="<nom>",
 posée sur tous ses collecteurs (node-exporter, cAdvisor). Le moteur entraîne un modèle par nœud.
 Un nœud « applicatif » (qui héberge l'application k3s) ajoute les 4 variables de l'application.
+
+Profil de l'application (pour superviser une autre application, sans changer le code) :
+  AIOPS_APP_NAMESPACE (défaut default), AIOPS_APP_API (conteneur de l'API, défaut server),
+  AIOPS_APP_DB (conteneur de la base, défaut postgres). Les noms internes des variables
+  (cpu_server, ram_server_mb, ram_postgres_mb) restent fixes : « server » désigne l'API, « postgres » la base.
 """
 import json
+import os
 import re
 from collections import namedtuple
 from dataclasses import dataclass, field
@@ -16,12 +22,25 @@ from dataclasses import dataclass, field
 INF = float("inf")
 Feature = namedtuple("Feature", "name expr lo hi min_effect direction critical")
 NODE_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+K8S_NAME = re.compile(r"^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$")
+
+
+def _k8s_env(var, default):
+    value = os.getenv(var, default)
+    if not K8S_NAME.match(value):
+        raise ValueError(f"{var} invalide : {value!r} (nom Kubernetes attendu)")
+    return value
+
+
+APP_NAMESPACE = _k8s_env("AIOPS_APP_NAMESPACE", "default")
+APP_API = _k8s_env("AIOPS_APP_API", "server")
+APP_DB = _k8s_env("AIOPS_APP_DB", "postgres")
 
 NET = 'device!~"lo|veth.*|docker.*|br-.*|cni.*|flannel.*"'
 DISK = 'mountpoint="/",fstype="ext4"'
 IDLE = 'mode="idle"'
 K3S = 'job="cadvisor-k3s"'
-APP = 'job="cadvisor-k3s",container_label_io_kubernetes_pod_namespace="default"'
+APP = f'job="cadvisor-k3s",container_label_io_kubernetes_pod_namespace="{APP_NAMESPACE}"'
 
 
 def _sel(*parts):
@@ -45,11 +64,11 @@ def build_features(node=None, app=True):
     ]
     a = _sel(APP, n)[1:-1]
     apps = [
-        ("cpu_server", f'(sum(rate(container_cpu_usage_seconds_total{{{a},container_label_io_kubernetes_container_name="server"}}[2m])) * 100) or vector(0)',
+        ("cpu_server", f'(sum(rate(container_cpu_usage_seconds_total{{{a},container_label_io_kubernetes_container_name="{APP_API}"}}[2m])) * 100) or vector(0)',
          0, 6400, 5, "up", INF),
-        ("ram_server_mb", f'(sum(container_memory_working_set_bytes{{{a},container_label_io_kubernetes_container_name="server"}}) / 1048576) or vector(0)',
+        ("ram_server_mb", f'(sum(container_memory_working_set_bytes{{{a},container_label_io_kubernetes_container_name="{APP_API}"}}) / 1048576) or vector(0)',
          0, 1e6, 30, "both", INF),
-        ("ram_postgres_mb", f'(sum(container_memory_working_set_bytes{{{a},container_label_io_kubernetes_container_name="postgres"}}) / 1048576) or vector(0)',
+        ("ram_postgres_mb", f'(sum(container_memory_working_set_bytes{{{a},container_label_io_kubernetes_container_name="{APP_DB}"}}) / 1048576) or vector(0)',
          0, 1e6, 20, "both", INF),
         ("app_containers", f'count(count by (container_label_io_kubernetes_container_name) (container_memory_working_set_bytes{{{a},container_label_io_kubernetes_container_name!="",container_label_io_kubernetes_container_name!="POD"}})) or vector(0)',
          0, 1000, 0.5, "both", INF),

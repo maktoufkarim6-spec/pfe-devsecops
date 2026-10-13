@@ -19,6 +19,9 @@ ACTION=${1:-}
 ARG=${2:-}
 NODE={{ node_name }}
 CONTAINERS="{{ runbook_containers | join(' ') }}"
+NAMESPACE={{ app_namespace }}
+RESTARTABLE="{{ app_restartable | join(' ') }}"
+CI_HEAVY={{ app_ci_heavy_container }}
 APP={{ 'oui' if node_app | bool else 'non' }}
 DISK_CLEANUP={{ 'oui' if remediation_disk_cleanup | bool else 'non' }}
 MAINTENANCE_FILE={{ textfile_dir }}/maintenance.prom
@@ -57,21 +60,21 @@ case "$ACTION" in
 
   rollout-restart)
     [ "$APP" = oui ] || { say "nœud sans application"; exit 4; }
-    in_list "$ARG" "server client" || { say "déploiement hors liste autorisée"; exit 4; }
+    in_list "$ARG" "$RESTARTABLE" || { say "déploiement hors liste autorisée ($RESTARTABLE)"; exit 4; }
     maintenance && { say "maintenance ou build en cours : refus"; exit 4; }
     # Redémarrage progressif : le nouveau pod doit être prêt avant l'arrêt de l'ancien (pas de coupure)
-    k3s kubectl -n default rollout restart "deployment/$ARG" >/dev/null || { say "échec du lancement"; exit 1; }
-    if k3s kubectl -n default rollout status "deployment/$ARG" --timeout=180s >/dev/null; then
+    k3s kubectl -n "$NAMESPACE" rollout restart "deployment/$ARG" >/dev/null || { say "échec du lancement"; exit 1; }
+    if k3s kubectl -n "$NAMESPACE" rollout status "deployment/$ARG" --timeout=180s >/dev/null; then
       say "redémarrage progressif terminé"; exit 0
     fi
     say "redémarrage progressif non terminé en 180 s (l'ancien pod reste actif)"; exit 1 ;;
 
   stop-sonarqube)
-    [ "$APP" = oui ] || { say "nœud sans SonarQube"; exit 4; }
-    maintenance && { say "build en cours : SonarQube nécessaire, refus"; exit 4; }
-    running sonarqube || { say "SonarQube déjà arrêté"; exit 3; }
-    docker stop sonarqube >/dev/null || { say "échec de l'arrêt"; exit 1; }
-    say "SonarQube arrêté (le prochain build Jenkins le redémarre)"; exit 0 ;;
+    [ "$APP" = oui ] && [ -n "$CI_HEAVY" ] || { say "aucun outil de CI lourd sur ce nœud"; exit 4; }
+    maintenance && { say "build en cours : $CI_HEAVY nécessaire, refus"; exit 4; }
+    running "$CI_HEAVY" || { say "$CI_HEAVY déjà arrêté"; exit 3; }
+    docker stop "$CI_HEAVY" >/dev/null || { say "échec de l'arrêt"; exit 1; }
+    say "$CI_HEAVY arrêté (le prochain build Jenkins le redémarre)"; exit 0 ;;
 
   clean-disk)
     [ "$DISK_CLEANUP" = oui ] || { say "nettoyage disque désactivé (accord du propriétaire requis)"; exit 4; }

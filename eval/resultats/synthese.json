@@ -1,0 +1,723 @@
+{
+ "debut": 1791854444.779,
+ "fin": 1791877657.091,
+ "duree_h": 6.447864444454511,
+ "detecteurs": [
+  {
+   "id": "ia",
+   "libelle": "Moteur AIOps (z-score ou Isolation Forest)",
+   "vus": 10,
+   "total": 11,
+   "delais": [
+    60.0,
+    75.0,
+    65.0,
+    75.0,
+    55.0,
+    50.0,
+    70.0,
+    75.0,
+    50.0,
+    60.0
+   ]
+  },
+  {
+   "id": "zscore",
+   "libelle": "z-score robuste seul",
+   "vus": 10,
+   "total": 11,
+   "delais": [
+    60.0,
+    75.0,
+    65.0,
+    75.0,
+    55.0,
+    50.0,
+    70.0,
+    75.0,
+    50.0,
+    60.0
+   ]
+  },
+  {
+   "id": "iforest",
+   "libelle": "Isolation Forest seul",
+   "vus": 0,
+   "total": 11,
+   "delais": []
+  },
+  {
+   "id": "alerte_ia",
+   "libelle": "Alerte AnomalieAIOps (après 1 min)",
+   "vus": 10,
+   "total": 11,
+   "delais": [
+    130.0,
+    145.0,
+    135.0,
+    145.0,
+    125.0,
+    120.0,
+    140.0,
+    145.0,
+    120.0,
+    130.0
+   ]
+  },
+  {
+   "id": "seuil",
+   "libelle": "Seuils fixes (CPU > 80 %, RAM > 85 %, disque > 85 %)",
+   "vus": 0,
+   "total": 11,
+   "delais": []
+  },
+  {
+   "id": "alerte",
+   "libelle": "Alertes de disponibilité",
+   "vus": 3,
+   "total": 3,
+   "delais": [
+    135.0,
+    145.0,
+    155.0
+   ]
+  }
+ ],
+ "precision": {
+  "vrais": 12,
+  "faux": 1,
+  "faux_liste": [
+   "app-1 03:56–03:58"
+  ]
+ },
+ "episodes": [
+  {
+   "noeud": "app-1",
+   "debut": 1791855209.779,
+   "fin": 1791857024.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791857129.779,
+   "fin": 1791857639.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791860879.779,
+   "fin": 1791861809.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791862379.779,
+   "fin": 1791863129.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791863819.779,
+   "fin": 1791863924.779,
+   "lie": false
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791864674.779,
+   "fin": 1791865424.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791867434.779,
+   "fin": 1791867974.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791868694.779,
+   "fin": 1791868844.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791869189.779,
+   "fin": 1791869864.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791870944.779,
+   "fin": 1791871994.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791872564.779,
+   "fin": 1791872774.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791874469.779,
+   "fin": 1791875039.779,
+   "lie": true
+  },
+  {
+   "noeud": "app-1",
+   "debut": 1791875594.779,
+   "fin": 1791876374.779,
+   "lie": true
+  }
+ ],
+ "diagnostic": {
+  "justes": 10,
+  "total": 10
+ },
+ "agent": {
+  "correctes": 14,
+  "total": 14,
+  "reparees": 8,
+  "reparables": 9,
+  "retablissement": [
+   143.1,
+   137.0,
+   164.2,
+   160.2,
+   161.6,
+   159.8,
+   161.0,
+   187.0
+  ],
+  "reaction": [
+   8.099999999999994,
+   7.0,
+   19.19999999999999,
+   35.19999999999999,
+   16.599999999999994,
+   14.800000000000011,
+   41.0,
+   32.0
+  ]
+ },
+ "injections": [
+  {
+   "numero": 1,
+   "scenario": "cadvisor",
+   "nom": "Arrêt du collecteur cAdvisor",
+   "noeud": "app-1",
+   "t0": 1791854504.779,
+   "t_fin_panne": 1791854652.659,
+   "duree_panne": 147.9,
+   "detections": {
+    "alerte": 135.0
+   },
+   "variable_ia": null,
+   "variables_attendues": [],
+   "ia_attendue": false,
+   "action_attendue": "restart-container cadvisor",
+   "repare_par_agent_s": 143.1,
+   "retour_calme_s": 153.1,
+   "detections_releve": {},
+   "correct": true,
+   "verifications": [],
+   "decisions": [
+    {
+     "t": 1791854646.0,
+     "action": "restart-container cadvisor",
+     "decision": "executee"
+    }
+   ]
+  },
+  {
+   "numero": 2,
+   "scenario": "sonarqube",
+   "nom": "SonarQube démarré hors build (+2 Go de RAM)",
+   "noeud": "app-1",
+   "t0": 1791855142.0,
+   "t_fin_panne": 1791855282.0,
+   "duree_panne": 140.0,
+   "detections": {
+    "ia": 60.0,
+    "zscore": 60.0,
+    "alerte_ia": 130.0
+   },
+   "variable_ia": "cpu_host",
+   "variables_attendues": [
+    "ram_host",
+    "cpu_host"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "stop-sonarqube",
+   "repare_par_agent_s": 137.0,
+   "retour_calme_s": null,
+   "reconstruit": true,
+   "detections_releve": {
+    "ia": 61.0,
+    "zscore": 61.0,
+    "alerte_ia": 137.0
+   },
+   "correct": true,
+   "verifications": [
+    "persistant"
+   ],
+   "decisions": [
+    {
+     "t": 1791855281.0,
+     "action": "stop-sonarqube",
+     "decision": "executee"
+    },
+    {
+     "t": 1791855313.0,
+     "action": "aucune",
+     "decision": "aucune_action"
+    }
+   ]
+  },
+  {
+   "numero": 3,
+   "scenario": "cpu_api",
+   "nom": "Boucle CPU dans le pod de l'API",
+   "noeud": "app-1",
+   "t0": 1791857047.94,
+   "t_fin_panne": 1791857215.096,
+   "duree_panne": 167.2,
+   "detections": {
+    "ia": 75.0,
+    "zscore": 75.0,
+    "alerte_ia": 145.0
+   },
+   "variable_ia": "cpu_server",
+   "variables_attendues": [
+    "cpu_server"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "rollout-restart server",
+   "repare_par_agent_s": 164.2,
+   "retour_calme_s": 596.7,
+   "detections_releve": {
+    "ia": 83.9,
+    "zscore": 83.9,
+    "alerte_ia": 144.6
+   },
+   "correct": true,
+   "verifications": [
+    "persistant"
+   ],
+   "decisions": [
+    {
+     "t": 1791857213.0,
+     "action": "rollout-restart server",
+     "decision": "executee"
+    },
+    {
+     "t": 1791857233.0,
+     "action": "aucune",
+     "decision": "aucune_action"
+    }
+   ]
+  },
+  {
+   "numero": 4,
+   "scenario": "disque",
+   "nom": "Fichier de 6 Go sur le disque",
+   "noeud": "app-1",
+   "t0": 1791860809.734,
+   "t_fin_panne": 1791861717.795,
+   "duree_panne": 908.1,
+   "detections": {
+    "ia": 65.0,
+    "zscore": 65.0,
+    "alerte_ia": 135.0
+   },
+   "variable_ia": "disk_host",
+   "variables_attendues": [
+    "disk_host"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "aucune",
+   "repare_par_agent_s": null,
+   "retour_calme_s": 1013.2,
+   "detections_releve": {
+    "ia": 60.7,
+    "zscore": 60.7,
+    "alerte_ia": 135.1
+   },
+   "correct": true,
+   "verifications": [],
+   "decisions": [
+    {
+     "t": 1791860950.0,
+     "action": "aucune",
+     "decision": "aucune_action"
+    }
+   ]
+  },
+  {
+   "numero": 5,
+   "scenario": "cpu_hote",
+   "nom": "Surcharge CPU du serveur (3 cœurs sur 4)",
+   "noeud": "app-1",
+   "t0": 1791864594.482,
+   "t_fin_panne": 1791865209.384,
+   "duree_panne": 614.9,
+   "detections": {
+    "ia": 75.0,
+    "zscore": 75.0,
+    "alerte_ia": 145.0
+   },
+   "variable_ia": "cpu_host",
+   "variables_attendues": [
+    "cpu_host"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "stop-sonarqube",
+   "repare_par_agent_s": null,
+   "retour_calme_s": 843.8,
+   "detections_releve": {
+    "ia": 78.9,
+    "zscore": 78.9,
+    "alerte_ia": 140.6
+   },
+   "correct": true,
+   "verifications": [],
+   "decisions": [
+    {
+     "t": 1791864745.0,
+     "action": "stop-sonarqube",
+     "decision": "executee"
+    }
+   ]
+  },
+  {
+   "numero": 6,
+   "scenario": "ram_api",
+   "nom": "Fuite mémoire dans le pod de l'API (+150 Mo)",
+   "noeud": "app-1",
+   "t0": 1791867370.536,
+   "t_fin_panne": 1791867532.109,
+   "duree_panne": 161.6,
+   "detections": {
+    "ia": 55.0,
+    "zscore": 55.0,
+    "alerte_ia": 125.0
+   },
+   "variable_ia": "ram_server_mb",
+   "variables_attendues": [
+    "ram_server_mb"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "rollout-restart server",
+   "repare_par_agent_s": 160.2,
+   "retour_calme_s": 617.9,
+   "detections_releve": {
+    "ia": 64.5,
+    "zscore": 64.5,
+    "alerte_ia": 128.4
+   },
+   "correct": true,
+   "verifications": [
+    "persistant"
+   ],
+   "decisions": [
+    {
+     "t": 1791867517.0,
+     "action": "rollout-restart server",
+     "decision": "executee"
+    },
+    {
+     "t": 1791867538.0,
+     "action": "aucune",
+     "decision": "aucune_action"
+    },
+    {
+     "t": 1791867838.0,
+     "action": "aucune",
+     "decision": "aucune_action"
+    }
+   ]
+  },
+  {
+   "numero": 7,
+   "scenario": "node_exporter",
+   "nom": "Arrêt de node-exporter (nœud muet)",
+   "noeud": "app-1",
+   "t0": 1791868469.59,
+   "t_fin_panne": 1791868632.488,
+   "duree_panne": 162.9,
+   "detections": {
+    "ia": 220.0,
+    "zscore": 220.0,
+    "alerte": 145.0
+   },
+   "variable_ia": null,
+   "variables_attendues": [],
+   "ia_attendue": false,
+   "action_attendue": "restart-container node-exporter",
+   "repare_par_agent_s": 161.6,
+   "retour_calme_s": 179.6,
+   "detections_releve": {
+    "alerte": 145.3
+   },
+   "correct": true,
+   "verifications": [],
+   "decisions": [
+    {
+     "t": 1791868622.0,
+     "action": "restart-container node-exporter",
+     "decision": "executee"
+    }
+   ]
+  },
+  {
+   "numero": 8,
+   "scenario": "ram_hote",
+   "nom": "Pression mémoire du serveur (+2 Go)",
+   "noeud": "app-1",
+   "t0": 1791869130.363,
+   "t_fin_panne": 1791869745.347,
+   "duree_panne": 615.0,
+   "detections": {
+    "ia": 50.0,
+    "zscore": 50.0,
+    "alerte_ia": 120.0
+   },
+   "variable_ia": "ram_host",
+   "variables_attendues": [
+    "ram_host"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "stop-sonarqube",
+   "repare_par_agent_s": null,
+   "retour_calme_s": 737.6,
+   "detections_releve": {
+    "ia": 63.4,
+    "zscore": 63.4,
+    "alerte_ia": 125.1
+   },
+   "correct": true,
+   "verifications": [],
+   "decisions": [
+    {
+     "t": 1791869260.0,
+     "action": "stop-sonarqube",
+     "decision": "pause"
+    }
+   ]
+  },
+  {
+   "numero": 9,
+   "scenario": "client_zero",
+   "nom": "Pod client supprimé (mise à 0, Argo CD doit le remettre)",
+   "noeud": "app-1",
+   "t0": 1791870349.205,
+   "t_fin_panne": 1791870382.934,
+   "duree_panne": 33.7,
+   "detections": {},
+   "variable_ia": null,
+   "variables_attendues": [
+    "app_containers"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "aucune",
+   "repare_par_agent_s": 32.2,
+   "retour_calme_s": 35.0,
+   "detections_releve": {},
+   "correct": true,
+   "verifications": [],
+   "decisions": []
+  },
+  {
+   "numero": 10,
+   "scenario": "cpu_api",
+   "nom": "Boucle CPU dans le pod de l'API",
+   "noeud": "app-1",
+   "t0": 1791870865.421,
+   "t_fin_panne": 1791871774.202,
+   "duree_panne": 908.8,
+   "detections": {
+    "ia": 70.0,
+    "zscore": 70.0,
+    "alerte_ia": 140.0
+   },
+   "variable_ia": "cpu_server",
+   "variables_attendues": [
+    "cpu_server"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "rollout-restart server",
+   "repare_par_agent_s": null,
+   "retour_calme_s": 1137.9,
+   "detections_releve": {
+    "ia": 81.5,
+    "zscore": 81.5,
+    "alerte_ia": 145.5
+   },
+   "correct": true,
+   "verifications": [],
+   "decisions": [
+    {
+     "t": 1791871015.0,
+     "action": "rollout-restart server",
+     "decision": "quota"
+    }
+   ]
+  },
+  {
+   "numero": 11,
+   "scenario": "sonarqube",
+   "nom": "SonarQube démarré hors build (+2 Go de RAM)",
+   "noeud": "app-1",
+   "t0": 1791872484.511,
+   "t_fin_panne": 1791872645.426,
+   "duree_panne": 160.9,
+   "detections": {
+    "ia": 75.0,
+    "zscore": 75.0,
+    "alerte_ia": 145.0
+   },
+   "variable_ia": "cpu_host",
+   "variables_attendues": [
+    "ram_host",
+    "cpu_host"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "stop-sonarqube",
+   "repare_par_agent_s": 159.8,
+   "retour_calme_s": 298.6,
+   "detections_releve": {
+    "ia": 80.9,
+    "zscore": 80.9,
+    "alerte_ia": 144.4
+   },
+   "correct": true,
+   "verifications": [],
+   "decisions": [
+    {
+     "t": 1791872637.0,
+     "action": "stop-sonarqube",
+     "decision": "executee"
+    }
+   ]
+  },
+  {
+   "numero": 12,
+   "scenario": "ram_api",
+   "nom": "Fuite mémoire dans le pod de l'API (+150 Mo)",
+   "noeud": "app-1",
+   "t0": 1791874412.721,
+   "t_fin_panne": 1791874575.007,
+   "duree_panne": 162.3,
+   "detections": {
+    "ia": 50.0,
+    "zscore": 50.0,
+    "alerte_ia": 120.0
+   },
+   "variable_ia": "ram_server_mb",
+   "variables_attendues": [
+    "ram_server_mb"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "rollout-restart server",
+   "repare_par_agent_s": 161.0,
+   "retour_calme_s": 633.5,
+   "detections_releve": {
+    "ia": 49.8,
+    "zscore": 49.8,
+    "alerte_ia": 129.2
+   },
+   "correct": true,
+   "verifications": [
+    "persistant"
+   ],
+   "decisions": [
+    {
+     "t": 1791874552.0,
+     "action": "rollout-restart server",
+     "decision": "executee"
+    },
+    {
+     "t": 1791874873.0,
+     "action": "aucune",
+     "decision": "aucune_action"
+    }
+   ]
+  },
+  {
+   "numero": 13,
+   "scenario": "cpu_hote",
+   "nom": "Surcharge CPU du serveur (3 cœurs sur 4)",
+   "noeud": "app-1",
+   "t0": 1791875527.427,
+   "t_fin_panne": 1791876128.268,
+   "duree_panne": 600.8,
+   "detections": {
+    "ia": 60.0,
+    "zscore": 60.0,
+    "alerte_ia": 130.0
+   },
+   "variable_ia": "cpu_host",
+   "variables_attendues": [
+    "cpu_host"
+   ],
+   "ia_attendue": true,
+   "action_attendue": "stop-sonarqube",
+   "repare_par_agent_s": null,
+   "retour_calme_s": 860.4,
+   "detections_releve": {
+    "ia": 63.4,
+    "zscore": 63.4,
+    "alerte_ia": 140.6
+   },
+   "correct": true,
+   "verifications": [],
+   "decisions": [
+    {
+     "t": 1791875665.0,
+     "action": "stop-sonarqube",
+     "decision": "executee"
+    },
+    {
+     "t": 1791875683.0,
+     "action": "aucune",
+     "decision": "aucune_action"
+    }
+   ]
+  },
+  {
+   "numero": 14,
+   "scenario": "moteur",
+   "nom": "Arrêt du moteur AIOps",
+   "noeud": "monitoring",
+   "t0": 1791876869.05,
+   "t_fin_panne": 1791877057.091,
+   "duree_panne": 188.0,
+   "detections": {
+    "alerte": 155.0
+   },
+   "variable_ia": null,
+   "variables_attendues": [],
+   "ia_attendue": false,
+   "action_attendue": "restart-container mon-aiops-engine",
+   "repare_par_agent_s": 187.0,
+   "retour_calme_s": 189.3,
+   "detections_releve": {
+    "alerte": 153.8
+   },
+   "correct": true,
+   "verifications": [],
+   "decisions": [
+    {
+     "t": 1791877030.0,
+     "action": "restart-container mon-aiops-engine",
+     "decision": "executee"
+    },
+    {
+     "t": 1791877048.0,
+     "action": "aucune",
+     "decision": "aucune_action"
+    }
+   ]
+  }
+ ]
+}

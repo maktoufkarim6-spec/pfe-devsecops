@@ -2,7 +2,7 @@
 # {{ ansible_managed }}
 # pfe-backup : sauvegarde de {{ node_name }}, puis copie vers {{ hostvars[backup_peer].node_name }} ({{ hostvars[backup_peer].ansible_host }}).
 # Lancé chaque nuit par pfe-backup.timer ; à la main : sudo systemctl start pfe-backup
-# Contenu : {{ ("historique Prometheus, données AIOps et de l'agent, Grafana, Alertmanager, configuration" if inventory_hostname in groups['monitoring'] else '') }}{{ (' + ' if inventory_hostname in groups['monitoring'] and node_app | bool else '') }}{{ ("base PostgreSQL de l'application" if node_app | bool else '') }}
+# Contenu : {{ ("historique Prometheus, données AIOps et de l'agent, Grafana, Alertmanager, configuration" if inventory_hostname in groups['monitoring'] else '') }}{{ (' + ' if inventory_hostname in groups['monitoring'] and node_app | bool else '') }}{{ ("base PostgreSQL " ~ app_db_name if node_app | bool and app_db_deployment else '') }}
 set -Eeuo pipefail
 umask 077
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -97,17 +97,17 @@ tar -C "$(volume pfe-alertmanager-data)" -cf - . | zstd -q -T0 -o "$WORK/alertma
 mapfile -t config_dirs < <(present prometheus alertmanager grafana remediation)
 tar -C {{ monitoring_dir }} --exclude=secrets -cf - "${config_dirs[@]}" | zstd -q -T0 -o "$WORK/configuration.tar.zst"
 {% endif %}
-{% if node_app | bool %}
+{% if node_app | bool and app_db_deployment %}
 
-# --- Base PostgreSQL de l'application (format personnalisé de pg_dump, restaurable table par table)
-k() { k3s kubectl -n default "$@"; }
+# --- Base PostgreSQL de l'application ({{ app_db_name }}, format personnalisé de pg_dump, restaurable table par table)
+k() { k3s kubectl -n {{ app_namespace }} "$@"; }
 # Comptage des lignes au moment de la sauvegarde : référence du test de restauration hebdomadaire
-k exec -i deploy/postgres -- sh -c 'psql -U "$POSTGRES_USER" -d demo -At -v ON_ERROR_STOP=1' \
-  < /usr/local/lib/pfe-backup/comptage.sql > "$WORK/postgres-demo.comptage.txt"
-k exec deploy/postgres -- sh -c 'pg_dump -U "$POSTGRES_USER" -d demo -Fc' > "$WORK/postgres-demo.dump"
+k exec -i deploy/{{ app_db_deployment }} -- sh -c 'psql -U "$POSTGRES_USER" -d {{ app_db_name }} -At -v ON_ERROR_STOP=1' \
+  < /usr/local/lib/pfe-backup/comptage.sql > "$WORK/postgres-{{ app_db_name }}.comptage.txt"
+k exec deploy/{{ app_db_deployment }} -- sh -c 'pg_dump -U "$POSTGRES_USER" -d {{ app_db_name }} -Fc' > "$WORK/postgres-{{ app_db_name }}.dump"
 # Contrôle immédiat : le fichier doit être lisible par pg_restore
-k exec -i deploy/postgres -- pg_restore --list < "$WORK/postgres-demo.dump" > "$WORK/postgres-demo.contenu.txt"
-[ -s "$WORK/postgres-demo.contenu.txt" ]
+k exec -i deploy/{{ app_db_deployment }} -- pg_restore --list < "$WORK/postgres-{{ app_db_name }}.dump" > "$WORK/postgres-{{ app_db_name }}.contenu.txt"
+[ -s "$WORK/postgres-{{ app_db_name }}.contenu.txt" ]
 {% endif %}
 
 # --- Description du jeu et empreintes (le fichier SHA256SUMS marque un jeu complet)

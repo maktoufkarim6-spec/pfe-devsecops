@@ -152,3 +152,26 @@ def test_alerte_supprimee_pendant_maintenance_annoncee(tmp_path):
         ea.run_once()
     assert not ea.active
     assert metric("aiops_maintenance", "app-1") == 1
+
+
+def test_profil_d_application_configurable(monkeypatch):
+    """Une autre application se supervise sans toucher au code : espace de noms et conteneurs par l'environnement."""
+    import importlib
+
+    from aiops import features
+    monkeypatch.setenv("AIOPS_APP_NAMESPACE", "boutique")
+    monkeypatch.setenv("AIOPS_APP_API", "api-gateway")
+    monkeypatch.setenv("AIOPS_APP_DB", "pg-main")
+    try:
+        f = importlib.reload(features)
+        exprs = {x.name: x.expr for x in f.build_features("app-1", app=True)}
+        assert 'pod_namespace="boutique"' in exprs["app_containers"]
+        assert 'container_name="api-gateway"' in exprs["cpu_server"]
+        assert 'container_name="pg-main"' in exprs["ram_postgres_mb"]
+        monkeypatch.setenv("AIOPS_APP_API", "Pas Valide")
+        with pytest.raises(ValueError):
+            importlib.reload(features)
+    finally:
+        for v in ("AIOPS_APP_NAMESPACE", "AIOPS_APP_API", "AIOPS_APP_DB"):
+            monkeypatch.delenv(v, raising=False)
+        importlib.reload(features)

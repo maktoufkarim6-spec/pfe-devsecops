@@ -103,3 +103,11 @@ def test_config_lit_l_environnement():
 def test_noeuds_invalides(raw):
     with pytest.raises(ValueError):
         parse_nodes(raw)
+
+
+def test_deploiement_de_l_api_configurable(tmp_path):
+    cfg = make_cfg(tmp_path, app_api="api-gateway")
+    plan = decide(alert("AnomalieAIOps"), cfg, lambda n: ("cpu_server", 8.0))
+    assert (plan.action, plan.arg) == ("rollout-restart", "api-gateway")
+    with pytest.raises(ValueError):
+        make_cfg(tmp_path, app_api="Pas valide; reboot")

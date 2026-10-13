@@ -74,7 +74,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "count(count by (container_label_io_kubernetes_container_name) (container_memory_working_set_bytes{job=\"cadvisor-k3s\", container_label_io_kubernetes_pod_namespace=\"default\", container_label_io_kubernetes_container_name!=\"\", container_label_io_kubernetes_container_name!=\"POD\",node=\"$node\"})) or vector(0)"
+          "expr": "count(count by (container_label_io_kubernetes_container_name) (container_memory_working_set_bytes{job=\"cadvisor-k3s\", container_label_io_kubernetes_pod_namespace=\"__APP_NAMESPACE__\", container_label_io_kubernetes_container_name!=\"\", container_label_io_kubernetes_container_name!=\"POD\",node=\"$node\"})) or vector(0)"
         }
       ],
       "fieldConfig": {
@@ -450,7 +450,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "sum by (container_label_io_kubernetes_container_name) (rate(container_cpu_usage_seconds_total{job=\"cadvisor-k3s\", container_label_io_kubernetes_pod_namespace=\"default\", container_label_io_kubernetes_container_name!=\"\", container_label_io_kubernetes_container_name!=\"POD\",node=\"$node\"}[2m])) * 100",
+          "expr": "sum by (container_label_io_kubernetes_container_name) (rate(container_cpu_usage_seconds_total{job=\"cadvisor-k3s\", container_label_io_kubernetes_pod_namespace=\"__APP_NAMESPACE__\", container_label_io_kubernetes_container_name!=\"\", container_label_io_kubernetes_container_name!=\"POD\",node=\"$node\"}[2m])) * 100",
           "legendFormat": "{{container_label_io_kubernetes_container_name}}"
         }
       ],
@@ -504,7 +504,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "sum by (container_label_io_kubernetes_container_name) (container_memory_working_set_bytes{job=\"cadvisor-k3s\", container_label_io_kubernetes_pod_namespace=\"default\", container_label_io_kubernetes_container_name!=\"\", container_label_io_kubernetes_container_name!=\"POD\",node=\"$node\"})",
+          "expr": "sum by (container_label_io_kubernetes_container_name) (container_memory_working_set_bytes{job=\"cadvisor-k3s\", container_label_io_kubernetes_pod_namespace=\"__APP_NAMESPACE__\", container_label_io_kubernetes_container_name!=\"\", container_label_io_kubernetes_container_name!=\"POD\",node=\"$node\"})",
           "legendFormat": "{{container_label_io_kubernetes_container_name}}"
         }
       ],

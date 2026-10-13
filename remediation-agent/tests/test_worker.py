@@ -1,6 +1,7 @@
 from agent.guards import Guards
 from agent.journal import Journal
 from agent.metrics import Metrics
+from agent.policy import Plan
 from agent.worker import Agent
 from tests.helpers import Clock, FakeContext, FakeExecutor, alert, make_cfg
 
@@ -73,6 +74,13 @@ def test_refus_du_noeud_n_est_pas_un_echec(tmp_path):
     agent.handle(alert("RamElevee"))
     assert agent.guards.consecutive_failures == 0
     assert m.get("pfe_agent_actions_total", node="app-1", action="stop-sonarqube", outcome="refusee") == 1
+
+
+def test_action_sans_effet_ne_consomme_pas_le_quota(tmp_path):
+    agent, ex, _, _ = build(tmp_path, code=3)          # rien à faire (SonarQube déjà arrêté)
+    agent.handle(alert("RamElevee"))
+    assert agent.guards.recent == []
+    assert agent.guards.check(Plan("app-1", "stop-sonarqube"), "autre")[0] == "pause"   # la pause, elle, reste
 
 
 def test_alerte_sans_action_journalisee_une_seule_fois(tmp_path):

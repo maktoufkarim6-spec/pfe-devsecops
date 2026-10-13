@@ -92,11 +92,15 @@ def main():
     inj = [json.loads(l) for l in open(a.fichier, encoding="utf-8") if l.strip()]
     if not inj:
         sys.exit("aucune injection enregistrée")
+    # Une panne interrompue (ex. coupure SSH) ne compte que pour délimiter sa fenêtre : son anomalie n'est pas
+    # une fausse alerte, mais elle n'entre ni dans le rappel ni dans les statistiques de l'agent.
+    fenetres = list(inj)
+    inj = [i for i in inj if not i.get("interrompue")]
     for i in inj:
         i["detections_releve"] = i["detections"]
         i["detections"] = detections_precises(i)
-    debut = min(i["t0"] for i in inj) - 60
-    fin = max(i["t_fin_panne"] for i in inj) + MARGE
+    debut = min(i["t0"] for i in fenetres) - 60
+    fin = max(i["t_fin_panne"] for i in fenetres) + MARGE
     duree_h = (fin - debut) / 3600
 
     # --- épisodes d'anomalie du moteur et classement vrai / faux positif
@@ -105,7 +109,7 @@ def main():
         for s in plage(f'{metrique}', debut, fin):
             node = s["metric"].get("node")
             for (d, f) in episodes(s["values"]):
-                lie = any(i["noeud"] == node and i["t0"] - PAS <= d <= i["t_fin_panne"] + MARGE for i in inj)
+                lie = any(i["noeud"] == node and i["t0"] - PAS <= d <= i["t_fin_panne"] + MARGE for i in fenetres)
                 tous_episodes.append({"noeud": node, "debut": d, "fin": f, "lie": lie})
                 if lie:
                     tp_ep += 1

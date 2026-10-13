@@ -4,3 +4,293 @@
 02:32:08 attente : modèle AIOps pas encore prêt
 02:33:11 attente : modèle AIOps pas encore prêt
 02:34:15 attente : modèle AIOps pas encore prêt
+02:35:18 attente : modèle AIOps pas encore prêt
+02:36:21 attente : modèle AIOps pas encore prêt
+02:37:24 attente : modèle AIOps pas encore prêt
+02:38:28 attente : modèle AIOps pas encore prêt
+02:39:31 attente : modèle AIOps pas encore prêt
+02:40:34 attente : modèle AIOps pas encore prêt
+02:41:38 attente : modèle AIOps pas encore prêt
+02:42:41 attente : modèle AIOps pas encore prêt
+02:43:44 attente : modèle AIOps pas encore prêt
+02:44:47 attente : modèle AIOps pas encore prêt
+02:45:51 attente : modèle AIOps pas encore prêt
+02:46:54 attente : modèle AIOps pas encore prêt
+02:47:57 attente : modèle AIOps pas encore prêt
+02:49:01 attente : modèle AIOps pas encore prêt
+02:50:04 attente : modèle AIOps pas encore prêt
+02:51:07 attente : modèle AIOps pas encore prêt
+02:52:11 attente : modèle AIOps pas encore prêt
+02:53:14 attente : modèle AIOps pas encore prêt
+02:54:17 attente : modèle AIOps pas encore prêt
+02:55:21 attente : modèle AIOps pas encore prêt
+02:56:24 attente : modèle AIOps pas encore prêt
+02:57:27 attente : modèle AIOps pas encore prêt
+02:58:31 attente : modèle AIOps pas encore prêt
+02:59:34 attente : modèle AIOps pas encore prêt
+03:00:37 attente : modèle AIOps pas encore prêt
+03:01:40 attente : modèle AIOps pas encore prêt
+03:02:44 attente : modèle AIOps pas encore prêt
+03:03:47 attente : modèle AIOps pas encore prêt
+03:04:50 attente : modèle AIOps pas encore prêt
+03:05:54 attente : modèle AIOps pas encore prêt
+03:06:57 attente : modèle AIOps pas encore prêt
+03:08:00 attente : modèle AIOps pas encore prêt
+03:09:04 attente : modèle AIOps pas encore prêt
+03:10:07 attente : modèle AIOps pas encore prêt
+03:11:10 attente : modèle AIOps pas encore prêt
+03:12:14 attente : modèle AIOps pas encore prêt
+03:13:17 attente : modèle AIOps pas encore prêt
+03:14:20 attente : modèle AIOps pas encore prêt
+03:15:23 attente : modèle AIOps pas encore prêt
+03:16:27 attente : modèle AIOps pas encore prêt
+03:17:30 attente : modèle AIOps pas encore prêt
+03:18:33 attente : modèle AIOps pas encore prêt
+03:19:37 attente : modèle AIOps pas encore prêt
+03:20:41 attente : modèle AIOps pas encore prêt
+03:21:44 départ forcé malgré : moteur en chauffe
+03:21:44 [1] INJECTION cadvisor : Arrêt du collecteur cAdvisor
+03:24:12    panne disparue après 143 s
+03:24:18    agent : restart-container cadvisor=executee ; retour au calme après 153.1 s
+03:24:18    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+03:32:22 [2] INJECTION sonarqube : SonarQube démarré hors build (+2 Go de RAM)
+03:33:23    détecté par ia après 61 s
+03:33:24    variable responsable selon l'IA : cpu_host
+03:33:24    détecté par zscore après 61 s
+03:34:40    détecté par alerte_ia après 137 s
+03:34:42    panne disparue après 137 s
+Traceback (most recent call last):
+  File "C:\Users\windows 10\AppData\Local\Temp\claude\pfe.qYb5\r\eval\campagne.py", line 289, in <module>
+  File "C:\Users\windows 10\AppData\Local\Temp\claude\pfe.qYb5\r\eval\campagne.py", line 280, in main
+    sc = S[sid]
+          ^^^^^
+  File "C:\Users\windows 10\AppData\Local\Temp\claude\pfe.qYb5\r\eval\campagne.py", line 240, in injecter
+    # Retour au calme : plus aucun signal (15 min max)
+  File "C:\Users\windows 10\AppData\Local\Temp\claude\pfe.qYb5\r\eval\campagne.py", line 48, in now
+    return float(prom("time()")["result"][0])
+                 ~~~~^^^^^^^^^^
+  File "C:\Users\windows 10\AppData\Local\Temp\claude\pfe.qYb5\r\eval\campagne.py", line 41, in prom
+    body = json.loads(out)
+  File "C:\Python314\Lib\json\__init__.py", line 352, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\json\decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\json\decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+FIN rc=1
+=== reprise 03:50:08
+03:50:09 Campagne de 14 injections ; agent en mode ACTIF
+03:50:10 actions récentes de l'agent prises en compte : restart-container cadvisor, stop-sonarqube
+03:50:14 attente : anomalie en cours, alerte en cours
+03:51:18 attente : anomalie en cours, alerte en cours
+03:52:22 attente : anomalie en cours, alerte en cours
+03:53:26 attente : anomalie en cours, alerte en cours
+03:54:30 attente : anomalie en cours, alerte en cours
+03:55:33 attente : anomalie en cours, alerte en cours
+03:56:37 attente : anomalie en cours, alerte en cours
+03:57:41 attente : anomalie en cours, alerte en cours
+03:58:45 attente : anomalie en cours, alerte en cours
+03:59:49 attente : anomalie en cours, alerte en cours
+04:00:52 attente : anomalie en cours, alerte en cours
+04:01:57 attente : anomalie en cours, alerte en cours
+04:03:03 attente : anomalie en cours, alerte en cours
+04:04:08 [3] INJECTION cpu_api : Boucle CPU dans le pod de l'API
+04:05:32    détecté par ia après 84 s
+04:05:33    variable responsable selon l'IA : cpu_server
+04:05:33    détecté par zscore après 84 s
+04:06:34    détecté par alerte_ia après 145 s
+04:06:54    panne disparue après 164 s
+04:14:05    agent : rollout-restart server=executee, aucune=aucune_action ; retour au calme après 596.7 s
+04:14:05    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+04:22:09 attente : créneau des sauvegardes
+04:23:13 attente : créneau des sauvegardes
+04:24:16 attente : créneau des sauvegardes
+04:25:20 attente : créneau des sauvegardes
+04:26:24 attente : créneau des sauvegardes
+04:27:28 attente : créneau des sauvegardes
+04:28:32 attente : créneau des sauvegardes
+04:29:35 attente : créneau des sauvegardes
+04:30:39 attente : créneau des sauvegardes
+04:31:44 attente : créneau des sauvegardes
+04:32:47 attente : créneau des sauvegardes
+04:33:51 attente : créneau des sauvegardes
+04:34:55 attente : créneau des sauvegardes
+04:35:58 attente : créneau des sauvegardes
+04:37:02 attente : maintenance annoncée, créneau des sauvegardes
+04:38:06 attente : maintenance annoncée, créneau des sauvegardes
+04:39:10 attente : maintenance annoncée, créneau des sauvegardes
+04:40:14 attente : maintenance annoncée, créneau des sauvegardes
+04:41:17 attente : maintenance annoncée, créneau des sauvegardes
+04:42:21 attente : maintenance annoncée, créneau des sauvegardes
+04:43:25 attente : maintenance annoncée, créneau des sauvegardes
+04:44:29 attente : maintenance annoncée, créneau des sauvegardes
+04:45:33 attente : maintenance annoncée, créneau des sauvegardes
+04:46:37 attente : maintenance annoncée, créneau des sauvegardes
+04:47:40 attente : maintenance annoncée, créneau des sauvegardes
+04:48:44 attente : maintenance annoncée, créneau des sauvegardes
+04:49:48 attente : maintenance annoncée, créneau des sauvegardes
+04:50:52 attente : maintenance annoncée, créneau des sauvegardes
+04:51:56 attente : créneau des sauvegardes
+04:52:59 attente : créneau des sauvegardes
+04:54:03 attente : créneau des sauvegardes
+04:55:07 attente : créneau des sauvegardes
+04:56:11 attente : créneau des sauvegardes
+04:57:14 attente : créneau des sauvegardes
+04:58:19 attente : créneau des sauvegardes
+04:59:23 attente : créneau des sauvegardes
+05:00:26 attente : créneau des sauvegardes
+05:01:30 attente : créneau des sauvegardes
+05:02:34 attente : créneau des sauvegardes
+05:03:38 attente : créneau des sauvegardes
+05:04:41 attente : créneau des sauvegardes
+05:05:45 attente : créneau des sauvegardes
+05:06:50 [4] INJECTION disque : Fichier de 6 Go sur le disque
+05:07:51    détecté par ia après 61 s
+05:07:52    variable responsable selon l'IA : disk_host
+05:07:52    détecté par zscore après 61 s
+05:09:06    détecté par alerte_ia après 135 s
+05:23:43    agent : aucune=aucune_action ; retour au calme après 1013.2 s
+05:23:43    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+05:31:48 [5] INJECTION cpu_hote : Surcharge CPU du serveur (3 cœurs sur 4)
+05:32:51    détecté par ia après 62 s
+05:32:51    variable responsable selon l'IA : cpu_host
+05:32:52    détecté par zscore après 62 s
+05:34:06    détecté par alerte_ia après 137 s
+05:41:03    réponse illisible de Prometheus (essai 1/5) : 'ssh: connect to host 54.37.13.100 port 22: Connection timed out'
+05:41:23    réponse illisible de Prometheus (essai 2/5) : 'ssh: connect to host 54.37.13.100 port 22: Connection timed out'
+05:41:48    réponse illisible de Prometheus (essai 3/5) : 'ssh: connect to host 54.37.13.100 port 22: Connection timed out'
+05:42:18    réponse illisible de Prometheus (essai 4/5) : 'ssh: connect to host 54.37.13.100 port 22: Connection timed out'
+05:42:53    réponse illisible de Prometheus (essai 5/5) : 'ssh: connect to host 54.37.13.100 port 22: Connection timed out'
+05:43:20    ERREUR sur la panne 5 (cpu_hote) : RuntimeError('Prometheus injoignable après 5 essais : time()') ; annulation de sécurité puis suite
+05:43:20    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+=== reprise 05:55:42 (tunnel SSH unique)
+05:55:46 Campagne de 14 injections ; agent en mode ACTIF
+05:55:47 actions récentes de l'agent prises en compte : stop-sonarqube
+05:55:47 attente : pause de l'agent pour « stop-sonarqube » (13 min)
+05:56:48 attente : pause de l'agent pour « stop-sonarqube » (12 min)
+05:57:48 attente : anomalie en cours, pause de l'agent pour « stop-sonarqube » (11 min)
+05:58:49 attente : pause de l'agent pour « stop-sonarqube » (10 min)
+05:59:49 attente : pause de l'agent pour « stop-sonarqube » (9 min)
+06:00:50 attente : pause de l'agent pour « stop-sonarqube » (8 min)
+06:01:50 attente : pause de l'agent pour « stop-sonarqube » (7 min)
+06:02:51 attente : pause de l'agent pour « stop-sonarqube » (6 min)
+06:03:51 attente : pause de l'agent pour « stop-sonarqube » (5 min)
+06:04:52 attente : pause de l'agent pour « stop-sonarqube » (4 min)
+06:05:52 attente : pause de l'agent pour « stop-sonarqube » (3 min)
+06:06:53 attente : pause de l'agent pour « stop-sonarqube » (2 min)
+06:07:53 attente : pause de l'agent pour « stop-sonarqube » (1 min)
+06:08:54 attente : pause de l'agent pour « stop-sonarqube » (0 min)
+06:09:54 [5] INJECTION cpu_hote : Surcharge CPU du serveur (3 cœurs sur 4)
+06:11:13    détecté par ia après 79 s
+06:11:13    variable responsable selon l'IA : cpu_host
+06:11:13    détecté par zscore après 79 s
+06:12:15    détecté par alerte_ia après 141 s
+06:23:59    agent : stop-sonarqube=executee ; retour au calme après 843.8 s
+06:23:59    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+06:31:59 attente : créneau des sauvegardes
+06:32:59 attente : créneau des sauvegardes
+06:34:00 attente : créneau des sauvegardes
+06:35:00 attente : créneau des sauvegardes
+06:36:01 attente : créneau des sauvegardes
+06:37:01 attente : créneau des sauvegardes
+06:38:02 attente : créneau des sauvegardes
+06:39:02 attente : créneau des sauvegardes
+06:40:03 attente : créneau des sauvegardes
+06:41:03 attente : créneau des sauvegardes
+06:42:03 attente : créneau des sauvegardes
+06:43:04 attente : créneau des sauvegardes
+06:44:04 attente : créneau des sauvegardes
+06:45:05 attente : créneau des sauvegardes
+06:46:05 attente : moteur en chauffe, créneau des sauvegardes
+06:47:06 attente : moteur en chauffe, créneau des sauvegardes
+06:48:06 attente : moteur en chauffe, créneau des sauvegardes
+06:49:07 attente : moteur en chauffe, créneau des sauvegardes
+06:50:07 attente : moteur en chauffe, créneau des sauvegardes
+06:51:07 attente : créneau des sauvegardes
+06:52:08 attente : créneau des sauvegardes
+06:53:08 attente : créneau des sauvegardes
+06:54:09 attente : créneau des sauvegardes
+06:55:10 attente : créneau des sauvegardes
+06:56:10 [6] INJECTION ram_api : Fuite mémoire dans le pod de l'API (+150 Mo)
+06:57:15    détecté par ia après 64 s
+06:57:15    variable responsable selon l'IA : ram_server_mb
+06:57:15    détecté par zscore après 64 s
+06:58:19    détecté par alerte_ia après 128 s
+06:58:52    panne disparue après 160 s
+07:06:29    agent : rollout-restart server=executee, aucune=aucune_action, aucune=aucune_action ; retour au calme après 617.9 s
+07:06:29    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+07:14:29 [7] INJECTION node_exporter : Arrêt de node-exporter (nœud muet)
+07:16:55    détecté par alerte après 145 s
+07:17:12    panne disparue après 162 s
+07:17:29    agent : restart-container node-exporter=executee ; retour au calme après 179.6 s
+07:17:29    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+07:25:30 [8] INJECTION ram_hote : Pression mémoire du serveur (+2 Go)
+07:26:33    détecté par ia après 63 s
+07:26:34    variable responsable selon l'IA : ram_host
+07:26:34    détecté par zscore après 63 s
+07:27:35    détecté par alerte_ia après 125 s
+07:37:48    agent : stop-sonarqube=pause ; retour au calme après 737.6 s
+07:37:48    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+07:45:49 [9] INJECTION client_zero : Pod client supprimé (mise à 0, Argo CD doit le remettre)
+07:46:23    panne disparue après 32 s
+07:46:25    agent : aucune décision ; retour au calme après 35.0 s
+07:46:25    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+07:54:25 [10] INJECTION cpu_api : Boucle CPU dans le pod de l'API
+07:55:47    détecté par ia après 82 s
+07:55:47    variable responsable selon l'IA : cpu_server
+07:55:47    détecté par zscore après 82 s
+07:56:51    détecté par alerte_ia après 146 s
+08:13:24    agent : rollout-restart server=quota ; retour au calme après 1137.9 s
+08:13:24    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+08:21:24 [11] INJECTION sonarqube : SonarQube démarré hors build (+2 Go de RAM)
+08:22:45    détecté par ia après 81 s
+08:22:45    variable responsable selon l'IA : cpu_host
+08:22:45    détecté par zscore après 81 s
+08:23:49    détecté par alerte_ia après 144 s
+08:24:05    panne disparue après 160 s
+08:26:23    agent : stop-sonarqube=executee ; retour au calme après 298.6 s
+08:26:23    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+08:34:24 attente : pause de l'agent pour « rollout-restart server » (14 min)
+08:35:24 attente : pause de l'agent pour « rollout-restart server » (13 min)
+08:36:25 attente : pause de l'agent pour « rollout-restart server » (12 min)
+08:37:25 attente : pause de l'agent pour « rollout-restart server » (11 min)
+08:38:26 attente : pause de l'agent pour « rollout-restart server » (10 min)
+08:39:26 attente : pause de l'agent pour « rollout-restart server » (9 min)
+08:40:27 attente : pause de l'agent pour « rollout-restart server » (8 min)
+08:41:27 attente : pause de l'agent pour « rollout-restart server » (7 min)
+08:42:27 attente : pause de l'agent pour « rollout-restart server » (6 min)
+08:43:28 attente : pause de l'agent pour « rollout-restart server » (5 min)
+08:44:28 attente : pause de l'agent pour « rollout-restart server » (4 min)
+08:45:29 attente : pause de l'agent pour « rollout-restart server » (3 min)
+08:46:29 attente : pause de l'agent pour « rollout-restart server » (2 min)
+08:47:30 attente : pause de l'agent pour « rollout-restart server » (1 min)
+08:48:30 attente : moteur en chauffe
+08:49:31 attente : moteur en chauffe
+08:50:31 attente : moteur en chauffe
+08:51:31 attente : moteur en chauffe
+08:52:32 attente : moteur en chauffe
+08:53:32 [12] INJECTION ram_api : Fuite mémoire dans le pod de l'API (+150 Mo)
+08:54:22    détecté par ia après 50 s
+08:54:22    variable responsable selon l'IA : ram_server_mb
+08:54:22    détecté par zscore après 50 s
+08:55:42    détecté par alerte_ia après 129 s
+08:56:15    panne disparue après 161 s
+09:04:07    agent : rollout-restart server=executee, aucune=aucune_action ; retour au calme après 633.5 s
+09:04:07    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+09:12:07 [13] INJECTION cpu_hote : Surcharge CPU du serveur (3 cœurs sur 4)
+09:13:11    détecté par ia après 63 s
+09:13:11    variable responsable selon l'IA : cpu_host
+09:13:11    détecté par zscore après 63 s
+09:14:28    détecté par alerte_ia après 141 s
+09:26:28    agent : stop-sonarqube=executee, aucune=aucune_action ; retour au calme après 860.4 s
+09:26:28    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+09:34:29 [14] INJECTION moteur : Arrêt du moteur AIOps
+09:37:03    détecté par alerte après 154 s
+09:37:37    panne disparue après 187 s
+09:37:39    agent : restart-container mon-aiops-engine=executee, aucune=aucune_action ; retour au calme après 189.3 s
+09:37:39    période calme de 8 min (sert aussi à mesurer les fausses alertes)
+09:45:39 Campagne terminée. Analyse : python eval/analyse.py
+FIN rc=0

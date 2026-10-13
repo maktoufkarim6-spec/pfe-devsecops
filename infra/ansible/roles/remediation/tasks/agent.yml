@@ -59,6 +59,7 @@
       AGENT_MAX_ACTIONS_PER_HOUR: "{{ remediation_max_actions_per_hour | string }}"
       AGENT_COOLDOWN_MINUTES: "{{ remediation_cooldown_minutes | string }}"
       AGENT_PROM_URL: http://mon-prometheus:9090
+      AGENT_APP_API: "{{ app_api }}"
       AGENT_NODES: "{{ remediation_nodes | to_json }}"
     volumes:
       - "{{ monitoring_dir }}/secrets/agent:/secrets:ro"

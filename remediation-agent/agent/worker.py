@@ -105,6 +105,8 @@ class Agent:
                   code=result.code, duree_s=f"{result.duration:.1f}")
         self._count_action(plan, result.outcome)
         self.guards.record_result(result.outcome != "echec")
+        if result.outcome in ("rien_a_faire", "refusee"):
+            self.guards.release_quota()
         self.metrics.set("pfe_agent_suspended", 1 if self.guards.suspended else 0)
         if result.outcome == "succes":
             self._schedule(action_id, name, plan)

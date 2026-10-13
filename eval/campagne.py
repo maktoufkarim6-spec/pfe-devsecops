@@ -24,11 +24,19 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-APP, MON = "57.129.142.176", "54.37.13.100"
+# Adresses des serveurs et profil de l'application (variables d'environnement pour un autre projet)
+APP = os.getenv("PFE_APP_IP", "57.129.142.176")          # nœud applicatif
+MON = os.getenv("PFE_MON_IP", "54.37.13.100")            # serveur de supervision
+NS = os.getenv("PFE_APP_NAMESPACE", "default")
+API = os.getenv("PFE_APP_API", "server")                 # déploiement de l'API
+CLIENT = os.getenv("PFE_APP_FRONT", "client")            # déploiement du frontal (panne « mise à 0 »)
+CI_LOURD = os.getenv("PFE_CI_HEAVY", "sonarqube")        # conteneur lourd de la CI
+NOEUD_APP = os.getenv("PFE_APP_NODE", "app-1")          # étiquette node du nœud applicatif
+NOEUD_MON = os.getenv("PFE_MON_NODE", "monitoring")
 RESULTATS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resultats")
 POLL = 15
 POLL_REPARATION = 30   # vérification de la réparation (une connexion SSH) une fois sur deux
-K = "sudo -n k3s kubectl -n default"
+K = f"sudo -n k3s kubectl -n {NS}"
 
 
 # ------------------------------------------------------------------ accès aux serveurs
@@ -133,54 +141,55 @@ class Scenario:
 
 
 S = {s.id: s for s in [
-    Scenario("cadvisor", "Arrêt du collecteur cAdvisor", "app-1", APP,
+    Scenario("cadvisor", "Arrêt du collecteur cAdvisor", NOEUD_APP, APP,
              "docker stop cadvisor", "docker start cadvisor", 480,
              "restart-container cadvisor", False,
              reparation=f'[ "$({running("cadvisor")})" = true ] && echo ok',
-             alerte={"alerte": 'ALERTS{alertname="CollecteurArrete",node="app-1",job="cadvisor",alertstate="firing"}'}),
-    Scenario("node_exporter", "Arrêt de node-exporter (nœud muet)", "app-1", APP,
+             alerte={"alerte": f'ALERTS{{alertname="CollecteurArrete",node="{NOEUD_APP}",job="cadvisor",alertstate="firing"}}'}),
+    Scenario("node_exporter", "Arrêt de node-exporter (nœud muet)", NOEUD_APP, APP,
              "docker stop node-exporter", "docker start node-exporter", 480,
              "restart-container node-exporter", False,
              reparation=f'[ "$({running("node-exporter")})" = true ] && echo ok',
-             alerte={"alerte": 'ALERTS{alertname="NoeudInjoignable",node="app-1",alertstate="firing"}'}),
-    Scenario("moteur", "Arrêt du moteur AIOps", "monitoring", MON,
+             alerte={"alerte": f'ALERTS{{alertname="NoeudInjoignable",node="{NOEUD_APP}",alertstate="firing"}}'}),
+    Scenario("moteur", "Arrêt du moteur AIOps", NOEUD_MON, MON,
              "docker stop mon-aiops-engine", "docker start mon-aiops-engine", 480,
              "restart-container mon-aiops-engine", False,
              reparation=f'[ "$({running("mon-aiops-engine")})" = true ] && echo ok',
              alerte={"alerte": 'ALERTS{alertname="MoteurAIOpsArrete",alertstate="firing"}'}),
-    Scenario("sonarqube", "SonarQube démarré hors build (+2 Go de RAM)", "app-1", APP,
-             "docker start sonarqube", "docker stop sonarqube", 900,
+    Scenario("sonarqube", f"{CI_LOURD} démarré hors build", NOEUD_APP, APP,
+             f"docker start {CI_LOURD}", f"docker stop {CI_LOURD}", 900,
              "stop-sonarqube", True, ("ram_host", "cpu_host"),   # démarrage de SonarQube : CPU puis RAM
-             reparation=f'[ "$({running("sonarqube")})" != true ] && echo ok'),
-    Scenario("cpu_hote", "Surcharge CPU du serveur (3 cœurs sur 4)", "app-1", APP,
+             reparation=f'[ "$({running(CI_LOURD)})" != true ] && echo ok'),
+    Scenario("cpu_hote", "Surcharge CPU du serveur (3 cœurs sur 4)", NOEUD_APP, APP,
              "docker run -d --rm --name pfe-eval-cpu --cpus 3 alpine:3.20 sh -c "
              "'for i in 1 2 3; do (while :; do :; done) & done; sleep 600'",
              "docker rm -f pfe-eval-cpu", 600, "stop-sonarqube", True, ("cpu_host",)),
-    Scenario("ram_hote", "Pression mémoire du serveur (+2 Go)", "app-1", APP,
+    Scenario("ram_hote", "Pression mémoire du serveur (+2 Go)", NOEUD_APP, APP,
              "docker run -d --rm --name pfe-eval-ram --tmpfs /m:size=2100m alpine:3.20 sh -c "
              "'dd if=/dev/zero of=/m/x bs=1M count=2000 2>/dev/null && sleep 600'",
              "docker rm -f pfe-eval-ram", 600, "stop-sonarqube", True, ("ram_host",)),
-    Scenario("cpu_api", "Boucle CPU dans le pod de l'API", "app-1", APP,
-             f"{K} exec deploy/server -- sh -c 'nohup node -e \"for(;;){{}}\" >/dev/null 2>&1 &'",
-             f"{K} exec deploy/server -- pkill -f 'node -e for' || true", 900,
-             "rollout-restart server", True, ("cpu_server",),
-             reparation=f"n=$({K} exec deploy/server -- ps -o args 2>/dev/null | grep -c '[f]or(;;)'); "
+    Scenario("cpu_api", "Boucle CPU dans le pod de l'API", NOEUD_APP, APP,
+             f"{K} exec deploy/{API} -- sh -c 'nohup sh -c \": pfe-eval-cpu; while :; do :; done\" >/dev/null 2>&1 &'",
+             f"{K} exec deploy/{API} -- pkill -f pfe-eval-cpu || true", 900,
+             f"rollout-restart {API}", True, ("cpu_server",),
+             reparation=f"n=$({K} exec deploy/{API} -- ps -o args 2>/dev/null | grep -c '[p]fe-eval-cpu'); "
                         "[ \"$n\" = 0 ] && echo ok"),
-    Scenario("ram_api", "Fuite mémoire dans le pod de l'API (+150 Mo)", "app-1", APP,
-             f"{K} exec deploy/server -- sh -c 'nohup node -e \"const a=[];for(let i=0;i<15;i++)"
+    # Fuite mémoire écrite pour une API Node.js (application cobaye) : à adapter au langage d'une autre API
+    Scenario("ram_api", "Fuite mémoire dans le pod de l'API (+150 Mo)", NOEUD_APP, APP,
+             f"{K} exec deploy/{API} -- sh -c 'nohup node -e \"const a=[];for(let i=0;i<15;i++)"
              f"a.push(Buffer.alloc(10485760,1));setInterval(()=>{{}},1e6)\" >/dev/null 2>&1 &'",
-             f"{K} exec deploy/server -- pkill -f Buffer.alloc || true", 900,
-             "rollout-restart server", True, ("ram_server_mb",),
-             reparation=f"n=$({K} exec deploy/server -- ps -o args 2>/dev/null | grep -c '[B]uffer.alloc'); "
+             f"{K} exec deploy/{API} -- pkill -f Buffer.alloc || true", 900,
+             f"rollout-restart {API}", True, ("ram_server_mb",),
+             reparation=f"n=$({K} exec deploy/{API} -- ps -o args 2>/dev/null | grep -c '[B]uffer.alloc'); "
                         "[ \"$n\" = 0 ] && echo ok"),
-    Scenario("disque", "Fichier de 6 Go sur le disque", "app-1", APP,
+    Scenario("disque", "Fichier de 6 Go sur le disque", NOEUD_APP, APP,
              "fallocate -l 6G /var/tmp/pfe-eval-disque", "rm -f /var/tmp/pfe-eval-disque", 900,
              "aucune", True, ("disk_host",)),
-    Scenario("client_zero", "Pod client supprimé (mise à 0, Argo CD doit le remettre)", "app-1", APP,
-             f"{K} scale deploy/client --replicas=0",
-             f"[ \"$({K} get deploy client -o jsonpath='{{.spec.replicas}}')\" = 0 ] && {K} scale deploy/client --replicas=1 || true",
+    Scenario("client_zero", "Pod client supprimé (mise à 0, Argo CD doit le remettre)", NOEUD_APP, APP,
+             f"{K} scale deploy/{CLIENT} --replicas=0",
+             f"[ \"$({K} get deploy {CLIENT} -o jsonpath='{{.spec.replicas}}')\" = 0 ] && {K} scale deploy/{CLIENT} --replicas=1 || true",
              300, "aucune", True, ("app_containers",),
-             reparation=f"[ \"$({K} get deploy client -o jsonpath='{{.status.readyReplicas}}')\" = 1 ] && echo ok"),
+             reparation=f"[ \"$({K} get deploy {CLIENT} -o jsonpath='{{.status.readyReplicas}}')\" = 1 ] && echo ok"),
 ]}
 
 # Ordre choisi pour espacer les pannes qui appellent la même action (pause de 30 min de l'agent)

@@ -16,9 +16,12 @@ pipeline {
     }
 
     environment {
+        // ---- A adapter pour une autre application (voir docs/REUTILISER.md) ----
+        APP_NAME     = 'app-cobaye'                      // cle du projet SonarQube, image de tests
+        IMAGE_SERVER = 'kariimm557/app-cobaye-server'    // image Docker Hub de l'API (dossier server/)
+        IMAGE_CLIENT = 'kariimm557/app-cobaye-client'    // image Docker Hub du client (dossier client/)
+        // --------------------------------------------------------------------------
         DOCKERHUB    = credentials('dockerhub')
-        IMAGE_SERVER = 'kariimm557/app-cobaye-server'
-        IMAGE_CLIENT = 'kariimm557/app-cobaye-client'
         SCANNER_HOME = tool 'sonar-scanner'
         // SKIP, TAG et SONAR_STARTED_BY_PIPELINE sont definis par script (une variable du bloc
         // environment ne peut pas etre modifiee ensuite par un script).
@@ -66,12 +69,12 @@ pipeline {
                 // Les 27 tests unitaires de l'API tournent dans l'etape "build" du Dockerfile :
                 // un test en echec arrete le pipeline ici. Le rapport de couverture est extrait pour SonarQube.
                 sh '''
-                    docker build --target build -t app-cobaye-server-tests:$TAG ./server
+                    docker build --target build -t $APP_NAME-server-tests:$TAG ./server
                     rm -rf server/coverage && mkdir -p server/coverage
-                    cid=$(docker create app-cobaye-server-tests:$TAG)
+                    cid=$(docker create $APP_NAME-server-tests:$TAG)
                     docker cp "$cid:/app/coverage/lcov.info" server/coverage/lcov.info
                     docker rm "$cid" >/dev/null
-                    docker rmi app-cobaye-server-tests:$TAG >/dev/null || true
+                    docker rmi $APP_NAME-server-tests:$TAG >/dev/null || true
                     # Chemins relatifs a la racine du depot, attendus par SonarQube
                     sed -i 's#^SF:src/#SF:server/src/#' server/coverage/lcov.info
                     echo "Fichiers couverts : $(grep -c '^SF:' server/coverage/lcov.info)"
@@ -104,7 +107,7 @@ pipeline {
                         // qualitygate.wait : le scanner attend le verdict et echoue si le Quality Gate echoue.
                         def rc = sh(returnStatus: true, script: '''
                             $SCANNER_HOME/bin/sonar-scanner \
-                              -Dsonar.projectKey=app-cobaye \
+                              -Dsonar.projectKey=$APP_NAME \
                               -Dsonar.sources=. \
                               -Dsonar.exclusions=aiops-engine/**,infra/**,**/node_modules/**,**/build/**,**/coverage/**,**/*.png,**/*.ico,**/*.spec.ts,**/*.test.tsx \
                               -Dsonar.tests=server/src \
@@ -120,12 +123,12 @@ pipeline {
                                 set +x
                                 api() { curl -s -u "$SONAR_AUTH_TOKEN:" "$SONAR_HOST_URL/api/$1"; }
                                 echo "===== Conditions du Quality Gate en echec ====="
-                                api "qualitygates/project_status?projectKey=app-cobaye" | grep -o '{"status":"ERROR","metricKey"[^}]*}' || echo "(aucune)"
+                                api "qualitygates/project_status?projectKey=$APP_NAME" | grep -o '{"status":"ERROR","metricKey"[^}]*}' || echo "(aucune)"
                                 echo "===== Security Hotspots a revoir (code nouveau) ====="
-                                api "hotspots/search?project=app-cobaye&status=TO_REVIEW&inNewCodePeriod=true&ps=100" \
+                                api "hotspots/search?project=$APP_NAME&status=TO_REVIEW&inNewCodePeriod=true&ps=100" \
                                   | grep -o '"component":"[^"]*"\\|"line":[0-9]*\\|"message":"[^"]*"' || echo "(aucun)"
                                 echo "===== Problemes non resolus (code nouveau) ====="
-                                api "issues/search?componentKeys=app-cobaye&inNewCodePeriod=true&resolved=false&ps=100" \
+                                api "issues/search?componentKeys=$APP_NAME&inNewCodePeriod=true&resolved=false&ps=100" \
                                   | grep -o '"severity":"[^"]*"\\|"component":"[^"]*"\\|"line":[0-9]*\\|"message":"[^"]*"' || echo "(aucun)"
                             '''
                             error('Quality Gate SonarQube en echec : conditions detaillees ci-dessus.')

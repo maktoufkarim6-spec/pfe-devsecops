@@ -34,13 +34,14 @@ class Config:
     verify_delay_seconds: int = 300       # vérification de l'effet après une action
     probe_interval_seconds: int = 300     # test de joignabilité SSH des nœuds
     disk_cleanup: bool = False            # nettoyage disque : accord explicite du propriétaire requis
+    app_api: str = "server"               # déploiement de l'API de l'application (redémarrage progressif)
     nodes: list = field(default_factory=list)
 
     @classmethod
     def from_env(cls, env=None):
         env = os.environ if env is None else env
         cfg = cls()
-        for name, cast in (("mode", str), ("prom_url", str), ("listen_port", int), ("data_dir", str),
+        for name, cast in (("mode", str), ("prom_url", str), ("app_api", str), ("listen_port", int), ("data_dir", str),
                            ("token_file", str), ("ssh_key", str), ("known_hosts", str), ("ssh_user", str),
                            ("ssh_timeout", int), ("cooldown_minutes", float), ("max_actions_per_hour", int),
                            ("max_attempts_per_incident", int), ("failure_breaker", int),
@@ -56,6 +57,8 @@ class Config:
     def validate(self):
         if self.mode not in MODES:
             raise ValueError(f"AGENT_MODE doit valoir {' ou '.join(MODES)} (reçu : {self.mode!r})")
+        if not re.match(r"^[a-z0-9]([-a-z0-9]{0,38}[a-z0-9])?$", self.app_api):
+            raise ValueError(f"AGENT_APP_API invalide : {self.app_api!r} (nom de déploiement Kubernetes)")
         if self.max_actions_per_hour < 1 or self.failure_breaker < 1 or self.max_attempts_per_incident < 1:
             raise ValueError("Les limites de l'agent doivent être >= 1")
 

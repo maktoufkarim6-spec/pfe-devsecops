@@ -88,6 +88,14 @@ class Guards:
                 log.error("Agent suspendu : %s", self.suspended)
         self.save()
 
+    def release_quota(self):
+        """Une action sans effet (rien à faire, refusée par le nœud) ne compte pas dans le quota horaire :
+        constaté en campagne, une réponse à une fausse anomalie avait bloqué la réparation d'une vraie panne.
+        La pause entre deux actions identiques reste appliquée."""
+        if self.recent:
+            self.recent.pop()
+            self.save()
+
     def resume(self):
         """Levée manuelle de la suspension (commande : python -m agent reprendre)."""
         self.suspended = ""

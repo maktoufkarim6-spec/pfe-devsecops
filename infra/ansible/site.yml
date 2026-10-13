@@ -19,6 +19,9 @@
     - name: Prometheus, Alertmanager, Grafana et moteur AIOps
       ansible.builtin.import_role:
         name: monitoring
+      # Mise à jour de la seule supervision (sans mot de passe, depuis le serveur de supervision) :
+      #   ansible-playbook site.yml --limit supervision --tags supervision
+      tags: [supervision]
 
 - name: Collecteurs, accès de l'agent et sauvegardes sur chaque nœud
   hosts: all

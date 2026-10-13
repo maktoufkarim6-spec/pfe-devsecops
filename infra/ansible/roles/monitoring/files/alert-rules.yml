@@ -73,6 +73,16 @@ groups:
         annotations:
           summary: "Le moteur AIOps ne répond plus : aucune détection d'anomalie en cours"
 
+  - name: services
+    rules:
+      - alert: ServiceInjoignable
+        expr: probe_success{job="services",hors_build="non"} == 0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} ne répond plus depuis 3 minutes ({{ $labels.instance }})"
+
   - name: collecteurs
     rules:
       - alert: CollecteurArrete

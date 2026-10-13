@@ -230,13 +230,20 @@ code {{ font: 13px var(--f-data); }}
 <section class="texte">
   <h2>Ce qu'il faut retenir</h2>
   <ul>
-    <li>Diagnostic : la variable désignée par l'IA est la bonne dans {s["diagnostic"]["justes"]} cas sur {s["diagnostic"]["total"]}.</li>
-    <li>Fausses alertes de l'IA pendant la campagne : {e(fp)}.</li>
-    <li>L'agent n'agit que dans une liste fermée d'actions, avec pause, quota, abstention pendant les maintenances et
-      vérification 5 min après chaque action.</li>
+    <li><strong>L'IA voit ce que les seuils fixes ne voient pas.</strong> Aucune panne n'a franchi les seuils classiques
+      (CPU &gt; 80 %, RAM &gt; 85 %, disque &gt; 85 %) ; le moteur en a vu {det.get("ia", {}).get("vus", 0)} sur
+      {det.get("ia", {}).get("total", 0)}, avec la bonne variable dans {s["diagnostic"]["justes"]} cas sur {s["diagnostic"]["total"]}.</li>
+    <li><strong>Seul le z-score robuste a détecté.</strong> L'Isolation Forest, appris sur 2 h seulement puis suspendu
+      après un changement de régime, n'a rien signalé : à réévaluer après 24 h d'historique et calibration.</li>
+    <li>Fausses alertes de l'IA hors des pannes : {e(fp)}. Une anomalie RAM est aussi apparue 2 min après le
+      redémarrage d'un collecteur (comptée dans la fenêtre de cette panne).</li>
+    <li>La seule panne réparable non réparée l'a été par prudence : le quota de 3 actions par heure était atteint, en
+      partie par une action sans effet. Correction faite : une action sans effet ne compte plus dans le quota.</li>
     <li>Un démarrage de SonarQube a fait libérer par le noyau le cache mémoire de l'API : sa RAM a baissé durablement et
       l'anomalie est restée ouverte 30 min, jusqu'à ce que le moteur accepte ce nouveau régime. Correction faite dans
       l'agent : une baisse n'est plus traitée comme une surcharge.</li>
+    <li>Le pod client supprimé a été remis par Argo CD en une trentaine de secondes, avant même que l'IA ne le voie :
+      l'auto-réparation GitOps couvre ce cas sans l'agent.</li>
   </ul>
   <p>Méthode, définitions et limites : <code>eval/README.md</code>. Données brutes : <code>eval/resultats/injections.jsonl</code>.</p>
 </section>

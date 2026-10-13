@@ -27,7 +27,7 @@ Moteur AIOps (détecte, diagnostique) ──► Prometheus ──► Alertmanage
 - **Liste fermée des deux côtés** : l'agent refuse toute action hors liste ; sur le nœud, la clé SSH est bridée
   (commande forcée `pfe-runbook`, adresse source imposée, `restrict`), `sudo` n'autorise que ce script,
   qui revérifie l'action, l'argument et le contexte (build en cours, conteneur autorisé).
-- **Pause** de 30 min entre deux actions identiques, **quota** de 3 actions par heure, **2 tentatives** au plus par
+- **Pause** de 30 min entre deux actions identiques, **quota** de 3 actions efficaces par heure (une action sans effet ne compte pas), **2 tentatives** au plus par
   incident puis escalade, **aucune action pendant une maintenance** (build Jenkins, sauvegarde).
 - **Abstention** si Prometheus ne répond pas (maintenance invérifiable) ou si le diagnostic AIOps manque.
 - **Disjoncteur** : 3 échecs consécutifs suspendent l'agent (alerte critique) jusqu'à intervention humaine.
@@ -53,5 +53,5 @@ Passer en mode actif : `remediation_mode: actif` dans `infra/ansible/group_vars/
 
 ## Tests
 
-`python -m pytest tests` : 47 tests (politique, garde-fous, travailleur, webhook, commande SSH). Ils s'exécutent
+`python -m pytest tests` : 49 tests (politique, garde-fous, travailleur, webhook, commande SSH). Ils s'exécutent
 pendant `docker build` : un échec empêche l'image d'exister. Bibliothèque standard seulement (aucune dépendance).

@@ -80,7 +80,7 @@ def decide(alert, cfg, diagnose=None):
             # Une baisse (ex. cache mémoire libéré par le noyau) n'est pas une surcharge : rien à réparer
             return Plan(node.name, reason=f"{feature} en baisse (z={z:+.1f}) : pas une surcharge, aucune action")
         if node.app and feature in SERVER_FEATURES:
-            return Plan(node.name, "rollout-restart", "server",
+            return Plan(node.name, "rollout-restart", cfg.app_api,
                         f"anomalie IA sur {feature} : redémarrage progressif de l'API (sans coupure)")
         if node.app and feature in HOST_LOAD_FEATURES:
             return Plan(node.name, "stop-sonarqube", "",

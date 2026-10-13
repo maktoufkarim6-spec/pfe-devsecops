@@ -18,7 +18,13 @@ AIOPS_TARGETS=[{"node": "app-1", "app": true}, {"node": "monitoring", "app": fal
 - Toutes les métriques `aiops_*` portent l'étiquette `node`.
 - Sans `AIOPS_TARGETS` : mode mono-serveur historique (requêtes et fichiers identiques à la v2.4).
 
+## Application supervisée (réutilisation)
+
+`AIOPS_APP_NAMESPACE` (défaut `default`), `AIOPS_APP_API` (conteneur de l'API, défaut `server`) et
+`AIOPS_APP_DB` (conteneur de la base, défaut `postgres`) désignent l'application sans changer le code.
+Ansible les remplit depuis `group_vars/all.yml` (voir `docs/REUTILISER.md`).
+
 ## Tests
 
-`python -m pytest tests` : 53 tests (mathématiques, détecteur, modèle, backtest, régimes,
+`python -m pytest tests` : 57 tests (mathématiques, détecteur, modèle, backtest, régimes,
 opérations, multi-nœuds). Ils s'exécutent pendant `docker build` : un échec empêche l'image d'exister.

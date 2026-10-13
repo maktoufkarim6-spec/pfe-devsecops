@@ -13,7 +13,7 @@ Utilisation (en root : sudo pfe-restore ...)
   pfe-restore verifier <jeu>                 contrôle des empreintes d'un jeu
   pfe-restore tester                         test de restauration complet maintenant (sans rien modifier)
   pfe-restore extraire <jeu> <dossier>       décompresse tout le jeu dans un dossier vide (sans rien modifier)
-  pfe-restore postgres <jeu> --confirmer     REMPLACE la base « demo » de l'application par celle du jeu
+  pfe-restore postgres <jeu> --confirmer     REMPLACE la base « {{ app_db_name }} » de l'application par celle du jeu
 <jeu> : nom (ex. 20261013T023000Z) ou chemin complet. Un nom est cherché d'abord dans les jeux locaux,
 puis dans les jeux reçus des autres nœuds.
 EOF
@@ -62,15 +62,15 @@ case "${1:-}" in
     echo "jeu extrait dans $out (procédures de remise en place : infra/README.md, section Sauvegardes)" ;;
   postgres)
     set_dir=$(find_set "${2:?jeu manquant}")
-    [ "${3:-}" = "--confirmer" ] || { echo "Opération destructive : ajoutez --confirmer pour remplacer la base demo."; exit 2; }
-    [ -f "$set_dir/postgres-demo.dump" ] || { echo "ce jeu ne contient pas de base PostgreSQL"; exit 2; }
+    [ "${3:-}" = "--confirmer" ] || { echo "Opération destructive : ajoutez --confirmer pour remplacer la base {{ app_db_name }}."; exit 2; }
+    [ -f "$set_dir/postgres-{{ app_db_name }}.dump" ] || { echo "ce jeu ne contient pas de base PostgreSQL"; exit 2; }
     verify "$set_dir"
-    echo "$(date '+%F %T') restauration de la base demo depuis $set_dir" | logger -t pfe-restore
+    echo "$(date '+%F %T') restauration de la base {{ app_db_name }} depuis $set_dir" | logger -t pfe-restore
     # Une seule transaction : en cas d'erreur, la base reste dans son état précédent
-    k3s kubectl -n default exec -i deploy/postgres -- sh -c \
-      'pg_restore -U "$POSTGRES_USER" -d demo --clean --if-exists --no-owner --no-privileges --single-transaction --exit-on-error' \
-      < "$set_dir/postgres-demo.dump"
-    echo "base demo restaurée depuis $(basename "$set_dir")" ;;
+    k3s kubectl -n {{ app_namespace }} exec -i deploy/{{ app_db_deployment }} -- sh -c \
+      'pg_restore -U "$POSTGRES_USER" -d {{ app_db_name }} --clean --if-exists --no-owner --no-privileges --single-transaction --exit-on-error' \
+      < "$set_dir/postgres-{{ app_db_name }}.dump"
+    echo "base {{ app_db_name }} restaurée depuis $(basename "$set_dir")" ;;
   *)
     usage; exit 2 ;;
 esac

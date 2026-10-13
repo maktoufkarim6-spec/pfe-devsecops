@@ -1,3 +1,20 @@
+# =====================================================================================================
+# APPLICATION SUPERVISÉE : seul bloc à adapter pour réutiliser la plateforme avec une autre application
+# (voir docs/REUTILISER.md). Les serveurs se déclarent dans inventory.ini.
+# =====================================================================================================
+app_name: app-cobaye               # nom court (titres, journaux)
+app_namespace: default             # espace de noms Kubernetes de l'application
+app_api: server                    # déploiement ET conteneur de l'API : CPU et RAM surveillés par l'IA,
+                                   # redémarrage progressif par l'agent en cas de surcharge
+app_restartable: [server, client]  # déploiements que l'agent a le droit de redémarrer progressivement
+app_db_deployment: postgres        # déploiement PostgreSQL sauvegardé chaque nuit ("" = pas de base)
+app_db_name: demo                  # base à sauvegarder (pg_dump), restaurée chaque semaine pour test
+app_ci_heavy_container: sonarqube  # conteneur lourd de la CI que l'agent peut arrêter hors build ("" = aucun)
+app_url_path: /                    # page de l'application testée par la page d'accueil
+repo_web: https://github.com/maktoufkarim6-spec/pfe-devsecops   # dépôt (liens de la page d'accueil)
+evaluation_url: https://claude.ai/artifact/MYtKLPBoj4eNnS1GNgYaaU   # résultats de la campagne ("" = aucun)
+# =====================================================================================================
+
 # Serveur de supervision (seule adresse autorisée à lire les collecteurs des nœuds)
 monitoring_ip: "{{ hostvars[groups['monitoring'][0]].ansible_host }}"
 
@@ -22,7 +39,7 @@ textfile_dir: /var/lib/node_exporter/textfile
 
 # Supervision
 monitoring_dir: /opt/pfe-monitoring
-repo_url: https://github.com/maktoufkarim6-spec/pfe-devsecops.git
+repo_url: "{{ repo_web }}.git"
 repo_dir: /opt/pfe-devsecops
 prometheus_retention: 15d
 aiops_version: "3.1.0"
@@ -53,3 +70,18 @@ backup_check_time: "04:30"      # vérification des jeux reçus, test de restaur
 backup_keep_daily: 7
 backup_keep_weekly: 4
 backup_min_free_gb: 3           # en dessous, la sauvegarde est annulée (et une alerte part)
+
+# Page d'accueil : services testés en continu (blackbox-exporter). lien = adresse à ouvrir dans le navigateur.
+app_ip: "{{ hostvars[groups['nodes'][0]].ansible_host }}"
+image_blackbox: prom/blackbox-exporter:v0.25.0
+services_web:
+  - { nom: "Application", url: "http://{{ app_ip }}{{ app_url_path }}", lien: "http://{{ app_ip }}{{ app_url_path }}" }
+  - { nom: "Jenkins", url: "http://{{ app_ip }}:8080/login", lien: "http://{{ app_ip }}:8080/" }
+  - { nom: "Argo CD", url: "https://{{ app_ip }}:32252/", lien: "https://{{ app_ip }}:32252/" }
+  - { nom: "SonarQube", url: "http://{{ app_ip }}:9000/api/system/status", lien: "http://{{ app_ip }}:9000/", hors_build: true }
+  - { nom: "Vault", url: "http://{{ app_ip }}:8200/v1/sys/health", lien: "http://{{ app_ip }}:8200/ui/" }
+  - { nom: "Grafana", url: "http://mon-grafana:3000/api/health", lien: "http://{{ monitoring_ip }}:3000/" }
+  - { nom: "Prometheus", url: "http://mon-prometheus:9090/-/healthy", lien: "" }
+  - { nom: "Alertmanager", url: "http://mon-alertmanager:9093/-/healthy", lien: "" }
+  - { nom: "Moteur AIOps", url: "http://mon-aiops-engine:8000/metrics", lien: "" }
+  - { nom: "Agent de remédiation", url: "http://mon-remediation:9095/healthz", lien: "" }

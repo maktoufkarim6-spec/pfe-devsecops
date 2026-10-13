@@ -21,6 +21,11 @@ sécurisée et automatisée. Base d'un futur SaaS de l'encadrant ; approche « a
 Utilisateur SSH : `debian` (mot de passe demandé au propriétaire, jamais écrit dans un fichier ni dans Git).
 La RAM du VPS applicatif est juste : ne pas laisser SonarQube tourner hors build.
 
+## Réutilisation
+
+L'application cobaye est remplaçable : tout ce qui la concerne est regroupé en tête de
+`infra/ansible/group_vars/all.yml` et du `Jenkinsfile` (guide : `docs/REUTILISER.md`).
+
 ## Les 5 objectifs
 
 | # | Objectif | État |
@@ -43,27 +48,29 @@ La RAM du VPS applicatif est juste : ne pas laisser SonarQube tourner hors build
   `app-cobaye-secrets` (déjà créé sur le VPS par `scripts/preparer-vps.sh`, copie dans Vault),
   PostgreSQL sur volume persistant.
 - `aiops-engine/` : moteur AIOps v3.1.0 (z-score robuste MAD + Isolation Forest + prévisions Theil-Sen),
-  multi-nœuds via `AIOPS_TARGETS`, 56 tests exécutés pendant `docker build`. Voir `aiops-engine/README.md`.
+  multi-nœuds via `AIOPS_TARGETS`, profil d'application configurable, 57 tests exécutés pendant `docker build`. Voir `aiops-engine/README.md`.
 - `infra/` : supervision multi-nœuds en Ansible + `deploy.sh`. Voir `infra/README.md`.
 
 ## Où on en est exactement (à reprendre dans cet ordre)
 
-Fait le 13 octobre 2026 : faille critique `proxy-addr` corrigée, pipeline vert (#16), credential Jenkins `github-token`
-en place, supervision multi-nœuds déployée sur 54.37.13.100, ancienne supervision du VPS applicatif arrêtée
-(`retirer-ancienne-supervision.yml`), clé SSH du PC du propriétaire installée sur les deux VPS.
+Fait les 12 et 13 octobre 2026 : pipeline vert (#16), supervision multi-nœuds, agent de remédiation et
+sauvegardes croisées déployés (sauvegarde, copie, vérification et test de restauration réussis des deux côtés),
+campagne de 14 pannes réelles (résultats : `eval/resultats/`), interface Grafana « Agent et sauvegardes »,
+plateforme rendue réutilisable (`docs/REUTILISER.md`).
 
-1. **Déployer l'agent de remédiation et les sauvegardes** : relancer `infra/deploy.sh` sur le serveur de supervision.
-   Puis : `docker exec mon-remediation python -m agent tester` (chaîne SSH vers chaque nœud), une sauvegarde
-   immédiate sur chaque nœud (`sudo systemctl start pfe-backup`) et un test (`sudo pfe-restore tester`).
-2. **Démonstration** : provoquer une panne (ex. `docker stop cadvisor` sur le VPS applicatif) et vérifier dans le
-   journal de l'agent qu'il la détecte et propose (mode conseil) puis exécute (mode actif) la réparation.
-3. **Mode actif** de l'agent après quelques jours de journal en mode conseil jugé correct (`remediation_mode: actif`).
-4. **Alertes par e-mail** (Gmail plutôt que Telegram) : relancer `deploy.sh` avec l'adresse et un mot de passe
-   d'application Gmail. Les actions réelles de l'agent sont alors aussi notifiées par e-mail (`ActionAutomatique`).
-5. Ensuite : calibration du moteur après 24 h calmes
-   (`docker exec mon-aiops-engine python -m aiops.calibrate /data/detections-app-1.csv`), injection de
-   pannes réelles pour le tableau d'évaluation (précision, rappel, délai, et taux de réparation automatique de l'agent),
-   Rundeck pour l'objectif 5.
+État particulier à connaître :
+- L'agent tourne en **mode actif** (conteneur recréé à la main pour la campagne). Un `deploy.sh` sans option le
+  remet en mode conseil ; pour garder l'actif : `bash deploy.sh -e remediation_mode=actif`.
+- Le code de l'agent dans le dépôt est plus récent que l'image déployée (une baisse n'est plus une surcharge,
+  action sans effet hors quota, déploiement de l'API configurable) : relancer `deploy.sh` pour l'appliquer.
+
+1. **Relancer `deploy.sh -e remediation_mode=actif`** : nouvelle version de l'agent, page d'accueil Grafana,
+   testeur de services, profil d'application.
+2. **Sécurité SSH** : des milliers de tentatives de connexion par mot de passe par jour sur les VPS. Passer
+   Ansible en connexion par clé, puis désactiver `PasswordAuthentication` (à faire avec le propriétaire).
+3. **Alertes par e-mail** (Gmail) : relancer `deploy.sh` avec l'adresse et un mot de passe d'application Gmail.
+4. **Calibration** du moteur après 24 h calmes, puis refaire la campagne (`eval/campagne.py`) pour comparer.
+5. Objectif 5 : Rundeck (ou justification de l'orchestration Ansible + minuteries systemd).
 
 ## Règles de travail
 

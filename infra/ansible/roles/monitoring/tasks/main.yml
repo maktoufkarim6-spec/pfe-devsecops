@@ -75,6 +75,13 @@
     mode: "0644"
   notify: Redémarrer la supervision
 
+- name: Configuration du testeur de services (blackbox-exporter)
+  ansible.builtin.template:
+    src: blackbox.yml.j2
+    dest: "{{ monitoring_dir }}/blackbox.yml"
+    mode: "0644"
+  register: monitoring_blackbox_conf
+
 - name: Configuration Alertmanager
   ansible.builtin.template:
     src: alertmanager.yml.j2
@@ -89,15 +96,22 @@
     mode: "0644"
   notify: Redémarrer la supervision
 
-- name: Tableaux de bord Grafana (versionnés dans le dépôt)
+- name: Tableaux de bord Grafana (versionnés dans le dépôt, adaptés à l'application supervisée)
   ansible.builtin.copy:
-    src: "{{ item.src }}"
+    # Les marqueurs __...__ sont remplacés par les variables de l'application (group_vars/all.yml).
+    # Le contenu lu par lookup n'est jamais interprété par Jinja : les {{ }} de Grafana restent intacts.
+    content: >-
+      {{ lookup('ansible.builtin.file', item.src)
+         | replace('__APP_NAMESPACE__', app_namespace) | replace('__APP_IP__', app_ip)
+         | replace('__APP_URL_PATH__', app_url_path) | replace('__REPO_WEB__', repo_web)
+         | replace('__EVALUATION_URL__', evaluation_url) }}
     dest: "{{ monitoring_dir }}/grafana/{{ item.dest }}"
     mode: "0644"
   loop:
     - { src: grafana-dashboards.yml, dest: provisioning/dashboards/pfe.yml }
     - { src: dashboards/pfe-supervision.json, dest: dashboards/pfe-supervision.json }
     - { src: dashboards/pfe-agent-sauvegardes.json, dest: dashboards/pfe-agent-sauvegardes.json }
+    - { src: dashboards/pfe-accueil.json, dest: dashboards/pfe-accueil.json }
 
 - name: Code du moteur AIOps
   ansible.builtin.git:
@@ -108,7 +122,7 @@
     force: true
   register: monitoring_repo
 
-- name: Image du moteur AIOps (ses 56 tests tournent pendant la construction)
+- name: Image du moteur AIOps (ses 57 tests tournent pendant la construction)
   community.docker.docker_image:
     name: aiops-engine
     tag: "{{ aiops_version }}"
@@ -154,6 +168,21 @@
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"
 
+- name: Testeur de services (aucun port publié, lu par Prometheus sur le réseau de la supervision)
+  community.docker.docker_container:
+    name: mon-blackbox
+    image: "{{ image_blackbox }}"
+    restart_policy: unless-stopped
+    networks: [{ name: pfe-monitoring }]
+    read_only: true
+    cap_drop: [ALL]
+    security_opts: ["no-new-privileges:true"]
+    memory: 64m
+    volumes:
+      - "{{ monitoring_dir }}/blackbox.yml:/etc/blackbox/blackbox.yml:ro"
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    recreate: "{{ monitoring_blackbox_conf.changed }}"
+
 - name: Grafana (seul service exposé, avec authentification)
   community.docker.docker_container:
     name: mon-grafana
@@ -165,7 +194,7 @@
       GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-admin-password
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
-      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/pfe-supervision.json
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/pfe-accueil.json
     volumes:
       - "{{ monitoring_dir }}/grafana/provisioning:/etc/grafana/provisioning:ro"
       - "{{ monitoring_dir }}/grafana/dashboards:/var/lib/grafana/dashboards:ro"
@@ -188,6 +217,9 @@
     env:
       PROM_URL: http://mon-prometheus:9090
       AIOPS_TARGETS: "{{ aiops_targets | to_json }}"
+      AIOPS_APP_NAMESPACE: "{{ app_namespace }}"
+      AIOPS_APP_API: "{{ app_api }}"
+      AIOPS_APP_DB: "{{ app_db_deployment or 'aucune' }}"
     volumes:
       - "{{ monitoring_dir }}/aiops-data:/data"
     recreate: "{{ monitoring_repo.changed }}"

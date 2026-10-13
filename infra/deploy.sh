@@ -4,7 +4,7 @@
 # Options Ansible en plus (ex. agent en mode actif) : bash deploy.sh -e remediation_mode=actif
 # Relançable sans risque : chaque étape ne change que ce qui diffère de l'état voulu.
 set -euo pipefail
-REPO=https://github.com/maktoufkarim6-spec/pfe-devsecops.git
+REPO=${PFE_REPO:-https://github.com/maktoufkarim6-spec/pfe-devsecops.git}   # autre projet : PFE_REPO=<dépôt> bash deploy.sh
 SRC="$HOME/pfe-devsecops"
 VENV="$HOME/.pfe-ansible"
 

@@ -1,0 +1,15 @@
+numero,scenario,debut_utc,duree_panne_s,ia_s,zscore_s,iforest_s,alerte_ia_s,seuil_s,alerte_dispo_s,variable_ia,action_attendue,actions_agent,repare_s,calme_s
+1,cadvisor,01:21,147.9,,,,,,135.0,,restart-container cadvisor,restart-container cadvisor:executee,143.1,153.1
+2,sonarqube,01:32,140.0,60.0,60.0,,130.0,,,cpu_host,stop-sonarqube,stop-sonarqube:executee;aucune:aucune_action,137.0,
+3,cpu_api,02:04,167.2,75.0,75.0,,145.0,,,cpu_server,rollout-restart server,rollout-restart server:executee;aucune:aucune_action,164.2,596.7
+4,disque,03:06,908.1,65.0,65.0,,135.0,,,disk_host,aucune,aucune:aucune_action,,1013.2
+5,cpu_hote,04:09,614.9,75.0,75.0,,145.0,,,cpu_host,stop-sonarqube,stop-sonarqube:executee,,843.8
+6,ram_api,04:56,161.6,55.0,55.0,,125.0,,,ram_server_mb,rollout-restart server,rollout-restart server:executee;aucune:aucune_action;aucune:aucune_action,160.2,617.9
+7,node_exporter,05:14,162.9,220.0,220.0,,,,145.0,,restart-container node-exporter,restart-container node-exporter:executee,161.6,179.6
+8,ram_hote,05:25,615.0,50.0,50.0,,120.0,,,ram_host,stop-sonarqube,stop-sonarqube:pause,,737.6
+9,client_zero,05:45,33.7,,,,,,,,aucune,,32.2,35.0
+10,cpu_api,05:54,908.8,70.0,70.0,,140.0,,,cpu_server,rollout-restart server,rollout-restart server:quota,,1137.9
+11,sonarqube,06:21,160.9,75.0,75.0,,145.0,,,cpu_host,stop-sonarqube,stop-sonarqube:executee,159.8,298.6
+12,ram_api,06:53,162.3,50.0,50.0,,120.0,,,ram_server_mb,rollout-restart server,rollout-restart server:executee;aucune:aucune_action,161.0,633.5
+13,cpu_hote,07:12,600.8,60.0,60.0,,130.0,,,cpu_host,stop-sonarqube,stop-sonarqube:executee;aucune:aucune_action,,860.4
+14,moteur,07:34,188.0,,,,,,155.0,,restart-container mon-aiops-engine,restart-container mon-aiops-engine:executee;aucune:aucune_action,187.0,189.3

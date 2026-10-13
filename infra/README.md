@@ -1,5 +1,7 @@
 # Supervision multi-nœuds
 
+> Réutiliser la plateforme pour une autre application : `docs/REUTILISER.md` (un seul bloc de variables).
+
 ```
         Serveur de supervision (54.37.13.100)
   Prometheus · Alertmanager · Grafana · moteur AIOps (un modèle par nœud)
