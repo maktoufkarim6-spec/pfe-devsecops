@@ -31,17 +31,27 @@ K = "sudo -n k3s kubectl -n default"
 
 # ------------------------------------------------------------------ accès aux serveurs
 def ssh(host, cmd, timeout=180):
-    p = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", f"debian@{host}", cmd],
-                       capture_output=True, text=True, timeout=timeout)
+    try:
+        p = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=10",
+                            f"debian@{host}", cmd], capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return 124, "délai SSH dépassé"
     return p.returncode, (p.stdout + p.stderr).strip()
 
 
-def prom(expr):
-    rc, out = ssh(MON, "curl -s -G localhost:9090/api/v1/query --data-urlencode " + shlex.quote("query=" + expr))
-    body = json.loads(out)
-    if body.get("status") != "success":
-        raise RuntimeError(f"PromQL refusée : {expr} -> {body}")
-    return body["data"]
+def prom(expr, essais=5):
+    """Requête instantanée ; un raté réseau passager est retenté (5 essais, attente croissante)."""
+    for n in range(essais):
+        rc, out = ssh(MON, "curl -s -m 20 -G localhost:9090/api/v1/query --data-urlencode " + shlex.quote("query=" + expr))
+        try:
+            body = json.loads(out)
+            if body.get("status") == "success":
+                return body["data"]
+            raise RuntimeError(f"PromQL refusée : {expr} -> {body}")
+        except ValueError:
+            log(f"   réponse illisible de Prometheus (essai {n + 1}/{essais}) : {out[:80]!r}")
+            time.sleep(5 * (n + 1))
+    raise RuntimeError(f"Prometheus injoignable après {essais} essais : {expr}")
 
 
 def now():
@@ -107,7 +117,7 @@ S = {s.id: s for s in [
              alerte={"alerte": 'ALERTS{alertname="MoteurAIOpsArrete",alertstate="firing"}'}),
     Scenario("sonarqube", "SonarQube démarré hors build (+2 Go de RAM)", "app-1", APP,
              "docker start sonarqube", "docker stop sonarqube", 900,
-             "stop-sonarqube", True, ("ram_host",),
+             "stop-sonarqube", True, ("ram_host", "cpu_host"),   # démarrage de SonarQube : CPU puis RAM
              reparation=f'[ "$({running("sonarqube")})" != true ] && echo ok'),
     Scenario("cpu_hote", "Surcharge CPU du serveur (3 cœurs sur 4)", "app-1", APP,
              "docker run -d --rm --name pfe-eval-cpu --cpus 3 alpine:3.20 sh -c "
@@ -181,6 +191,8 @@ def attendre_calme(sc, derniere_action, max_attente=2700):
             raisons.append(f"pause de l'agent pour « {sc.action_attendue} » ({attente_action / 60:.0f} min)")
         if not raisons:
             return True
+        if "modèle AIOps pas encore prêt" in raisons:
+            debut = time.time()      # l'attente du premier apprentissage ne compte pas dans le délai de départ
         if time.time() - debut > max_attente and not attente_action and "modèle AIOps pas encore prêt" not in raisons:
             log(f"départ forcé malgré : {', '.join(raisons)}")
             return False
@@ -262,6 +274,7 @@ def main():
     ap.add_argument("--seulement", help="scénarios séparés par des virgules (ordre conservé)")
     ap.add_argument("--liste", action="store_true")
     ap.add_argument("--pause", type=int, default=480, help="période calme après chaque panne (s)")
+    ap.add_argument("--depuis", type=int, default=1, help="reprendre à la panne numéro N de l'ordre")
     a = ap.parse_args()
     if a.liste:
         for s in S.values():
@@ -273,11 +286,25 @@ def main():
         sys.exit(f"scénarios inconnus : {inconnus}")
     mode = prom("max(pfe_agent_mode)")["result"]
     log(f"Campagne de {len(ordre)} injections ; agent en mode {'ACTIF' if mode and mode[0]['value'][1] == '1' else 'CONSEIL'}")
+    # Actions récentes de l'agent (reprise après interruption) : sa pause de 30 min est respectée
     derniere_action = {}
+    t_serveur, t_local = now(), time.time()
+    for r in journal_agent(t_serveur - 35 * 60):
+        if r.get("type") == "decision" and r.get("decision") in ("executee", "simulee"):
+            derniere_action[r["action"]] = max(derniere_action.get(r["action"], 0), r["t"] - t_serveur + t_local)
+    if derniere_action:
+        log(f"actions récentes de l'agent prises en compte : {', '.join(derniere_action)}")
     for i, sid in enumerate(ordre, 1):
+        if i < a.depuis:
+            continue
         sc = S[sid]
-        attendre_calme(sc, derniere_action)
-        res = injecter(sc, i)
+        try:
+            attendre_calme(sc, derniere_action)
+            res = injecter(sc, i)
+        except Exception as exc:      # une erreur sur une panne n'arrête pas la campagne (la panne est déjà annulée)
+            log(f"   ERREUR sur la panne {i} ({sid}) : {exc!r} ; annulation de sécurité puis suite")
+            ssh(sc.hote, sc.annuler)
+            res = None
         if res and sc.action_attendue != "aucune":
             derniere_action[sc.action_attendue] = time.time()
         log(f"   période calme de {a.pause // 60} min (sert aussi à mesurer les fausses alertes)")

@@ -72,9 +72,13 @@ def decide(alert, cfg, diagnose=None):
             return Plan(node.name, reason="nettoyage disque désactivé : accord du propriétaire requis (remediation_disk_cleanup)")
         return Plan(node.name, "clean-disk", "", "disque saturé ou saturation prévue : images Docker inutilisées et vieux journaux")
     if name == "AnomalieAIOps":
-        feature = diagnose(node.name) if diagnose else None
+        diag = diagnose(node.name) if diagnose else None
+        feature, z = diag if isinstance(diag, tuple) else (diag, None)
         if feature is None:
             return Plan(node.name, reason="diagnostic AIOps indisponible : pas d'action à l'aveugle")
+        if z is not None and z < 0 and feature in SERVER_FEATURES + HOST_LOAD_FEATURES:
+            # Une baisse (ex. cache mémoire libéré par le noyau) n'est pas une surcharge : rien à réparer
+            return Plan(node.name, reason=f"{feature} en baisse (z={z:+.1f}) : pas une surcharge, aucune action")
         if node.app and feature in SERVER_FEATURES:
             return Plan(node.name, "rollout-restart", "server",
                         f"anomalie IA sur {feature} : redémarrage progressif de l'API (sans coupure)")

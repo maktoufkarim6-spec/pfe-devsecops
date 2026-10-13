@@ -28,6 +28,15 @@ def test_anomalie_charge_hote_arret_sonarqube(cfg):
     assert plan.action == "stop-sonarqube"
 
 
+def test_anomalie_en_hausse_avec_zscore_signe(cfg):
+    assert decide(alert("AnomalieAIOps"), cfg, lambda n: ("ram_server_mb", 6.2)).action == "rollout-restart"
+
+
+def test_baisse_de_memoire_n_est_pas_une_surcharge(cfg):
+    plan = decide(alert("AnomalieAIOps"), cfg, lambda n: ("ram_server_mb", -5.6))
+    assert plan.action is None and "baisse" in plan.reason
+
+
 def test_anomalie_sans_diagnostic_pas_d_action(cfg):
     assert decide(alert("AnomalieAIOps"), cfg, lambda n: None).action is None
 

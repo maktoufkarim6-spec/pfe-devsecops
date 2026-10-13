@@ -33,12 +33,16 @@ class Context:
         self.prom = prom
 
     def top_feature(self, node):
-        """Variable la plus déviante selon le moteur AIOps, ou None."""
+        """(variable la plus déviante, z-score signé) selon le moteur AIOps, ou None."""
         try:
             res = self.prom.query(f'max by (feature) (aiops_top_feature{{node="{node}"}} == 1)')
+            if not res:
+                return None
+            feature = res[0][0].get("feature")
+            z = self.prom.query(f'aiops_zscore{{node="{node}",feature="{feature}"}}')
         except PromError:
             return None
-        return res[0][0].get("feature") if res else None
+        return feature, (z[0][1] if z else None)
 
     def in_maintenance(self, node):
         """True/False, ou None si Prometheus ne peut pas répondre (l'agent s'abstient alors)."""

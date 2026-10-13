@@ -13,8 +13,9 @@ Moteur AIOps (détecte, diagnostique) ──► Prometheus ──► Alertmanage
 
 | Alerte | Action | Condition |
 |---|---|---|
-| AnomalieAIOps, variable `cpu_server` ou `ram_server_mb` | `rollout-restart server` (redémarrage progressif, sans coupure) | nœud applicatif, hors build |
-| AnomalieAIOps, variable `cpu_host` ou `ram_host` ; RamElevee | `stop-sonarqube` | SonarQube actif hors build |
+| AnomalieAIOps, variable `cpu_server` ou `ram_server_mb` **en hausse** | `rollout-restart server` (redémarrage progressif, sans coupure) | nœud applicatif, hors build |
+| AnomalieAIOps, variable `cpu_host` ou `ram_host` **en hausse** ; RamElevee | `stop-sonarqube` | SonarQube actif hors build |
+| AnomalieAIOps, une de ces variables **en baisse** (z < 0) | aucune : une baisse n'est pas une surcharge | — |
 | CollecteurArrete (cAdvisor), NoeudInjoignable (node-exporter) | `restart-container <collecteur>` | — |
 | MoteurAIOpsArrete | `restart-container mon-aiops-engine` | serveur de supervision |
 | DisquePlein, DisquePleinPrevu | `clean-disk` (images Docker inutilisées, journaux > 14 j) | **désactivé par défaut** (`remediation_disk_cleanup`) |
@@ -52,5 +53,5 @@ Passer en mode actif : `remediation_mode: actif` dans `infra/ansible/group_vars/
 
 ## Tests
 
-`python -m pytest tests` : 45 tests (politique, garde-fous, travailleur, webhook, commande SSH). Ils s'exécutent
+`python -m pytest tests` : 47 tests (politique, garde-fous, travailleur, webhook, commande SSH). Ils s'exécutent
 pendant `docker build` : un échec empêche l'image d'exister. Bibliothèque standard seulement (aucune dépendance).

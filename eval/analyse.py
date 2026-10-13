@@ -20,15 +20,15 @@ import sys
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from campagne import MON, RESULTATS, ssh  # noqa: E402
+from campagne import MON, RESULTATS, S, signaux, ssh  # noqa: E402
 
 MARGE = 600
 PAS = 15
 
 
-def plage(expr, debut, fin):
+def plage(expr, debut, fin, pas=PAS):
     q = " ".join("--data-urlencode " + shlex.quote(f"{k}={v}") for k, v in
-                 (("query", expr), ("start", debut), ("end", fin), ("step", PAS)))
+                 (("query", expr), ("start", debut), ("end", fin), ("step", pas)))
     rc, out = ssh(MON, f"curl -s -G localhost:9090/api/v1/query_range {q}")
     return json.loads(out)["data"]["result"]
 
@@ -51,6 +51,26 @@ def episodes(serie):
     return eps
 
 
+def detections_precises(i):
+    """Premier instant de chaque signal, relu dans l'historique Prometheus (pas de 5 s) : rien n'échappe
+    au relevé, même une alerte éteinte en quelques secondes par l'agent. Repli : relevé de la campagne."""
+    sc = S.get(i["scenario"])
+    if sc is None:
+        return i["detections"]
+    res = {}
+    for nom, expr in signaux(sc.noeud, sc.alerte).items():
+        try:
+            series = plage(expr, i["t0"], i["t_fin_panne"] + 120, pas=5)
+        except Exception:
+            if nom in i["detections"]:
+                res[nom] = i["detections"][nom]
+            continue
+        ts = [float(t) for s in series for t, _ in s["values"]]
+        if ts:
+            res[nom] = round(min(ts) - i["t0"], 1)
+    return res
+
+
 def hm(t):
     return datetime.fromtimestamp(t, timezone.utc).strftime("%H:%M")
 
@@ -70,6 +90,9 @@ def main():
     inj = [json.loads(l) for l in open(a.fichier, encoding="utf-8") if l.strip()]
     if not inj:
         sys.exit("aucune injection enregistrée")
+    for i in inj:
+        i["detections_releve"] = i["detections"]
+        i["detections"] = detections_precises(i)
     debut = min(i["t0"] for i in inj) - 60
     fin = max(i["t_fin_panne"] for i in inj) + MARGE
     duree_h = (fin - debut) / 3600
@@ -96,6 +119,10 @@ def main():
         vus = [i["detections"][det] for i in attendues if det in i["detections"]]
         lignes_det.append(f"| {libelle} | {pct(len(vus), len(attendues))} | {med(vus)} | "
                           f"{(f'{min(vus):.0f}–{max(vus):.0f} s') if vus else '—'} |")
+    dispo = [i for i in inj if S.get(i["scenario"]) and S[i["scenario"]].alerte]
+    vus = [i["detections"]["alerte"] for i in dispo if "alerte" in i["detections"]]
+    lignes_det.append(f"| Alertes de disponibilité (collecteur, nœud, moteur muets) | {pct(len(vus), len(dispo))} | "
+                      f"{med(vus)} | {(f'{min(vus):.0f}–{max(vus):.0f} s') if vus else '—'} |")
     var_ok = sum(1 for i in attendues if i.get("variable_ia") in i["variables_attendues"])
     var_vus = sum(1 for i in attendues if i.get("variable_ia"))
 
@@ -121,6 +148,11 @@ def main():
             + f" | {'oui' if ok else 'NON'} | "
             + (f"{i['repare_par_agent_s']:.0f} s" if i.get("repare_par_agent_s") is not None else "—")
             + f" | {', '.join(verif) or '—'} |")
+    reaction = []
+    for i in inj:
+        alerte = min([v for k, v in i["detections"].items() if k in ("alerte", "alerte_ia", "seuil")], default=None)
+        if alerte is not None and i.get("repare_par_agent_s") is not None:
+            reaction.append(max(0.0, i["repare_par_agent_s"] - alerte))
     reparables = [i for i in inj if i["action_attendue"] not in ("aucune",) and i["scenario"] not in ("cpu_hote", "ram_hote")]
 
     # --- rapport
@@ -147,6 +179,7 @@ une base de départ, à refaire après la calibration (`aiops.calibrate`).
 - Décisions correctes (action choisie = action attendue) : {pct(correct, len(inj))}.
 - Pannes réparables par l'agent effectivement réparées par lui : {pct(reparees, len(reparables))}.
 - Délai de rétablissement (début de la panne → panne disparue) : médiane {med(mttr)}.
+- Réaction de l'agent (alerte déclenchée → panne disparue) : médiane {med(reaction)}.
 
 ## Détail des injections
 
