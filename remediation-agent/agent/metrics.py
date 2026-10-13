@@ -17,6 +17,8 @@ class Metrics:
         "pfe_agent_verifications_total": ("counter", "Vérifications après action : resolu, persistant, inconnu"),
         "pfe_agent_node_reachable": ("gauge", "1 si l'agent joint le nœud en SSH (test périodique)"),
         "pfe_agent_webhooks_total": ("counter", "Notifications reçues d'Alertmanager"),
+        "pfe_agent_discovery_ok": ("gauge", "1 si la dernière découverte des services du nœud a réussi"),
+        "pfe_agent_services_discovered": ("gauge", "Services exposés découverts sur le nœud"),
         "pfe_agent_worker_heartbeat_timestamp_seconds": ("gauge", "Dernier tour de boucle du travailleur"),
     }
 

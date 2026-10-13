@@ -15,7 +15,7 @@ log = logging.getLogger("agent")
 
 
 class Agent:
-    def __init__(self, cfg, executor, context, guards, journal, metrics, clock=time.time):
+    def __init__(self, cfg, executor, context, guards, journal, metrics, clock=time.time, decouverte=None):
         self.cfg = cfg
         self.executor = executor
         self.context = context
@@ -27,6 +27,7 @@ class Agent:
         self.pending = []            # vérifications à faire : (échéance, id, alerte, nœud, action)
         self.seen = {}               # incident:décision sans action -> horodatage (évite les doublons du journal)
         self.last_probe = 0.0
+        self.decouverte = decouverte
         metrics.set("pfe_agent_mode", 1 if cfg.mode == "actif" else 0)
         metrics.set("pfe_agent_suspended", 1 if guards.suspended else 0)
         self._restore_last_actions()
@@ -165,6 +166,8 @@ class Agent:
                     self.handle(alert)
                 self.verify_due()
                 self.probe()
+                if self.decouverte:
+                    self.decouverte.run()
             except Exception:   # une erreur sur une alerte ne doit jamais arrêter l'agent
                 log.exception("Erreur pendant le traitement")
             self.metrics.set("pfe_agent_worker_heartbeat_timestamp_seconds", self.clock())

@@ -7,7 +7,7 @@ diagnostic du moteur (variable la plus déviante).
 from dataclasses import dataclass
 
 # Actions connues du script pfe-runbook des nœuds (même liste des deux côtés)
-ACTIONS = ("status", "restart-container", "rollout-restart", "stop-sonarqube", "clean-disk")
+ACTIONS = ("status", "decouvrir", "restart-container", "rollout-restart", "stop-sonarqube", "clean-disk")
 
 # Variables du moteur AIOps qui désignent l'API de l'application
 SERVER_FEATURES = ("cpu_server", "ram_server_mb")

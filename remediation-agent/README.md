@@ -21,6 +21,13 @@ Moteur AIOps (détecte, diagnostique) ──► Prometheus ──► Alertmanage
 | DisquePlein, DisquePleinPrevu | `clean-disk` (images Docker inutilisées, journaux > 14 j) | **désactivé par défaut** (`remediation_disk_cleanup`) |
 | Toute autre alerte, ou anomalie sur une autre variable | aucune : escalade humaine (e-mail d'Alertmanager) | — |
 
+## Découverte des services
+
+Chaque minute, l'agent lance l'action « decouvrir » (lecture seule) sur chaque nœud : ports publiés par Docker,
+services NodePort et Ingress de k3s (nœud de contrôle). Les services absents de la liste déclarée à la main sont
+écrits dans un fichier lu par Prometheus (file_sd) et testés par blackbox-exporter, sans redémarrage. Un nœud
+injoignable garde ses derniers services connus. Ansible fait la même découverte au déploiement.
+
 ## Garde-fous
 
 - **Mode conseil par défaut** : l'agent simule, journalise et vérifie si l'alerte disparaît seule ; `actif` exécute.
@@ -53,5 +60,5 @@ Passer en mode actif : `remediation_mode: actif` dans `infra/ansible/group_vars/
 
 ## Tests
 
-`python -m pytest tests` : 51 tests (politique, garde-fous, travailleur, webhook, commande SSH). Ils s'exécutent
+`python -m pytest tests` : 56 tests (politique, garde-fous, travailleur, webhook, commande SSH). Ils s'exécutent
 pendant `docker build` : un échec empêche l'image d'exister. Bibliothèque standard seulement (aucune dépendance).

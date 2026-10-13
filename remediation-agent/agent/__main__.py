@@ -9,6 +9,7 @@ import time
 
 from . import __version__
 from .config import Config
+from .decouverte import Decouverte
 from .executor import SshExecutor
 from .guards import Guards
 from .journal import Journal
@@ -59,7 +60,8 @@ def main(argv):
         log.error("Jeton du webhook absent (%s) : les notifications seront toutes refusées", cfg.token_file)
     metrics = Metrics()
     metrics.set("pfe_agent_info", 1, version=__version__, mode=cfg.mode)
-    agent = Agent(cfg, executor, Context(PromClient(cfg.prom_url)), Guards(cfg), Journal(cfg.data_dir), metrics)
+    agent = Agent(cfg, executor, Context(PromClient(cfg.prom_url)), Guards(cfg), Journal(cfg.data_dir), metrics,
+                  decouverte=Decouverte(cfg, executor, metrics))
     worker = threading.Thread(target=agent.run_forever, name="travailleur", daemon=True)
     worker.start()
 

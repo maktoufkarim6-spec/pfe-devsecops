@@ -23,6 +23,23 @@
          + (['mon-aiops-engine', 'mon-alertmanager', 'mon-grafana', 'mon-prometheus']
             if inventory_hostname in groups['monitoring'] else []) }}
 
+- name: Script de découverte des services exposés (lecture seule)
+  ansible.builtin.template:
+    src: pfe-decouverte.j2
+    dest: /usr/local/sbin/pfe-decouverte
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Découverte des services exposés par ce nœud (Docker, Kubernetes)
+  ansible.builtin.command: /usr/local/sbin/pfe-decouverte
+  register: remediation_decouverte
+  changed_when: false
+
+- name: Services découverts (lus sur le nœud, transmis au serveur de supervision)
+  ansible.builtin.set_fact:
+    remediation_services: "{{ (remediation_decouverte.stdout | from_json).services }}"
+
 - name: sudo — le compte de l'agent ne peut lancer que ce script
   ansible.builtin.copy:
     dest: /etc/sudoers.d/pfe-agent

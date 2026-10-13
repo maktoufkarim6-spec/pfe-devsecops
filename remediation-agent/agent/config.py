@@ -36,6 +36,9 @@ class Config:
     probe_interval_seconds: int = 300     # test de joignabilité SSH des nœuds
     disk_cleanup: bool = False            # nettoyage disque : accord explicite du propriétaire requis
     app_api: str = "server"               # déploiement de l'API de l'application (redémarrage progressif)
+    discovery_interval_seconds: int = 60  # découverte des services exposés par les nœuds
+    discovery_file: str = "/decouverte/services.json"   # lu par Prometheus (file_sd)
+    services_declares: list = field(default_factory=list)   # adresses déjà testées (déclarées à la main)
     nodes: list = field(default_factory=list)
 
     @classmethod
@@ -46,12 +49,14 @@ class Config:
                            ("token_file", str), ("ssh_key", str), ("known_hosts", str), ("ssh_user", str),
                            ("ssh_timeout", int), ("cooldown_minutes", float), ("max_actions_per_hour", int),
                            ("max_attempts_per_incident", int), ("failure_breaker", int),
-                           ("verify_delay_seconds", int), ("probe_interval_seconds", int)):
+                           ("verify_delay_seconds", int), ("probe_interval_seconds", int),
+                           ("discovery_interval_seconds", int), ("discovery_file", str)):
             raw = env.get(f"AGENT_{name.upper()}")
             if raw is not None:
                 setattr(cfg, name, cast(raw))
         cfg.disk_cleanup = env.get("AGENT_DISK_CLEANUP", "false").lower() in ("1", "true", "oui", "yes")
         cfg.nodes = parse_nodes(env.get("AGENT_NODES", "[]"))
+        cfg.services_declares = [str(x) for x in json.loads(env.get("AGENT_SERVICES_DECLARES", "[]") or "[]")]
         cfg.validate()
         return cfg
 

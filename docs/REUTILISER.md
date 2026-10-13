@@ -68,7 +68,7 @@ Ce que fait la plateforme avec plusieurs nœuds :
 | `app_url_path` | page testée par la page d'accueil | `/` |
 | `repo_web` | dépôt Git (clonage par Ansible, liens) | dépôt du PFE |
 | `evaluation_url` | page de résultats de la campagne (`""` = aucune) | page des résultats |
-| `services_web` | services testés sur la page d'accueil (nom, adresse testée, lien) | 10 services |
+| `services_web` | services déclarés à la main sur la page d'accueil (nom, adresse testée, lien). Les autres services exposés (ports Docker publics, NodePort et Ingress de k3s) sont **découverts automatiquement** au déploiement puis chaque minute | 10 services |
 
 Ces variables sont transmises au moteur AIOps (`AIOPS_APP_NAMESPACE`, `AIOPS_APP_API`, `AIOPS_APP_DB`), à
 l'agent (`AGENT_APP_API`), aux scripts des nœuds (`pfe-runbook`, `pfe-backup`, `pfe-restore`) et aux tableaux de

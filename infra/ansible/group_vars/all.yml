@@ -90,3 +90,9 @@ services_web:
   - { nom: "Alertmanager", url: "http://mon-alertmanager:9093/-/healthy", lien: "" }
   - { nom: "Moteur AIOps", url: "http://mon-aiops-engine:8000/metrics", lien: "" }
   - { nom: "Agent de remédiation", url: "http://mon-remediation:9095/healthz", lien: "" }
+# Les autres services exposés (ports Docker publics, NodePort et Ingress de k3s) sont découverts
+# automatiquement : au déploiement, puis chaque minute par l'agent. Adresses déjà déclarées ci-dessus :
+services_declares: >-
+  {{ (services_web | map(attribute='url') | map('urlsplit', 'netloc') | list)
+     + (services_web | map(attribute='lien') | select | map('urlsplit', 'netloc') | list)
+     + (services_web | map(attribute='url') | list) + (services_web | map(attribute='lien') | select | list) }}

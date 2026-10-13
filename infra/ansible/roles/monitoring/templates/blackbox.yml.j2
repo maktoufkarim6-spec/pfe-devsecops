@@ -1,6 +1,11 @@
 # {{ ansible_managed }}
 # Test HTTP des services du projet (page d'accueil Grafana) : réponse 2xx en moins de 5 s.
 modules:
+  tcp_connect:            # services découverts : le port répond
+    prober: tcp
+    timeout: 5s
+    tcp:
+      preferred_ip_protocol: ip4
   http_2xx:
     prober: http
     timeout: 5s

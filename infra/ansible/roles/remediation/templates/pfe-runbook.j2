@@ -38,7 +38,10 @@ maintenance() {
 }
 
 [[ "$ACTION" =~ ^[a-z-]{1,30}$ && "$ARG" =~ ^[a-z0-9-]{0,40}$ ]] || { echo "demande invalide"; exit 2; }
-[ "$ACTION" = status ] || logger -t pfe-runbook -- "demande : $ACTION $ARG"
+case "$ACTION" in status|decouvrir) ;; *) logger -t pfe-runbook -- "demande : $ACTION $ARG" ;; esac
+
+# Découverte des services exposés : lecture seule, n'attend pas une action en cours
+[ "$ACTION" = decouvrir ] && exec /usr/local/sbin/pfe-decouverte
 
 # Une seule action à la fois sur le nœud
 exec 9>/run/pfe-runbook.lock

@@ -54,4 +54,4 @@ class SshExecutor:
             code, out = FAILED, f"délai de {self.cfg.ssh_timeout} s dépassé"
         except OSError as exc:
             code, out = FAILED, f"ssh introuvable ou inutilisable : {exc}"
-        return Result(code, out[-2000:], self.clock() - start)
+        return Result(code, out[-200_000:], self.clock() - start)   # le journal, lui, tronque à 500 caractères

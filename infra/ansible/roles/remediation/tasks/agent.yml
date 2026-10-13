@@ -9,6 +9,30 @@
   loop:
     - { path: remediation, owner: root, mode: "0755" }
     - { path: remediation-data, owner: "10002", mode: "0750" }
+    - { path: prometheus/decouverte, owner: "10002", mode: "0755" }
+
+- name: Services découverts au déploiement (liste remise à zéro puis complétée)
+  ansible.builtin.set_fact:
+    remediation_decouverts: []
+
+- name: Services découverts, hors services déjà déclarés à la main
+  ansible.builtin.set_fact:
+    remediation_decouverts: >-
+      {{ remediation_decouverts + [{'targets': [item.cible],
+           'labels': {'service': item.nom, 'module': 'http_2xx' if item.type == 'http' else 'tcp_connect',
+                      'lien': item.lien, 'noeud': item.noeud, 'source': item.source}}] }}
+  loop: >-
+    {{ groups['all'] | map('extract', hostvars) | map(attribute='remediation_services') | flatten(levels=1)
+       | rejectattr('cible', 'in', services_declares) | list }}
+  loop_control:
+    label: "{{ item.nom }}"
+
+- name: Fichier de découverte lu par Prometheus (tenu à jour chaque minute par l'agent)
+  ansible.builtin.copy:
+    dest: "{{ monitoring_dir }}/prometheus/decouverte/services.json"
+    owner: "10002"
+    mode: "0644"
+    content: "{{ remediation_decouverts | to_nice_json }}\n"
 
 - name: Empreintes SSH des nœuds (nom du nœud -> clé de l'hôte, lues par Ansible sur chaque nœud)
   ansible.builtin.copy:
@@ -58,9 +82,11 @@
       AGENT_COOLDOWN_MINUTES: "{{ remediation_cooldown_minutes | string }}"
       AGENT_PROM_URL: http://mon-prometheus:9090
       AGENT_APP_API: "{{ app_api }}"
+      AGENT_SERVICES_DECLARES: "{{ services_declares | to_json }}"
       AGENT_NODES: "{{ remediation_nodes | to_json }}"
     volumes:
       - "{{ monitoring_dir }}/secrets/agent:/secrets:ro"
       - "{{ monitoring_dir }}/remediation/known_hosts:/config/known_hosts:ro"
       - "{{ monitoring_dir }}/remediation-data:/data"
+      - "{{ monitoring_dir }}/prometheus/decouverte:/decouverte"
     recreate: "{{ remediation_known_hosts.changed }}"

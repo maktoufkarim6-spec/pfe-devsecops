@@ -46,6 +46,22 @@ scrape_configs:
       - target_label: __address__
         replacement: mon-blackbox:9115
 
+  # Services découverts automatiquement (fichier tenu à jour par l'agent, relu par Prometheus sans redémarrage)
+  - job_name: services-decouverts
+    metrics_path: /probe
+    file_sd_configs:
+      - files: [/etc/prometheus/decouverte/*.json]
+        refresh_interval: 1m
+    relabel_configs:
+      - source_labels: [module]
+        target_label: __param_module
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: mon-blackbox:9115
+
 {% for job, port, only_app in [("node-exporter", port_node_exporter, false), ("cadvisor", port_cadvisor, false), ("cadvisor-k3s", port_cadvisor_k3s, true)] %}
   - job_name: {{ job }}
     static_configs:

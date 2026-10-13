@@ -217,14 +217,100 @@
       }
     },
     {
+      "type": "stat",
+      "title": "Services découverts automatiquement",
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "probe_success{job=\"services-decouverts\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "description": "Ports publiés par Docker, services NodePort et Ingress de Kubernetes, découverts sur chaque serveur au déploiement puis chaque minute par l'agent (hors services déclarés ci-dessus). Test : le port répond.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "répond",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "NE RÉPOND PAS",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "Ouvrir ${__field.labels.service}",
+              "url": "${__field.labels.lien}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
       "type": "row",
       "title": "Serveurs",
-      "id": 4,
+      "id": 5,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 13
       },
       "collapsed": false,
       "panels": []
@@ -232,12 +318,12 @@
     {
       "type": "stat",
       "title": "CPU",
-      "id": 5,
+      "id": 6,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 10
+        "y": 14
       },
       "datasource": {
         "type": "prometheus",
@@ -302,12 +388,12 @@
     {
       "type": "stat",
       "title": "Mémoire",
-      "id": 6,
+      "id": 7,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 10
+        "y": 14
       },
       "datasource": {
         "type": "prometheus",
@@ -372,12 +458,12 @@
     {
       "type": "stat",
       "title": "Disque",
-      "id": 7,
+      "id": 8,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 10
+        "y": 14
       },
       "datasource": {
         "type": "prometheus",
@@ -442,12 +528,12 @@
     {
       "type": "stat",
       "title": "Détection par l'IA",
-      "id": 8,
+      "id": 9,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 10
+        "y": 14
       },
       "datasource": {
         "type": "prometheus",
@@ -518,12 +604,12 @@
     {
       "type": "row",
       "title": "Auto-réparation, sauvegardes et alertes",
-      "id": 9,
+      "id": 10,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 18
       },
       "collapsed": false,
       "panels": []
@@ -531,12 +617,12 @@
     {
       "type": "stat",
       "title": "Agent",
-      "id": 10,
+      "id": 11,
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 15
+        "y": 19
       },
       "datasource": {
         "type": "prometheus",
@@ -618,12 +704,12 @@
     {
       "type": "stat",
       "title": "Réparations (24 h)",
-      "id": 11,
+      "id": 12,
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 15
+        "y": 19
       },
       "datasource": {
         "type": "prometheus",
@@ -684,12 +770,12 @@
     {
       "type": "stat",
       "title": "Dernière sauvegarde",
-      "id": 12,
+      "id": 13,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 8,
-        "y": 15
+        "y": 19
       },
       "datasource": {
         "type": "prometheus",
@@ -759,12 +845,12 @@
     {
       "type": "stat",
       "title": "Test de restauration",
-      "id": 13,
+      "id": 14,
       "gridPos": {
         "h": 4,
         "w": 5,
         "x": 14,
-        "y": 15
+        "y": 19
       },
       "datasource": {
         "type": "prometheus",
@@ -839,12 +925,12 @@
     {
       "type": "stat",
       "title": "Alertes en cours",
-      "id": 14,
+      "id": 15,
       "gridPos": {
         "h": 4,
         "w": 5,
         "x": 19,
-        "y": 15
+        "y": 19
       },
       "datasource": {
         "type": "prometheus",
@@ -913,12 +999,12 @@
     {
       "type": "row",
       "title": "Évaluation par injection de pannes",
-      "id": 15,
+      "id": 16,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 23
       },
       "collapsed": false,
       "panels": []
@@ -926,12 +1012,12 @@
     {
       "type": "text",
       "title": "",
-      "id": 16,
+      "id": 17,
       "gridPos": {
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 24
       },
       "options": {
         "mode": "markdown",

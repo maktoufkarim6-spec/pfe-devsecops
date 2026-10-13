@@ -85,6 +85,8 @@ cd ~/pfe-devsecops/infra/ansible && ~/.pfe-ansible/bin/ansible-playbook retirer-
 Grafana (http://54.37.13.100:3000), dossier **PFE** :
 
 - **PFE - Supervision multi-nœuds + AIOps** : métriques des serveurs et de l'application, détections du moteur AIOps.
+- **PFE - Accueil** (page par défaut) : état des services déclarés et **des services découverts automatiquement**,
+  serveurs, avis de l'IA, agent, sauvegardes, alertes, résultats de l'évaluation, liens vers chaque outil.
 - **PFE - Agent de remédiation et sauvegardes** : mode de l'agent, réparations, échecs, décisions par alerte,
   dernières actions ; état des sauvegardes de chaque serveur (dernière sauvegarde, copie distante, taille, test
   de restauration), jeux reçus et leurs empreintes ; alertes en cours sur tout le parc.

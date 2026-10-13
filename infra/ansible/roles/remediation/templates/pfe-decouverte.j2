@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+# {{ ansible_managed }}
+"""pfe-decouverte : liste les services exposés par ce nœud ({{ node_name }}), en lecture seule.
+
+- conteneurs Docker qui publient un port sur toutes les interfaces (0.0.0.0) ;
+- sur le nœud de contrôle k3s : services NodePort ou LoadBalancer (hors kube-system) et Ingress.
+Sortie : un objet JSON sur la sortie standard. Appelé par Ansible au déploiement et, chaque minute, par l'agent
+de remédiation (action « decouvrir » de pfe-runbook) pour tenir à jour les services testés par Prometheus.
+"""
+import json
+import re
+import subprocess
+
+NODE = "{{ node_name }}"
+IP = "{{ ansible_host }}"
+K3S_SERVER = {{ 'True' if inventory_hostname == k3s_server_host else 'False' }}
+# Ports de la plateforme elle-même, déjà supervisés autrement (SSH, collecteurs)
+EXCLUS = {22, {{ port_node_exporter }}, {{ port_cadvisor }}, {{ port_cadvisor_k3s }}}
+PUBLIC = re.compile(r"^0\.0\.0\.0:(\d+)->\d+/(tcp|udp)$")
+LIEN_WEB = {80: "http", 443: "https", 3000: "http", 8080: "http", 8200: "http", 9000: "http"}
+
+
+def run(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def docker_services():
+    out = []
+    for line in run(["docker", "ps", "--format", "{{ '{{' }}json .{{ '}}' }}"]).splitlines():
+        try:
+            c = json.loads(line)
+        except ValueError:
+            continue
+        ports = sorted({int(m.group(1)) for p in c.get("Ports", "").split(", ")
+                        if (m := PUBLIC.match(p.strip())) and m.group(2) == "tcp"} - EXCLUS)
+        for port in ports:
+            nom = c["Names"] if len(ports) == 1 else f'{c["Names"]}:{port}'
+            sch = LIEN_WEB.get(port)
+            out.append({"nom": nom, "type": "tcp", "cible": f"{IP}:{port}", "source": "docker", "noeud": NODE,
+                        "lien": f"{sch}://{IP}:{port}/" if sch else ""})
+    return out
+
+
+def k8s_services():
+    if not K3S_SERVER:
+        return []
+    out = []
+    try:
+        svcs = json.loads(run(["k3s", "kubectl", "get", "svc", "-A", "-o", "json"]) or "{}").get("items", [])
+        ings = json.loads(run(["k3s", "kubectl", "get", "ingress", "-A", "-o", "json"]) or "{}").get("items", [])
+    except ValueError:
+        return []
+    for s in svcs:
+        ns, nom = s["metadata"]["namespace"], s["metadata"]["name"]
+        if ns == "kube-system" or s["spec"].get("type") not in ("NodePort", "LoadBalancer"):
+            continue
+        for p in s["spec"].get("ports", []):
+            if not p.get("nodePort"):
+                continue
+            label = p.get("name") or str(p["port"])
+            sch = "https" if p["port"] == 443 or label == "https" else ("http" if p["port"] == 80 or label == "http" else "")
+            out.append({"nom": f"{ns}/{nom}:{label}", "type": "tcp", "cible": f"{IP}:{p['nodePort']}",
+                        "source": "kubernetes", "noeud": NODE, "lien": f"{sch}://{IP}:{p['nodePort']}/" if sch else ""})
+    for i in ings:
+        ns, nom = i["metadata"]["namespace"], i["metadata"]["name"]
+        for r in i["spec"].get("rules", []):
+            hote = r.get("host") or IP
+            for p in r.get("http", {}).get("paths", []):
+                url = f"http://{hote}{p.get('path') or '/'}"
+                out.append({"nom": f"ingress {ns}/{nom}{p.get('path') or '/'}", "type": "http", "cible": url,
+                            "source": "kubernetes", "noeud": NODE, "lien": url})
+    return out
+
+
+print(json.dumps({"node": NODE, "services": docker_services() + k8s_services()}, ensure_ascii=False))

@@ -70,6 +70,13 @@ panels.append(stat("État des services", 0, y, 24, 5,
                 "properties": [{"id": "mappings", "value": val({"1": ("en ligne (build)", "green"), "0": ("arrêté hors build", "blue")})}]}],
     links=[{"title": "Ouvrir ${__field.labels.service}", "url": "${__field.labels.lien}", "targetBlank": True}]))
 y += 5
+panels.append(stat("Services découverts automatiquement", 0, y, 24, 4,
+    [tgt('probe_success{job="services-decouverts"}', "{{service}}")],
+    "Ports publiés par Docker, services NodePort et Ingress de Kubernetes, découverts sur chaque serveur au "
+    "déploiement puis chaque minute par l'agent (hors services déclarés ci-dessus). Test : le port répond.",
+    mappings=val({"1": ("répond", "green"), "0": ("NE RÉPOND PAS", "red")}), steps=RG,
+    links=[{"title": "Ouvrir ${__field.labels.service}", "url": "${__field.labels.lien}", "targetBlank": True}]))
+y += 4
 panels.append(row("Serveurs", y))
 y += 1
 pct = [{"color": "green", "value": None}, {"color": "orange", "value": 75}, {"color": "red", "value": 90}]
