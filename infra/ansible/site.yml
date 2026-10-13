@@ -2,6 +2,27 @@
 # 1) supervision centrale  2) collecteurs, compte de l'agent et sauvegardes sur chaque nœud
 # 3) agent de remédiation (une fois les nœuds prêts à le recevoir)
 
+- name: Fenêtre de maintenance pendant le déploiement (pas de fausse anomalie, pas d'action de l'agent)
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Dossier des annonces de maintenance
+      ansible.builtin.file:
+        path: "{{ textfile_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Annonce de 20 min (sans raccourcir une annonce plus longue, ex. un build Jenkins)
+      ansible.builtin.shell: |
+        f={{ textfile_dir }}/maintenance.prom
+        fin=$(( $(date +%s) + 1200 ))
+        actuel=$(awk '$1=="pfe_maintenance_until_seconds"{print int($2)}' "$f" 2>/dev/null || true)
+        if [ -z "$actuel" ] || [ "$actuel" -lt "$fin" ]; then
+          echo "pfe_maintenance_until_seconds $fin" > "$f.tmp" && chmod 0644 "$f.tmp" && mv -f "$f.tmp" "$f"
+        fi
+      changed_when: false
+
 - name: Docker sur tous les serveurs
   hosts: all
   become: true
