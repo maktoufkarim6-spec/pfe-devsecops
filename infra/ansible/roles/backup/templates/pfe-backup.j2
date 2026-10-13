@@ -2,7 +2,7 @@
 # {{ ansible_managed }}
 # pfe-backup : sauvegarde de {{ node_name }}, puis copie vers {{ hostvars[backup_peer].node_name }} ({{ hostvars[backup_peer].ansible_host }}).
 # Lancé chaque nuit par pfe-backup.timer ; à la main : sudo systemctl start pfe-backup
-# Contenu : {{ ("historique Prometheus, données AIOps et de l'agent, Grafana, Alertmanager, configuration" if inventory_hostname in groups['monitoring'] else '') }}{{ (' + ' if inventory_hostname in groups['monitoring'] and node_app | bool else '') }}{{ ("base PostgreSQL " ~ app_db_name if node_app | bool and app_db_deployment else '') }}
+# Contenu : {{ ("historique Prometheus, données AIOps et de l'agent, Grafana, Alertmanager, configuration" if inventory_hostname in groups['monitoring'] else '') }}{{ (' + ' if inventory_hostname in groups['monitoring'] and node_app | bool else '') }}{{ ("base PostgreSQL " ~ app_db_name if node_app | bool and inventory_hostname == k3s_server_host and app_db_deployment else '') }}
 set -Eeuo pipefail
 umask 077
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -97,7 +97,7 @@ tar -C "$(volume pfe-alertmanager-data)" -cf - . | zstd -q -T0 -o "$WORK/alertma
 mapfile -t config_dirs < <(present prometheus alertmanager grafana remediation)
 tar -C {{ monitoring_dir }} --exclude=secrets -cf - "${config_dirs[@]}" | zstd -q -T0 -o "$WORK/configuration.tar.zst"
 {% endif %}
-{% if node_app | bool and app_db_deployment %}
+{% if node_app | bool and inventory_hostname == k3s_server_host and app_db_deployment %}
 
 # --- Base PostgreSQL de l'application ({{ app_db_name }}, format personnalisé de pg_dump, restaurable table par table)
 k() { k3s kubectl -n {{ app_namespace }} "$@"; }

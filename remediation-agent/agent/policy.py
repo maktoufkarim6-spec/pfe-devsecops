@@ -80,8 +80,11 @@ def decide(alert, cfg, diagnose=None):
             # Une baisse (ex. cache mémoire libéré par le noyau) n'est pas une surcharge : rien à réparer
             return Plan(node.name, reason=f"{feature} en baisse (z={z:+.1f}) : pas une surcharge, aucune action")
         if node.app and feature in SERVER_FEATURES:
-            return Plan(node.name, "rollout-restart", cfg.app_api,
-                        f"anomalie IA sur {feature} : redémarrage progressif de l'API (sans coupure)")
+            # Action sur le cluster : exécutée par le nœud de contrôle k3s, quel que soit le nœud de l'anomalie
+            ctl = cfg.k3s_node() or node
+            where = "" if ctl.name == node.name else f" (via le nœud de contrôle {ctl.name})"
+            return Plan(ctl.name, "rollout-restart", cfg.app_api,
+                        f"anomalie IA sur {feature} ({node.name}) : redémarrage progressif de l'API, sans coupure{where}")
         if node.app and feature in HOST_LOAD_FEATURES:
             return Plan(node.name, "stop-sonarqube", "",
                         f"anomalie IA sur {feature} : arrêt de SonarQube s'il tourne hors build")

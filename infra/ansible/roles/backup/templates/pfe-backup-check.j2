@@ -93,7 +93,7 @@ if (( FORCE_TEST == 1 || $(date +%s) - last_test > 6 * 86400 + 43200 )); then
       zstd -dc "$SET/aiops-et-agent.tar.zst" | tar -tf - | grep -q '^aiops-data/' || return 1
       log "Grafana : $dashboards tableau(x) de bord ; archives AIOps lisibles"
 {% endif %}
-{% if node_app | bool and app_db_deployment %}
+{% if node_app | bool and inventory_hostname == k3s_server_host and app_db_deployment %}
       # PostgreSQL : restauration réelle dans une base de test, puis comparaison des comptages de lignes
       local db=pfe_test_restauration
       k() { k3s kubectl -n {{ app_namespace }} "$@"; }

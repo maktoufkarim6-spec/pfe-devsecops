@@ -14,6 +14,7 @@ class Node:
     address: str        # adresse SSH (IP, ou host.docker.internal pour le serveur de supervision)
     app: bool = False   # héberge l'application k3s
     monitoring: bool = False
+    k3s: bool = False   # nœud de contrôle du cluster k3s : seul endroit où kubectl fonctionne
 
 
 @dataclass
@@ -68,6 +69,10 @@ class Config:
     def monitoring_node(self):
         return next((n for n in self.nodes if n.monitoring), None)
 
+    def k3s_node(self):
+        """Nœud de contrôle k3s ; à défaut (configuration à un seul nœud), le premier nœud applicatif."""
+        return next((n for n in self.nodes if n.k3s), None) or next((n for n in self.nodes if n.app), None)
+
 
 def parse_nodes(raw):
     """AGENT_NODES = [{"node": "app-1", "address": "1.2.3.4", "app": true, "monitoring": false}, ...]"""
@@ -77,7 +82,7 @@ def parse_nodes(raw):
         if not NODE_NAME.match(name):
             raise ValueError(f"Nom de nœud invalide : {name!r}")
         nodes.append(Node(name, str(item["address"]), bool(item.get("app", False)),
-                          bool(item.get("monitoring", False))))
+                          bool(item.get("monitoring", False)), bool(item.get("k3s", False))))
     if len({n.name for n in nodes}) != len(nodes):
         raise ValueError("Nœuds en double dans AGENT_NODES")
     return nodes

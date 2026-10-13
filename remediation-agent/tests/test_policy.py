@@ -111,3 +111,15 @@ def test_deploiement_de_l_api_configurable(tmp_path):
     assert (plan.action, plan.arg) == ("rollout-restart", "api-gateway")
     with pytest.raises(ValueError):
         make_cfg(tmp_path, app_api="Pas valide; reboot")
+
+
+def test_multi_noeuds_redemarrage_par_le_noeud_de_controle(tmp_path):
+    nodes = parse_nodes('[{"node": "app-1", "address": "a", "app": true, "k3s": true},'
+                        ' {"node": "app-2", "address": "b", "app": true},'
+                        ' {"node": "monitoring", "address": "c", "monitoring": true}]')
+    cfg = make_cfg(tmp_path)
+    cfg.nodes = nodes
+    plan = decide(alert("AnomalieAIOps", node="app-2"), cfg, lambda n: ("cpu_server", 7.0))
+    assert (plan.node, plan.action) == ("app-1", "rollout-restart") and "app-2" in plan.reason
+    # Les collecteurs, eux, se redémarrent sur le nœud concerné
+    assert decide(alert("CollecteurArrete", node="app-2", job="cadvisor"), cfg).node == "app-2"

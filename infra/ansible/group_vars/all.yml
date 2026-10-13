@@ -64,7 +64,7 @@ remediation_cooldown_minutes: 30
 
 # Sauvegardes croisées : chaque nœud copie ses jeux sur son pair (supervision <-> premier nœud applicatif)
 backup_root: /var/backups/pfe
-backup_peer: "{{ groups['nodes'][0] if inventory_hostname in groups['monitoring'] else groups['monitoring'][0] }}"
+backup_peer: "{{ k3s_server_host if inventory_hostname in groups['monitoring'] else groups['monitoring'][0] }}"
 backup_time: "02:30"            # sauvegarde + copie
 backup_check_time: "04:30"      # vérification des jeux reçus, test de restauration hebdomadaire
 backup_keep_daily: 7
@@ -72,7 +72,12 @@ backup_keep_weekly: 4
 backup_min_free_gb: 3           # en dessous, la sauvegarde est annulée (et une alerte part)
 
 # Page d'accueil : services testés en continu (blackbox-exporter). lien = adresse à ouvrir dans le navigateur.
-app_ip: "{{ hostvars[groups['nodes'][0]].ansible_host }}"
+# Nœud de contrôle k3s (k3s_server=true dans l'inventaire ; à défaut, le premier nœud applicatif)
+k3s_server: false
+k3s_server_host: >-
+  {{ (groups['nodes'] | map('extract', hostvars) | selectattr('k3s_server', 'in', [true, 'true', 'True'])
+      | map(attribute='inventory_hostname') | list + groups['nodes']) | first }}
+app_ip: "{{ hostvars[k3s_server_host].ansible_host }}"
 image_blackbox: prom/blackbox-exporter:v0.25.0
 services_web:
   - { nom: "Application", url: "http://{{ app_ip }}{{ app_url_path }}", lien: "http://{{ app_ip }}{{ app_url_path }}" }

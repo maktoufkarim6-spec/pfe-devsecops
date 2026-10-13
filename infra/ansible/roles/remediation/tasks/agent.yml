@@ -27,6 +27,7 @@
            'node': hostvars[item].node_name,
            'address': 'host.docker.internal' if item in groups['monitoring'] else hostvars[item].ansible_host,
            'app': hostvars[item].node_app | bool,
+           'k3s': item == k3s_server_host,
            'monitoring': item in groups['monitoring']}] }}
   loop: "{{ groups['all'] }}"
 
