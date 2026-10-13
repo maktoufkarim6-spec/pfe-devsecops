@@ -106,3 +106,11 @@ def test_codes_retour(tmp_path):
     assert ssh_err.outcome == "echec" and "SSH" in ssh_err.output
     timeout = SshExecutor(cfg, run=FakeRun(exc=subprocess.TimeoutExpired("ssh", 1))).execute(node, "status")
     assert timeout.outcome == "echec"
+
+
+def test_horodatage_publie_sans_arrondi():
+    """Bug réel : le format %g arrondissait 1791879123.4 en 1.79188e+09 (jusqu'à 1 h 30 d'écart)."""
+    m = Metrics()
+    m.set("pfe_agent_last_action_timestamp_seconds", 1791879123.4, node="app-1", action="x", outcome="succes")
+    valeur = float(m.render().strip().splitlines()[-1].split()[-1])
+    assert abs(valeur - 1791879123.4) < 0.01

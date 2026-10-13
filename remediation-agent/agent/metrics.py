@@ -46,5 +46,6 @@ class Metrics:
                 lines += [f"# HELP {name} {text}", f"# TYPE {name} {kind}"]
                 seen.add(name)
             lab = ",".join(f'{k}="{_escape(v)}"' for k, v in labels)
-            lines.append(f"{name}{{{lab}}} {value:g}" if lab else f"{name} {value:g}")
+            num = repr(float(value))   # précision complète : un horodatage ne doit jamais être arrondi
+            lines.append(f"{name}{{{lab}}} {num}" if lab else f"{name} {num}")
         return "\n".join(lines) + "\n"
