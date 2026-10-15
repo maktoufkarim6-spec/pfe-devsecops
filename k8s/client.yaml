@@ -31,7 +31,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: client
-          image: kariimm557/app-cobaye-client:39-5a48736
+          image: kariimm557/app-cobaye-client:41-c60bef9
           ports:
             - containerPort: 8080
           securityContext:
