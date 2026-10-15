@@ -1,0 +1,53 @@
+# Géré par Ansible (roles/applications) : une Application Argo CD par dossier applications/<nom>/ du dépôt.
+# Ajouter une application = ajouter un dossier ; la retirer = supprimer le dossier (les données restent).
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: plateforme-applications
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: {{ repo_url }}
+        revision: {{ plateforme_branche }}
+        directories:
+          - path: applications/*
+  # Une application retirée du dépôt : Argo CD arrête de la gérer sans effacer ce qu'elle a créé.
+  syncPolicy:
+    preserveResourcesOnDeletion: true
+  template:
+    metadata:
+      name: {% raw %}'app-{{ .path.basename }}'{% endraw %}
+
+      labels:
+        pfe.plateforme: application
+    spec:
+      project: default
+      source:
+        repoURL: {{ repo_url }}
+        targetRevision: {{ plateforme_branche }}
+        path: plateforme/chart
+        helm:
+          releaseName: {% raw %}'{{ .path.basename }}'{% endraw %}
+
+          valueFiles:
+            - {% raw %}'../../applications/{{ .path.basename }}/values.yaml'{% endraw %}
+
+          parameters:
+            - name: plateforme.ip
+              value: "{{ app_ip }}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: {% raw %}'{{ .path.basename }}'{% endraw %}
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 5
+          backoff: {duration: 10s, factor: 2, maxDuration: 3m}

@@ -1,0 +1,82 @@
+# Plusieurs applications sur le cluster (docs/APPLICATIONS.md). Exécuté sur le nœud de contrôle k3s.
+# 1) contrôle des dossiers applications/<nom>/   2) namespace et secrets de chaque application
+# 3) ApplicationSet Argo CD : une Application par dossier, déployée avec le chart plateforme/chart.
+# L'application cobaye (k8s/, namespace default) n'est pas concernée : elle reste gérée comme avant.
+
+- name: Applications déclarées dans le dépôt (un dossier applications/<nom>/ avec son values.yaml)
+  ansible.builtin.find:
+    paths: "{{ playbook_dir }}/../../applications"
+    patterns: values.yaml
+    recurse: true
+    depth: 2
+  delegate_to: localhost
+  become: false
+  register: plateforme_fichiers
+
+- name: Liste des applications
+  ansible.builtin.set_fact:
+    plateforme_apps: "{{ plateforme_fichiers.files | map(attribute='path') | map('dirname') | map('basename') | unique | sort }}"
+
+- name: Noms valides (minuscules, chiffres, tirets ; pas de nom réservé)
+  ansible.builtin.assert:
+    that:
+      - item is match('^[a-z][a-z0-9-]{1,30}[a-z0-9]$')
+      - item not in ['default', 'kube-system', 'kube-public', 'kube-node-lease', 'argocd', 'plateforme']
+    fail_msg: "applications/{{ item }} : nom invalide ou réservé"
+    quiet: true
+  loop: "{{ plateforme_apps }}"
+
+- name: Argo CD et ses ApplicationSets présents sur le cluster
+  ansible.builtin.command: k3s kubectl get crd applicationsets.argoproj.io
+  register: plateforme_crd
+  changed_when: false
+  failed_when: false
+
+- name: Argo CD sans ApplicationSet
+  ansible.builtin.debug:
+    msg: >-
+      ApplicationSet absent (Argo CD trop ancien ou installé sans son contrôleur) : applications
+      supplémentaires NON déployées. L'application cobaye n'est pas touchée.
+  when: plateforme_crd.rc != 0
+
+- name: Namespace, secrets et ApplicationSet
+  when: plateforme_crd.rc == 0
+  block:
+    - name: Namespace de chaque application (étiqueté pour l'isolement réseau)
+      ansible.builtin.shell: |
+        set -e
+        k3s kubectl create namespace {{ item }} --dry-run=client -o yaml \
+          | k3s kubectl apply -f - >/dev/null
+        k3s kubectl label namespace {{ item }} pfe.plateforme=application --overwrite >/dev/null
+      loop: "{{ plateforme_apps }}"
+      changed_when: false
+
+    - name: Secrets de chaque application (clés manquantes générées, clés existantes jamais modifiées)
+      ansible.builtin.include_tasks: secrets.yml
+      loop: "{{ plateforme_apps }}"
+      loop_control:
+        loop_var: app
+
+    - name: Dossier de travail
+      ansible.builtin.file:
+        path: "{{ plateforme_dossier }}"
+        state: directory
+        mode: "0700"
+
+    - name: ApplicationSet (une Application Argo CD par dossier applications/<nom>/)
+      ansible.builtin.template:
+        src: applicationset.yaml.j2
+        dest: "{{ plateforme_dossier }}/applicationset.yaml"
+        mode: "0600"
+      register: plateforme_appset
+
+    - name: ApplicationSet appliqué
+      ansible.builtin.command: k3s kubectl apply -f {{ plateforme_dossier }}/applicationset.yaml
+      register: plateforme_apply
+      changed_when: "'unchanged' not in plateforme_apply.stdout"
+
+    - name: Applications de la plateforme
+      ansible.builtin.debug:
+        msg: >-
+          {{ plateforme_apps | length }} application(s) : {{ plateforme_apps | join(', ') }}.
+          Adresses : http://<nom>.{{ app_ip | replace('.', '-') }}.sslip.io/ (sauf domaine choisi).

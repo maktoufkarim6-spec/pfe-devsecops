@@ -13,7 +13,9 @@ app_ci_heavy_container: sonarqube  # conteneur lourd de la CI que l'agent peut a
 app_url_path: /                    # page de l'application testée par la page d'accueil
 repo_web: https://github.com/maktoufkarim6-spec/pfe-devsecops   # dépôt (liens de la page d'accueil)
 evaluation_url: https://claude.ai/artifact/MYtKLPBoj4eNnS1GNgYaaU   # résultats de la campagne ("" = aucun)
-jenkins_job: pipeline-app-cobaye         # job Jenkins du pipeline (bouton « Déployer » de la page d'accueil)
+plateforme_dossier: /var/lib/pfe             # fichiers de travail sur le nœud de contrôle
+plateforme_branche: main          # branche lue par Argo CD pour applications/ et plateforme/chart
+jenkins_job: pipeline-app-cobaye        # job Jenkins du pipeline (bouton « Déployer » de la page d'accueil)
 # =====================================================================================================
 
 # Connexion SSH par clé (cles-ssh.yml, lancé par deploy.sh --cles puis --fermer-mots-de-passe)

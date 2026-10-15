@@ -1,0 +1,27 @@
+{{- $publics := list }}
+{{- range .Values.composants }}{{ if .public }}{{ $publics = append $publics . }}{{ end }}{{ end }}
+{{- if $publics }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "app.nom" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  rules:
+    # Règle par nom d'hôte : prioritaire sur l'application cobaye (règle sans hôte)
+    - host: {{ include "app.domaine" . }}
+      http:
+        paths:
+          {{- range $publics }}
+          - path: {{ .chemin | default "/" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .nom }}
+                port:
+                  number: {{ .port }}
+          {{- end }}
+{{- end }}
