@@ -97,6 +97,7 @@ read -rp "Lancer ($PLAYBOOK) ? (oui/non) " OK
 echo "== 5/5 Déploiement ${CONNEXION:+(Ansible demande le mot de passe SSH)} ${BECOME:+(et celui de sudo)} =="
 "$VENV/bin/ansible-playbook" "$PLAYBOOK" "${CONNEXION[@]}" "${BECOME[@]}" "${EXTRA[@]}" "$@"
 
+[ "$MODE" = deploiement ] || exit 0
 echo
 echo "Grafana : http://$MONITORING_IP:3000   (utilisateur : admin)"
 echo "Mot de passe admin Grafana : cat ~/.pfe-secrets/grafana-admin"
