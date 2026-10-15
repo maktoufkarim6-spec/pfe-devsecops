@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: server
 spec:
-  replicas: 1
+  replicas: 1  # noeuds-choisis
   selector:
     matchLabels:
       app: server
@@ -12,6 +12,22 @@ spec:
       labels:
         app: server
     spec:
+      # Noeuds ou tourne l'application : lignes "# noeuds-choisis" reecrites par Jenkins (parametre NOEUDS).
+      # Par defaut, n'importe quel noeud ; sinon les noeuds dont l'etiquette pfe.noeud est choisie.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - {key: kubernetes.io/hostname, operator: Exists}  # noeuds-choisis
+      # Une copie par noeud choisi (repartition, sans bloquer si un noeud manque)
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: server
       automountServiceAccountToken: false
       containers:
         - name: server

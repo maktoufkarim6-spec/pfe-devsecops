@@ -54,6 +54,25 @@
         name: remediation
         tasks_from: node
 
+- name: Étiquette pfe.noeud sur chaque nœud k3s (choix des nœuds au déploiement, paramètre NOEUDS de Jenkins)
+  hosts: nodes
+  become: true
+  tasks:
+    - name: Étiquette posée depuis le nœud de contrôle (nom k3s du nœud = son nom d'hôte)
+      ansible.builtin.command: >-
+        k3s kubectl label node {{ ansible_nodename | lower }} pfe.noeud={{ node_name }} --overwrite
+      delegate_to: "{{ k3s_server_host }}"
+      when: node_app | bool
+      register: etiquette
+      changed_when: "'labeled' in etiquette.stdout"
+      # Un nœud absent du cluster k3s ne bloque pas le reste du déploiement
+      failed_when: false
+
+    - name: Nœud introuvable dans k3s
+      ansible.builtin.debug:
+        msg: "{{ node_name }} : étiquette non posée ({{ etiquette.stderr | default('') }})"
+      when: node_app | bool and etiquette.rc | default(0) != 0
+
 - name: Agent de remédiation
   hosts: monitoring
   become: true

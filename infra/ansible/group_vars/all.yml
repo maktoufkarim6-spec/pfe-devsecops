@@ -13,6 +13,7 @@ app_ci_heavy_container: sonarqube  # conteneur lourd de la CI que l'agent peut a
 app_url_path: /                    # page de l'application testée par la page d'accueil
 repo_web: https://github.com/maktoufkarim6-spec/pfe-devsecops   # dépôt (liens de la page d'accueil)
 evaluation_url: https://claude.ai/artifact/MYtKLPBoj4eNnS1GNgYaaU   # résultats de la campagne ("" = aucun)
+jenkins_job: pfe-devsecops         # job Jenkins du pipeline (bouton « Déployer » de la page d'accueil)
 # =====================================================================================================
 
 # Serveur de supervision (seule adresse autorisée à lire les collecteurs des nœuds)
@@ -78,6 +79,8 @@ k3s_server_host: >-
   {{ (groups['nodes'] | map('extract', hostvars) | selectattr('k3s_server', 'in', [true, 'true', 'True'])
       | map(attribute='inventory_hostname') | list + groups['nodes']) | first }}
 app_ip: "{{ hostvars[k3s_server_host].ansible_host }}"
+# Page Jenkins « Lancer un build » : connexion Jenkins demandée, puis un clic sur « Build »
+jenkins_job_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job }}/build?delay=0sec"
 image_blackbox: prom/blackbox-exporter:v0.25.0
 services_web:
   - { nom: "Application", url: "http://{{ app_ip }}{{ app_url_path }}", lien: "http://{{ app_ip }}{{ app_url_path }}" }

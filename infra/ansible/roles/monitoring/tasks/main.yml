@@ -104,7 +104,7 @@
       {{ lookup('ansible.builtin.file', item.src)
          | replace('__APP_NAMESPACE__', app_namespace) | replace('__APP_IP__', app_ip)
          | replace('__APP_URL_PATH__', app_url_path) | replace('__REPO_WEB__', repo_web)
-         | replace('__EVALUATION_URL__', evaluation_url) }}
+         | replace('__EVALUATION_URL__', evaluation_url) | replace('__JENKINS_JOB_URL__', jenkins_job_url) }}
     dest: "{{ monitoring_dir }}/grafana/{{ item.dest }}"
     mode: "0644"
   loop:
