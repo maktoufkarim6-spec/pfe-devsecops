@@ -20,6 +20,13 @@
   },
   "links": [
     {
+      "title": "Déployer",
+      "type": "link",
+      "url": "__JENKINS_JOB_URL__",
+      "icon": "cloud",
+      "targetBlank": true
+    },
+    {
       "title": "Supervision détaillée",
       "type": "link",
       "url": "/d/pfe-supervision",
@@ -92,7 +99,7 @@
     },
     {
       "type": "row",
-      "title": "Services",
+      "title": "Déploiement en un clic",
       "id": 2,
       "gridPos": {
         "h": 1,
@@ -104,14 +111,127 @@
       "panels": []
     },
     {
+      "type": "text",
+      "title": "",
+      "id": 3,
+      "gridPos": {
+        "h": 5,
+        "w": 16,
+        "x": 0,
+        "y": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### [🚀 Déployer la dernière version](__JENKINS_JOB_URL__)\nLance la chaîne complète sur la branche `main` du dépôt : tests, SonarQube, construction des images, scan Trivy, publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter, puis de confirmer avec **Build**. Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n### [🌐 Voir l'application en ligne](http://__APP_IP____APP_URL_PATH__)"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Application en ligne",
+      "id": 4,
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "probe_success{job=\"services\",service=\"Application\"}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "description": "Page de l'application testée toutes les 15 s depuis le serveur de supervision. Cliquer pour l'ouvrir.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "EN LIGNE",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "HORS LIGNE",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "Ouvrir l'application",
+              "url": "http://__APP_IP____APP_URL_PATH__",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Services",
+      "id": 5,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
       "type": "stat",
       "title": "État des services",
-      "id": 3,
+      "id": 6,
       "gridPos": {
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 4
+        "y": 10
       },
       "datasource": {
         "type": "prometheus",
@@ -219,12 +339,12 @@
     {
       "type": "stat",
       "title": "Services découverts automatiquement",
-      "id": 4,
+      "id": 7,
       "gridPos": {
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 15
       },
       "datasource": {
         "type": "prometheus",
@@ -305,12 +425,12 @@
     {
       "type": "row",
       "title": "Serveurs",
-      "id": 5,
+      "id": 8,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 19
       },
       "collapsed": false,
       "panels": []
@@ -318,12 +438,12 @@
     {
       "type": "stat",
       "title": "CPU",
-      "id": 6,
+      "id": 9,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 14
+        "y": 20
       },
       "datasource": {
         "type": "prometheus",
@@ -388,12 +508,12 @@
     {
       "type": "stat",
       "title": "Mémoire",
-      "id": 7,
+      "id": 10,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 14
+        "y": 20
       },
       "datasource": {
         "type": "prometheus",
@@ -458,12 +578,12 @@
     {
       "type": "stat",
       "title": "Disque",
-      "id": 8,
+      "id": 11,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 14
+        "y": 20
       },
       "datasource": {
         "type": "prometheus",
@@ -528,12 +648,12 @@
     {
       "type": "stat",
       "title": "Détection par l'IA",
-      "id": 9,
+      "id": 12,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 14
+        "y": 20
       },
       "datasource": {
         "type": "prometheus",
@@ -604,12 +724,12 @@
     {
       "type": "row",
       "title": "Auto-réparation, sauvegardes et alertes",
-      "id": 10,
+      "id": 13,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 24
       },
       "collapsed": false,
       "panels": []
@@ -617,12 +737,12 @@
     {
       "type": "stat",
       "title": "Agent",
-      "id": 11,
+      "id": 14,
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 19
+        "y": 25
       },
       "datasource": {
         "type": "prometheus",
@@ -704,12 +824,12 @@
     {
       "type": "stat",
       "title": "Réparations (24 h)",
-      "id": 12,
+      "id": 15,
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 19
+        "y": 25
       },
       "datasource": {
         "type": "prometheus",
@@ -770,12 +890,12 @@
     {
       "type": "stat",
       "title": "Dernière sauvegarde",
-      "id": 13,
+      "id": 16,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 8,
-        "y": 19
+        "y": 25
       },
       "datasource": {
         "type": "prometheus",
@@ -845,12 +965,12 @@
     {
       "type": "stat",
       "title": "Test de restauration",
-      "id": 14,
+      "id": 17,
       "gridPos": {
         "h": 4,
         "w": 5,
         "x": 14,
-        "y": 19
+        "y": 25
       },
       "datasource": {
         "type": "prometheus",
@@ -925,12 +1045,12 @@
     {
       "type": "stat",
       "title": "Alertes en cours",
-      "id": 15,
+      "id": 18,
       "gridPos": {
         "h": 4,
         "w": 5,
         "x": 19,
-        "y": 19
+        "y": 25
       },
       "datasource": {
         "type": "prometheus",
@@ -999,12 +1119,12 @@
     {
       "type": "row",
       "title": "Évaluation par injection de pannes",
-      "id": 16,
+      "id": 19,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 29
       },
       "collapsed": false,
       "panels": []
@@ -1012,12 +1132,12 @@
     {
       "type": "text",
       "title": "",
-      "id": 17,
+      "id": 20,
       "gridPos": {
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 30
       },
       "options": {
         "mode": "markdown",

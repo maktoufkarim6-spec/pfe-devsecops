@@ -33,8 +33,11 @@ pipeline {
                 checkout scm
                 script {
                     // Anti-boucle : le commit de deploiement fait par Jenkins ne relance pas la CI.
+                    // Un build lance a la main (bouton « Deployer » de la page d'accueil) n'est jamais ignore :
+                    // il reconstruit et redeploie la derniere version de main.
                     def last = sh(returnStdout: true, script: 'git log -1 --format=%s').trim()
-                    if (last.contains('[skip ci]')) {
+                    def manuel = !currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause').isEmpty()
+                    if (last.contains('[skip ci]') && !manuel) {
                         env.SKIP = 'true'
                         currentBuild.result = 'NOT_BUILT'
                         currentBuild.description = 'Commit de deploiement GitOps : CI ignoree'

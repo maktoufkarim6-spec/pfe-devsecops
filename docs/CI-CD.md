@@ -38,6 +38,21 @@ Jenkins n'a **aucun accès au cluster** : il n'écrit que dans Git.
 Si le Secret Kubernetes manque, les nouveaux pods restent en attente et **les anciens continuent de tourner**
 (mise à jour progressive) : l'application n'est pas interrompue.
 
+## Déploiement en un clic (démonstration)
+
+Sur la page d'accueil Grafana (`http://<IP supervision>:3000/`), section **Déploiement en un clic** :
+
+1. **🚀 Déployer la dernière version** : ouvre la page « Lancer un build » du job Jenkins `jenkins_job`
+   (`infra/ansible/group_vars/all.yml`). Se connecter à Jenkins, puis cliquer sur **Build**.
+2. Suivre l'avancement étape par étape dans Jenkins (environ 10 min).
+3. **🌐 Voir l'application en ligne** : l'application déployée par Argo CD. La tuile « Application en ligne »
+   passe au vert quand elle répond.
+
+Un build lancé à la main n'est jamais ignoré, même si le dernier commit de `main` est un commit
+`[skip ci]` : il reconstruit et redéploie la dernière version. Seuls les builds déclenchés par le webhook
+sur un commit `[skip ci]` sont ignorés (anti-boucle). La connexion Jenkins protège le bouton : personne
+ne peut lancer de build sans compte.
+
 ## Revenir à une version précédente
 
 ```bash

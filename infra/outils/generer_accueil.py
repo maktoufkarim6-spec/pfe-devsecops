@@ -9,6 +9,7 @@ DS = {"type": "prometheus", "uid": "efx9ykc7u57nkf"}
 APP = "__APP_IP__"
 RAPPORT = "__EVALUATION_URL__"
 DEPOT = "__REPO_WEB__"
+DEPLOYER = "__JENKINS_JOB_URL__"
 pid = [0]
 
 
@@ -59,6 +60,21 @@ panels.append(text("", 0, y, 24, 3,
     "Chaîne CI/CD sécurisée (Jenkins, SonarQube, Trivy, Argo CD), supervision multi-nœuds avec détection d'anomalies par IA, "
     "agent d'auto-réparation et sauvegardes croisées. **Tout l'état du projet sur une page** ; les liens en haut ouvrent chaque outil."))
 y += 3
+panels.append(row("Déploiement en un clic", y))
+y += 1
+panels.append(text("", 0, y, 16, 5,
+    f"### [🚀 Déployer la dernière version]({DEPLOYER})\n"
+    "Lance la chaîne complète sur la branche `main` du dépôt : tests, SonarQube, construction des images, scan Trivy, "
+    "publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter, puis "
+    "de confirmer avec **Build**. Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. "
+    "Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n"
+    f"### [🌐 Voir l'application en ligne](http://{APP}__APP_URL_PATH__)"))
+panels.append(stat("Application en ligne", 16, y, 8, 5,
+    [tgt('probe_success{job="services",service="Application"}')],
+    "Page de l'application testée toutes les 15 s depuis le serveur de supervision. Cliquer pour l'ouvrir.",
+    text_mode="value", mappings=val({"1": ("EN LIGNE", "green"), "0": ("HORS LIGNE", "red")}), steps=RG,
+    links=[{"title": "Ouvrir l'application", "url": f"http://{APP}__APP_URL_PATH__", "targetBlank": True}]))
+y += 5
 panels.append(row("Services", y))
 y += 1
 panels.append(stat("État des services", 0, y, 24, 5,
@@ -137,6 +153,7 @@ y += 1
 panels.append(text("", 0, y, 24, 6, md))
 
 links = [
+    {"title": "Déployer", "type": "link", "url": DEPLOYER, "icon": "cloud", "targetBlank": True},
     {"title": "Supervision détaillée", "type": "link", "url": "/d/pfe-supervision", "icon": "dashboard"},
     {"title": "Agent et sauvegardes", "type": "link", "url": "/d/pfe-agent-sauvegardes", "icon": "dashboard"},
     {"title": "Application", "type": "link", "url": f"http://{APP}__APP_URL_PATH__", "icon": "external link", "targetBlank": True},
