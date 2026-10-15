@@ -31,7 +31,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: server
-          image: kariimm557/app-cobaye-server:41-c60bef9
+          image: kariimm557/app-cobaye-server:43-b35ca68
           command: ["./wait-for-it.sh", "postgres-db:5432", "--", "node", "main.js"]
           env:
             # Secrets lus dans le Secret Kubernetes app-cobaye-secrets (jamais dans Git)
