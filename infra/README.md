@@ -23,8 +23,10 @@ curl -fsSL https://raw.githubusercontent.com/maktoufkarim6-spec/pfe-devsecops/ma
 ```
 
 Le script installe Ansible dans un environnement isolé, affiche l'état du serveur, demande
-(facultatif) l'adresse qui recevra les alertes par e-mail, puis lance le déploiement. Ansible demande
-le mot de passe SSH puis celui de sudo ; rien n'est enregistré.
+(facultatif) l'adresse qui recevra les alertes par e-mail, puis lance le déploiement. Avec la clé du parc
+installée sur tous les nœuds, aucun mot de passe SSH n'est demandé ; sinon Ansible demande le mot de passe
+SSH (et celui de sudo s'il en faut un) ; rien n'est enregistré. Passer à la connexion par clé :
+`docs/CLES-SSH.md` (`bash deploy.sh --cles` puis `bash deploy.sh --fermer-mots-de-passe`).
 
 Ce qui est déployé :
 

@@ -1,0 +1,152 @@
+# Connexion par clé SSH sur tout le parc, en deux temps (lancé par ../deploy.sh) :
+#   bash deploy.sh --cles                  1) pose les clés (le mot de passe reste accepté)
+#   bash deploy.sh --fermer-mots-de-passe  2) refuse les mots de passe, seulement là où la clé est vérifiée
+#
+# Deux sortes de clés publiques sont autorisées sur le compte {{ ansible_user }} de chaque serveur :
+#   - la clé du parc (~/.ssh/pfe_parc sur le serveur de supervision) : Ansible et deploy.sh ;
+#   - les clés des administrateurs (~/.pfe-secrets/cles-admin.pub) : connexion depuis leur PC.
+# Garde-fous : rien n'est retiré (clés existantes conservées), configuration sshd validée (sshd -t)
+# avant rechargement, et la fermeture est refusée sur un serveur dont la clé du parc ne fonctionne pas
+# ou s'il n'y a aucune clé d'administrateur (sinon le propriétaire perdrait l'accès depuis son PC).
+
+- name: Clés du parc et des administrateurs (serveur de supervision)
+  hosts: monitoring
+  gather_facts: false
+  tasks:
+    - name: Clé du parc (générée une fois, jamais dans Git)
+      ansible.builtin.command:
+        cmd: ssh-keygen -q -t ed25519 -N "" -C pfe-parc -f {{ cle_parc }}
+        creates: "{{ cle_parc }}"
+
+    - name: Lecture des clés publiques
+      ansible.builtin.set_fact:
+        cle_parc_pub: "{{ lookup('ansible.builtin.file', cle_parc + '.pub') | trim }}"
+        cles_admin_pub: >-
+          {{ (lookup('ansible.builtin.file', cles_admin_fichier, errors='ignore') | default('', true)).splitlines()
+             | map('trim') | select('match', '^(ssh-ed25519|ssh-rsa|ecdsa-sha2-[a-z0-9-]+|sk-[a-z0-9@.-]+) ') | list }}
+
+    - name: Clés d'administrateur trouvées
+      ansible.builtin.debug:
+        msg: "{{ cles_admin_pub | length }} clé(s) d'administrateur dans {{ cles_admin_fichier }}"
+
+- name: Installation des clés sur chaque serveur
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    sup: "{{ groups['monitoring'][0] }}"
+    cles: >-
+      {{ ([] if ansible_connection | default('ssh') == 'local' else [hostvars[sup].cle_parc_pub])
+         + hostvars[sup].cles_admin_pub }}
+  tasks:
+    - name: Dossier ~/.ssh de {{ ansible_user }}
+      ansible.builtin.file:
+        path: "{{ dossier_ssh }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0700"
+
+    - name: Clés autorisées (ajoutées, aucune clé existante retirée)
+      ansible.builtin.lineinfile:
+        path: "{{ dossier_ssh }}/authorized_keys"
+        line: "{{ item }}"
+        create: true
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+      loop: "{{ cles }}"
+      loop_control:
+        label: "{{ item.split(' ')[-1] }}"
+
+- name: Vérification de la clé du parc, depuis le serveur de supervision
+  hosts: nodes
+  gather_facts: false
+  tasks:
+    - name: Connexion par clé seule (sans mot de passe)
+      ansible.builtin.command: >-
+        ssh -i {{ cle_parc }} -o BatchMode=yes -o PasswordAuthentication=no -o IdentitiesOnly=yes
+        -o ConnectTimeout=10 -p {{ ansible_port | default(22) }} {{ ansible_ssh_common_args | default('') }}
+        {{ ansible_user }}@{{ ansible_host }} true
+      delegate_to: "{{ groups['monitoring'][0] }}"
+      register: test_cle
+      changed_when: false
+      failed_when: false
+
+    - name: Résultat
+      ansible.builtin.set_fact:
+        cle_ok: "{{ test_cle.rc == 0 }}"
+
+    - name: Clé du parc refusée
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} : connexion par clé IMPOSSIBLE ({{ test_cle.stderr | trim }}). Mots de passe conservés."
+      when: not cle_ok
+
+- name: Refus des mots de passe SSH (bash deploy.sh --fermer-mots-de-passe)
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    sup: "{{ groups['monitoring'][0] }}"
+    autorise: >-
+      {{ hostvars[sup].cles_admin_pub | length > 0
+         and (ansible_connection | default('ssh') == 'local' or hostvars[inventory_hostname].cle_ok | default(false) | bool) }}
+  tasks:
+    - name: Fermeture refusée sur ce serveur
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} : mots de passe CONSERVÉS
+          ({{ 'aucune clé d administrateur' if hostvars[sup].cles_admin_pub | length == 0 else 'clé du parc refusée' }}).
+      when: fermer_mots_de_passe | bool and not autorise | bool
+
+    - name: sshd — clé obligatoire, configuration validée avant rechargement
+      when: fermer_mots_de_passe | bool and autorise | bool
+      block:
+        - name: Fichier lu avant les autres (dans sshd, la première valeur l'emporte)
+          ansible.builtin.copy:
+            dest: /etc/ssh/sshd_config.d/00-pfe-parc.conf
+            content: |
+              # Géré par Ansible (infra/ansible/cles-ssh.yml) : connexion par clé seulement.
+              # Retour arrière : supprimer ce fichier puis « systemctl reload ssh » (console KVM d'OVH si besoin).
+              PasswordAuthentication no
+              KbdInteractiveAuthentication no
+              PermitRootLogin prohibit-password
+            owner: root
+            group: root
+            mode: "0644"
+          register: sshd_conf
+
+        - name: Configuration complète valide (sshd -t)
+          ansible.builtin.command: /usr/sbin/sshd -t
+          changed_when: false
+
+        - name: Rechargement de sshd (les sessions ouvertes restent ouvertes)
+          ansible.builtin.systemd_service:
+            name: ssh
+            state: reloaded
+          when: sshd_conf is changed
+
+        - name: Configuration effective
+          ansible.builtin.command: /usr/sbin/sshd -T
+          register: sshd_effectif
+          changed_when: false
+
+        - name: Vérification
+          ansible.builtin.assert:
+            that: "'passwordauthentication no' in sshd_effectif.stdout_lines"
+            fail_msg: "{{ inventory_hostname }} : sshd accepte encore les mots de passe (un autre réglage l'impose)"
+            success_msg: "{{ inventory_hostname }} : connexion par clé seulement"
+      rescue:
+        - name: Retour arrière (fichier retiré, sshd rechargé avec l'ancienne configuration)
+          ansible.builtin.file:
+            path: /etc/ssh/sshd_config.d/00-pfe-parc.conf
+            state: absent
+
+        - name: Rechargement de l'ancienne configuration
+          ansible.builtin.systemd_service:
+            name: ssh
+            state: reloaded
+
+        - name: Échec signalé
+          ansible.builtin.fail:
+            msg: "{{ inventory_hostname }} : fermeture annulée, mots de passe conservés. Voir l'erreur ci-dessus."
