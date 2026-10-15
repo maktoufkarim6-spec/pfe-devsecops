@@ -65,8 +65,10 @@ y += 1
 panels.append(text("", 0, y, 16, 5,
     f"### [🚀 Déployer la dernière version]({DEPLOYER})\n"
     "Lance la chaîne complète sur la branche `main` du dépôt : tests, SonarQube, construction des images, scan Trivy, "
-    "publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter, puis "
-    "de confirmer avec **Build**. Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. "
+    "publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter ; "
+    "le champ **NOEUDS** choisit les serveurs où l'application tourne (noms de la section « Serveurs » ci-dessous, "
+    "ex. `app-1,app-2` ; `tous` : n'importe lequel ; vide : garder les serveurs actuels), puis **Build**. "
+    "Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. "
     "Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n"
     f"### [🌐 Voir l'application en ligne](http://{APP}__APP_URL_PATH__)"))
 panels.append(stat("Application en ligne", 16, y, 8, 5,

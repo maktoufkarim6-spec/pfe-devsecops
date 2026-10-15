@@ -122,7 +122,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### [🚀 Déployer la dernière version](__JENKINS_JOB_URL__)\nLance la chaîne complète sur la branche `main` du dépôt : tests, SonarQube, construction des images, scan Trivy, publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter, puis de confirmer avec **Build**. Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n### [🌐 Voir l'application en ligne](http://__APP_IP____APP_URL_PATH__)"
+        "content": "### [🚀 Déployer la dernière version](__JENKINS_JOB_URL__)\nLance la chaîne complète sur la branche `main` du dépôt : tests, SonarQube, construction des images, scan Trivy, publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter ; le champ **NOEUDS** choisit les serveurs où l'application tourne (noms de la section « Serveurs » ci-dessous, ex. `app-1,app-2` ; `tous` : n'importe lequel ; vide : garder les serveurs actuels), puis **Build**. Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n### [🌐 Voir l'application en ligne](http://__APP_IP____APP_URL_PATH__)"
       }
     },
     {

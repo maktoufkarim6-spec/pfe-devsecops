@@ -15,6 +15,15 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '20'))
     }
 
+    parameters {
+        // Nœuds k3s ou tourne l'application (etiquette pfe.noeud = node_name de infra/ansible/inventory.ini).
+        // Vide : placement actuel conserve (cas des builds declenches par un push).
+        string(name: 'NOEUDS', defaultValue: '',
+               description: 'Noeuds ou deployer l\'application, separes par des virgules (ex : app-1 ou app-1,app-2). ' +
+                            '"tous" : n\'importe quel noeud. Vide : garder les noeuds actuels. ' +
+                            'Une copie de l\'API et du site tourne sur chaque noeud choisi ; la base reste sur son noeud.')
+    }
+
     environment {
         // ---- A adapter pour une autre application (voir docs/REUTILISER.md) ----
         APP_NAME     = 'app-cobaye'                      // cle du projet SonarQube, image de tests
@@ -43,8 +52,13 @@ pipeline {
                         currentBuild.description = 'Commit de deploiement GitOps : CI ignoree'
                         echo 'Commit de deploiement GitOps detecte : pipeline ignore.'
                     } else {
+                        // Liste de noeuds verifiee ici : elle est ensuite ecrite telle quelle dans k8s/.
+                        env.NOEUDS_CHOISIS = (params.NOEUDS ?: '').replaceAll('\\s', '').toLowerCase()
+                        if (!(env.NOEUDS_CHOISIS ==~ /([a-z0-9-]+(,[a-z0-9-]+)*)?/)) {
+                            error("Parametre NOEUDS invalide : '${params.NOEUDS}' (attendu : app-1,app-2 ou tous)")
+                        }
                         env.TAG = "${env.BUILD_NUMBER}-" + sh(returnStdout: true, script: 'git rev-parse --short=7 HEAD').trim()
-                        currentBuild.description = "Images ${env.TAG}"
+                        currentBuild.description = "Images ${env.TAG}" + (env.NOEUDS_CHOISIS ? " sur ${env.NOEUDS_CHOISIS}" : '')
                         echo "Tag des images : ${env.TAG}"
                     }
                 }
@@ -210,9 +224,23 @@ pipeline {
                         git checkout -B gitops-update origin/main
                         sed -i -E "s#(image: ${IMAGE_SERVER}):[^[:space:]]+#\\1:${TAG}#" k8s/server.yaml
                         sed -i -E "s#(image: ${IMAGE_CLIENT}):[^[:space:]]+#\\1:${TAG}#" k8s/client.yaml
-                        grep -n "image:" k8s/server.yaml k8s/client.yaml
+                        # Noeuds choisis : lignes marquees "# noeuds-choisis" (contrainte de placement et nombre de copies)
+                        if [ -n "$NOEUDS_CHOISIS" ]; then
+                            if [ "$NOEUDS_CHOISIS" = "tous" ]; then
+                                regle="{key: kubernetes.io/hostname, operator: Exists}"; copies=1
+                            else
+                                regle="{key: pfe.noeud, operator: In, values: [${NOEUDS_CHOISIS}]}"
+                                copies=$(echo "$NOEUDS_CHOISIS" | tr ',' '\\n' | wc -l)
+                            fi
+                            for f in k8s/server.yaml k8s/client.yaml; do
+                                sed -i -E "s|^([[:space:]]*- ).*# noeuds-choisis$|\\1${regle}  # noeuds-choisis|" "$f"
+                                sed -i -E "s|^(  replicas: )[0-9]+(  # noeuds-choisis)$|\\1${copies}\\2|" "$f"
+                            done
+                            echo "Noeuds choisis : $NOEUDS_CHOISIS ($copies copie(s) de l'API et du site)"
+                        fi
+                        grep -n "image:\\|noeuds-choisis" k8s/server.yaml k8s/client.yaml
                         if git diff --quiet; then echo "Manifestes deja a jour"; exit 0; fi
-                        git commit -am "[skip ci] Deploiement des images ${TAG}"
+                        git commit -am "[skip ci] Deploiement des images ${TAG}${NOEUDS_CHOISIS:+ sur $NOEUDS_CHOISIS}"
                         ok=0
                         for i in 1 2 3; do
                             if git push origin HEAD:main; then ok=1; break; fi
