@@ -72,6 +72,11 @@ plateforme rendue réutilisable (`docs/REUTILISER.md`).
 3. **Alertes par e-mail** (Gmail) : relancer `deploy.sh` avec l'adresse et un mot de passe d'application Gmail.
 4. **Calibration** du moteur après 24 h calmes, puis refaire la campagne (`eval/campagne.py`) pour comparer.
 5. Objectif 5 : Rundeck (ou justification de l'orchestration Ansible + minuteries systemd).
+6. **Plusieurs applications** (phase 1, écrite et testée en local, `docs/APPLICATIONS.md`) : un dossier
+   `applications/<nom>/` par application, déployé par Argo CD (ApplicationSet) avec le chart commun
+   `plateforme/chart`, dans un namespace isolé. Application de test : `demo-podinfo`. **À mettre en service**
+   avec `deploy.sh`. Phases suivantes : pipeline Jenkins commun, supervision et sauvegardes par application,
+   découverte des serveurs vides, installation d'un parc vide.
 
 ## Règles de travail
 

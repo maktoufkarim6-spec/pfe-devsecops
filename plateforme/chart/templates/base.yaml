@@ -1,0 +1,105 @@
+{{- if .Values.base.active }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: base-donnees
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+  annotations:
+    # Les données survivent au retrait de l'application (suppression manuelle seulement)
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.base.taille }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: base
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+    app: base
+spec:
+  replicas: 1
+  # Jamais deux PostgreSQL sur le même volume pendant une mise à jour
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: base
+  template:
+    metadata:
+      labels:
+        {{- include "app.labels" . | nindent 8 }}
+        app: base
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      {{- include "app.placement" . | nindent 6 }}
+      containers:
+        - name: postgres
+          image: {{ .Values.base.image }}
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: {name: {{ include "app.secret" . }}, key: postgres-user}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: {{ include "app.secret" . }}, key: postgres-password}
+            - name: POSTGRES_DB
+              value: {{ .Values.base.nom_base | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: donnees
+              mountPath: /var/lib/postgresql/data
+            - name: run
+              mountPath: /var/run/postgresql
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\""]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\""]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+      volumes:
+        - name: donnees
+          persistentVolumeClaim:
+            claimName: base-donnees
+        - name: run
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: base
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: base
+  ports:
+    - port: 5432
+      targetPort: 5432
+{{- end }}

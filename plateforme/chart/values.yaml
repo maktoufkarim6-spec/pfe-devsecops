@@ -1,0 +1,47 @@
+# Valeurs par défaut d'une application de la plateforme. Chaque application les remplace dans
+# applications/<nom>/values.yaml (un dossier = une application = un namespace Kubernetes).
+# Référence complète : docs/APPLICATIONS.md
+
+# Rempli par Argo CD (ApplicationSet) : adresse du nœud de contrôle, pour le domaine par défaut.
+plateforme:
+  ip: ""
+
+# Adresse web. Vide : <nom>.<ip avec des tirets>.sslip.io (fonctionne sans acheter de domaine).
+domaine: ""
+
+# Nœuds où tourner (étiquette pfe.noeud, voir inventory.ini). Vide : n'importe quel nœud.
+noeuds: []
+
+# Plafond de l'application entière (toutes copies confondues) : protège les autres applications.
+quotas:
+  cpu: "1"
+  memoire: 1Gi
+  pods: 10
+
+# Composants (API, site, worker…). Au moins un.
+composants: []
+#  - nom: web                    # nom du Deployment et du Service
+#    image: registre/image:tag   # tag figé (jamais latest) ; mis à jour par Jenkins pour une appli construite
+#    port: 8080                  # port du conteneur
+#    copies: 1
+#    public: true                # exposé sur le domaine (Ingress)
+#    chemin: /                   # chemin servi sur le domaine
+#    sante: /healthz             # sonde HTTP ; vide : sonde TCP sur le port
+#    utilisateur: 1000           # UID non root de l'image
+#    commande: []                # remplace la commande de l'image (facultatif)
+#    env: {}                     # variables simples : NOM: valeur
+#    secrets: {}                 # variables lues dans le Secret <nom>-secrets : NOM: clé
+#    ecriture: [/tmp]            # seuls dossiers inscriptibles (le reste est en lecture seule)
+#    ressources: {cpu: 50m, memoire: 64Mi, cpu_max: 500m, memoire_max: 256Mi}
+
+# Base PostgreSQL facultative (Service « base », identifiants dans le Secret <nom>-secrets,
+# clés postgres-user et postgres-password créées par la plateforme). Volume conservé même si
+# l'application est retirée.
+base:
+  active: false
+  image: postgres:16
+  nom_base: app
+  taille: 1Gi
+
+# Clés aléatoires supplémentaires générées dans <nom>-secrets (ex. [jwt-secret]).
+secrets_generes: []

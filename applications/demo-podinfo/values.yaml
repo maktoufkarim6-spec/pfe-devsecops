@@ -1,0 +1,21 @@
+# Application de démonstration : 2e application du parc, à côté de l'application cobaye.
+# podinfo (https://github.com/stefanprodan/podinfo) : petite application web de test pour Kubernetes.
+# Adresse : http://demo-podinfo.<ip-du-nœud-de-contrôle-avec-tirets>.sslip.io/
+
+composants:
+  - nom: web
+    image: ghcr.io/stefanprodan/podinfo:6.7.1
+    port: 9898
+    copies: 1
+    public: true
+    sante: /readyz
+    utilisateur: 100          # utilisateur « app » de l'image
+    groupe: 101
+    env:
+      PODINFO_UI_MESSAGE: "Déployée par la plateforme PFE (Argo CD + Helm)"
+    ressources: {cpu: 20m, memoire: 32Mi, cpu_max: 200m, memoire_max: 64Mi}
+
+quotas:
+  cpu: "500m"
+  memoire: 256Mi
+  pods: 5

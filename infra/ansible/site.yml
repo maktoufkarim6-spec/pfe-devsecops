@@ -73,6 +73,17 @@
         msg: "{{ node_name }} : étiquette non posée ({{ etiquette.stderr | default('') }})"
       when: node_app | bool and etiquette.rc | default(0) != 0
 
+- name: Applications de la plateforme (dossiers applications/<nom>/, voir docs/APPLICATIONS.md)
+  hosts: nodes
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Namespaces, secrets et ApplicationSet Argo CD (nœud de contrôle seulement)
+      ansible.builtin.include_role:
+        name: applications
+      when: inventory_hostname == k3s_server_host
+      tags: [applications]
+
 - name: Agent de remédiation
   hosts: monitoring
   become: true

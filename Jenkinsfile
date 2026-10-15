@@ -128,7 +128,7 @@ pipeline {
                             $SCANNER_HOME/bin/sonar-scanner \
                               -Dsonar.projectKey=$APP_NAME \
                               -Dsonar.sources=. \
-                              -Dsonar.exclusions=aiops-engine/**,remediation-agent/**,eval/**,infra/**,scripts/**,**/node_modules/**,**/build/**,**/coverage/**,**/*.png,**/*.ico,**/*.spec.ts,**/*.test.tsx \
+                              -Dsonar.exclusions=aiops-engine/**,remediation-agent/**,eval/**,infra/**,scripts/**,plateforme/**,applications/**,**/node_modules/**,**/build/**,**/coverage/**,**/*.png,**/*.ico,**/*.spec.ts,**/*.test.tsx \
                               -Dsonar.tests=server/src \
                               -Dsonar.test.inclusions=**/*.spec.ts \
                               -Dsonar.javascript.lcov.reportPaths=server/coverage/lcov.info \

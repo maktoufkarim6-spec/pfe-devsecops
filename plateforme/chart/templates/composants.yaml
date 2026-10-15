@@ -1,0 +1,122 @@
+{{- include "app.verifier" . }}
+{{- $racine := . }}
+{{- range $c := .Values.composants }}
+{{- $r := $c.ressources | default dict }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $c.nom }}
+  labels:
+    {{- include "app.labels" $racine | nindent 4 }}
+    app: {{ $c.nom }}
+spec:
+  replicas: {{ $c.copies | default 1 }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: {{ $c.nom }}
+  template:
+    metadata:
+      labels:
+        {{- include "app.labels" $racine | nindent 8 }}
+        app: {{ $c.nom }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ $c.utilisateur }}
+        runAsGroup: {{ $c.groupe | default $c.utilisateur }}
+        fsGroup: {{ $c.groupe | default $c.utilisateur }}
+        seccompProfile:
+          type: RuntimeDefault
+      {{- include "app.placement" $racine | nindent 6 }}
+      # Copies réparties sur les nœuds disponibles (sans bloquer s'il n'y en a qu'un)
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ $c.nom }}
+      containers:
+        - name: {{ $c.nom }}
+          image: {{ $c.image }}
+          {{- with $c.commande }}
+          command: {{ toJson . }}
+          {{- end }}
+          ports:
+            - containerPort: {{ $c.port }}
+          {{- if or $c.env $c.secrets }}
+          env:
+            {{- range $k, $v := $c.env }}
+            - name: {{ $k }}
+              value: {{ $v | toString | quote }}
+            {{- end }}
+            {{- range $k, $cle := $c.secrets }}
+            - name: {{ $k }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "app.secret" $racine }}
+                  key: {{ $cle }}
+            {{- end }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          {{- $ecriture := $c.ecriture | default (list "/tmp") }}
+          volumeMounts:
+            {{- range $i, $d := $ecriture }}
+            - name: ecriture-{{ $i }}
+              mountPath: {{ $d }}
+            {{- end }}
+          {{- if $c.sante }}
+          readinessProbe:
+            httpGet: {path: {{ $c.sante }}, port: {{ $c.port }}}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: {{ $c.sante }}, port: {{ $c.port }}}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          {{- else }}
+          readinessProbe:
+            tcpSocket: {port: {{ $c.port }}}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: {{ $c.port }}}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          {{- end }}
+          resources:
+            requests:
+              cpu: {{ $r.cpu | default "50m" }}
+              memory: {{ $r.memoire | default "64Mi" }}
+              ephemeral-storage: 16Mi
+            limits:
+              cpu: {{ $r.cpu_max | default "500m" }}
+              memory: {{ $r.memoire_max | default "256Mi" }}
+              ephemeral-storage: 128Mi
+      volumes:
+        {{- range $i, $d := $ecriture }}
+        - name: ecriture-{{ $i }}
+          emptyDir:
+            sizeLimit: 64Mi
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $c.nom }}
+  labels:
+    {{- include "app.labels" $racine | nindent 4 }}
+spec:
+  selector:
+    app: {{ $c.nom }}
+  ports:
+    - port: {{ $c.port }}
+      targetPort: {{ $c.port }}
+{{- end }}
