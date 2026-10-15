@@ -1,0 +1,63 @@
+# Tests unitaires des règles d'alerte : cd infra/ansible/roles/monitoring/files && promtool test rules alert-rules.test.yml
+rule_files: [alert-rules.yml]
+evaluation_interval: 15s
+tests:
+  - interval: 15s
+    input_series:
+      # Anomalie sur le nœud app-1 et sur l'application boutique (cible appli-boutique)
+      - series: 'aiops_anomaly_active{node="app-1"}'
+        values: '1x20'
+      - series: 'aiops_anomaly_active{node="appli-boutique"}'
+        values: '1x20'
+      - series: 'aiops_target_info{node="app-1",kind="node",application=""}'
+        values: '1x20'
+      - series: 'aiops_target_info{node="appli-boutique",kind="application",application="boutique"}'
+        values: '1x20'
+      - series: 'aiops_top_feature{node="appli-boutique",feature="ram_api_mb"}'
+        values: '1x20'
+      - series: 'aiops_top_feature_zscore{node="appli-boutique"}'
+        values: '7x20'
+      - series: 'aiops_top_feature{node="app-1",feature="cpu_host"}'
+        values: '1x20'
+      - series: 'aiops_top_feature_zscore{node="app-1"}'
+        values: '5x20'
+      # Sonde web : demo-podinfo tombe, boutique reste en ligne
+      - series: 'probe_success{job="applications",application="demo-podinfo",instance="http://demo-podinfo.x.sslip.io/"}'
+        values: '0x20'
+      - series: 'probe_success{job="applications",application="boutique",instance="http://boutique.x.sslip.io/"}'
+        values: '1x20'
+      # Sauvegarde : la base de boutique a échoué
+      - series: 'pfe_backup_app_status{application="boutique",node="app-1"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: AnomalieAIOps            # le nœud seulement, jamais l'application
+        exp_alerts:
+          - exp_labels: {severity: warning, node: app-1}
+            exp_annotations:
+              summary: "Anomalie détectée par le moteur AIOps sur app-1"
+              description: "Variable la plus déviante : cpu_host (z = 5.0)."
+      - eval_time: 2m
+        alertname: AnomalieApplication      # l'application, avec son nom et sa variable
+        exp_alerts:
+          - exp_labels: {severity: warning, node: appli-boutique, application: boutique}
+            exp_annotations:
+              summary: "Anomalie détectée par le moteur AIOps sur l'application boutique"
+              description: "Variable la plus déviante : ram_api_mb (z = 7.0)."
+      - eval_time: 1m
+        alertname: ApplicationHorsLigne     # pas encore : il faut 2 minutes
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: ApplicationHorsLigne
+        exp_alerts:
+          - exp_labels: {severity: critical, job: applications, application: demo-podinfo, instance: "http://demo-podinfo.x.sslip.io/"}
+            exp_annotations:
+              summary: "L'application demo-podinfo ne répond plus depuis 2 minutes (http://demo-podinfo.x.sslip.io/)"
+              description: "Argo CD remet les pods manquants seul (self-heal). Si l'alerte dure : Argo CD (état de app-demo-podinfo), puis k3s kubectl -n demo-podinfo get pods sur le nœud de contrôle."
+      - eval_time: 1m
+        alertname: SauvegardeApplicationEchouee
+        exp_alerts:
+          - exp_labels: {severity: warning, source: backup, application: boutique, node: app-1}
+            exp_annotations:
+              summary: "La base de l'application boutique n'a pas été sauvegardée cette nuit"
+              description: "Les autres bases sont sauvegardées. Journal : journalctl -t pfe-backup sur app-1."

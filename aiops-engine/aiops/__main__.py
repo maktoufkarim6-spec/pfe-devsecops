@@ -17,7 +17,8 @@ def main():
     targets = parse_targets(cfg.targets)
     start_http_server(cfg.listen_port)
     log.info("aiops-engine %s démarré, Prometheus=%s, nœuds=%s", __version__, cfg.prom_url,
-             ", ".join(f"{t.name}{' (application)' if t.app else ''}" for t in targets))
+             ", ".join(f"{t.name}{' (application)' if t.kind == 'application' else ' (applicatif)' if t.app else ''}"
+                       for t in targets))
     prom = PromClient(cfg.prom_url)
     engines = [Engine(cfg, prom, target=t) for t in targets]
     while True:

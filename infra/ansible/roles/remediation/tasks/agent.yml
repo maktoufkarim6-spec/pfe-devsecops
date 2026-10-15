@@ -84,6 +84,8 @@
       AGENT_APP_API: "{{ app_api }}"
       AGENT_SERVICES_DECLARES: "{{ services_declares | to_json }}"
       AGENT_NODES: "{{ remediation_nodes | to_json }}"
+      # Applications de la plateforme : composants redémarrables (jamais la base)
+      AGENT_APPLICATIONS: "{{ dict((plateforme_catalogue | default([])) | map(attribute='nom') | zip((plateforme_catalogue | default([])) | map(attribute='redemarrables'))) | to_json }}"
     volumes:
       - "{{ monitoring_dir }}/secrets/agent:/secrets:ro"
       - "{{ monitoring_dir }}/remediation/known_hosts:/config/known_hosts:ro"

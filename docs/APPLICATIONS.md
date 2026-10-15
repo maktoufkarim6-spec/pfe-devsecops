@@ -86,15 +86,49 @@ avec `secrets: {DB_USER: postgres-user, DB_PASSWORD: postgres-password}`.
   journaux. Une clé existante n'est **jamais** régénérée.
 - **Données** : le volume de la base est conservé quand l'application est retirée.
 
+## Supervision, IA, réparation et sauvegardes de chaque application
+
+Tout est automatique à partir du dossier `applications/<nom>/`. Il suffit de relancer `deploy.sh` après
+avoir ajouté ou retiré une application.
+
+| Brique | Ce qu'elle fait pour chaque application |
+|---|---|
+| **Sonde web** (job Prometheus `applications`) | Teste l'adresse de l'application (`domaine`, ou sslip.io par défaut ; chemin `sonde`, ou celui du premier composant public) toutes les 15 s depuis le serveur de supervision |
+| **IA** (moteur AIOps 3.2) | **Un modèle par application** (cible `appli-<nom>`), à côté des modèles par nœud. Variables : `cpu_<composant>`, `ram_<composant>_mb`, `ram_base_mb` (si base), `app_containers`, `web_ok` (disponibilité), `web_ms` (temps de réponse). Il apprend après 2 h d'historique. Il se tait pendant une maintenance annoncée sur n'importe quel nœud (build, déploiement), puisque les pods d'une application peuvent tourner partout. |
+| **Alertes** | `AnomalieApplication` (IA, avec la variable en cause), `ApplicationHorsLigne` (adresse muette depuis 2 min, critique), `SauvegardeApplicationEchouee`. `AnomalieAIOps` ne concerne plus que les nœuds. |
+| **Agent de réparation** (1.1) | Sur `AnomalieApplication`, et seulement si l'IA désigne la **hausse** du CPU ou de la RAM d'un composant déclaré : **redémarrage progressif de ce composant** (`rollout-app <application>/<composant>`), par le nœud de contrôle, sans coupure. Jamais la base, jamais à l'aveugle : site injoignable ou conteneur perdu, c'est Argo CD qui remet les pods, et l'agent escalade vers un humain. Liste fermée revérifiée sur le nœud (`pfe-runbook`). |
+| **Sauvegardes** | Chaque nuit, `pg_dump` de la base de chaque application qui en a une, dans le jeu du nœud de contrôle (copié ensuite sur l'autre serveur). **Une base en échec n'empêche pas les autres** (statut par application). Chaque semaine, la base est **réellement restaurée** dans une base temporaire, et les comptages de lignes sont comparés. |
+| **Restauration** | `sudo pfe-restore app <application> <jeu> --confirmer` sur le nœud de contrôle (une seule transaction : en cas d'erreur, la base reste intacte) |
+| **Grafana** | Page d'accueil, section « Applications de la plateforme » : en ligne, détection IA, mémoire, âge de la dernière sauvegarde |
+
+Sécurité : les valeurs de `values.yaml` qui finissent dans des scripts root ou dans la configuration de
+Prometheus sont vérifiées avant tout usage, dans le catalogue Ansible : nom, composants, `base.nom_base`,
+domaine et chemin de la sonde. Une valeur invalide arrête le déploiement.
+
 ## Ce qui reste à faire (phases suivantes)
 
 - **Construction depuis le code source** : pipeline Jenkins commun qui construit, teste et scanne
   (SonarQube, Trivy), puis écrit le nouveau tag dans `applications/<nom>/values.yaml`. Aujourd'hui, une
   application utilise une image déjà publiée.
-- **Supervision, IA, agent et sauvegardes par application** : aujourd'hui, ils suivent l'application cobaye.
 - **HTTPS** et vrais noms de domaine.
 
 ## Vérifications faites
+
+**Supervision par application** (en local, mêmes versions qu'en production) :
+- **Moteur AIOps, 71 tests** (Python 3.11, versions figées), dont 14 nouveaux. Ils vérifient : les
+  variables d'une application ; le refus des cibles invalides ; une fuite mémoire désignée sur le bon
+  composant ; un site injoignable détecté ; l'isolement application/nœud ; des fichiers séparés ; et le
+  silence pendant une maintenance.
+- **Agent, 70 tests**, dont 16 nouveaux. Ils vérifient : le redémarrage du seul composant désigné ;
+  jamais de redémarrage de la base, ni sur une baisse, un site injoignable ou un composant inconnu ; le
+  passage par le nœud de contrôle ; et le refus des arguments mal formés.
+- **Rendu réel des modèles Ansible avec deux applications** (19 tests) : `bash -n` des scripts root ;
+  liste fermée du runbook ; sauvegarde et restauration de la bonne base ; configuration Prometheus et
+  règles validées par promtool 2.53.0 ; **tests unitaires des alertes**
+  (`roles/monitoring/files/alert-rules.test.yml`) ; refus des valeurs dangereuses
+  (`nom_base: 'x; rm -rf /'`, domaine avec guillemet).
+
+**Plateforme multi-applications :**
 
 - **Chart** (22 tests) : rendu Helm, validation Kubernetes 1.31 (kubeconform), et refus de chaque erreur
   (tag `latest`, image sans tag, root, port manquant, nom réservé ou invalide, namespace différent,

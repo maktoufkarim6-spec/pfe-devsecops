@@ -37,13 +37,27 @@ groups:
 
   - name: aiops
     rules:
+      # Nœuds seulement : les applications de la plateforme ont leur propre alerte (AnomalieApplication)
       - alert: AnomalieAIOps
-        expr: aiops_anomaly_active == 1
+        expr: aiops_anomaly_active == 1 unless on (node) aiops_target_info{kind="application"}
         for: 1m
         labels:
           severity: warning
         annotations:
           summary: "Anomalie détectée par le moteur AIOps sur {{ $labels.node }}"
+          description: >-
+            Variable la plus déviante :
+            {{ with printf "max by (feature) (aiops_top_feature{node=\"%s\"} == 1)" $labels.node | query }}{{ range . }}{{ .Labels.feature }}{{ end }}{{ end }}
+            (z = {{ with printf "aiops_top_feature_zscore{node=\"%s\"}" $labels.node | query }}{{ . | first | value | printf "%.1f" }}{{ end }}).
+
+      # Application de la plateforme (cible appli-<nom>) : l'étiquette application dit laquelle
+      - alert: AnomalieApplication
+        expr: (aiops_anomaly_active == 1) * on (node) group_left (application) aiops_target_info{kind="application"}
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Anomalie détectée par le moteur AIOps sur l'application {{ $labels.application }}"
           description: >-
             Variable la plus déviante :
             {{ with printf "max by (feature) (aiops_top_feature{node=\"%s\"} == 1)" $labels.node | query }}{{ range . }}{{ .Labels.feature }}{{ end }}{{ end }}
@@ -82,6 +96,20 @@ groups:
           severity: warning
         annotations:
           summary: "{{ $labels.service }} ne répond plus depuis 3 minutes ({{ $labels.instance }})"
+
+  - name: applications
+    rules:
+      # Adresse web de chaque application (applications/<nom>/), testée toutes les 15 s depuis la supervision
+      - alert: ApplicationHorsLigne
+        expr: probe_success{job="applications"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "L'application {{ $labels.application }} ne répond plus depuis 2 minutes ({{ $labels.instance }})"
+          description: >-
+            Argo CD remet les pods manquants seul (self-heal). Si l'alerte dure : Argo CD (état de app-{{ $labels.application }}),
+            puis k3s kubectl -n {{ $labels.application }} get pods sur le nœud de contrôle.
 
   - name: collecteurs
     rules:
@@ -183,6 +211,15 @@ groups:
           source: backup
         annotations:
           summary: "Le dernier jeu reçu de {{ $labels.source }} sur {{ $labels.node }} a des empreintes incorrectes"
+
+      - alert: SauvegardeApplicationEchouee
+        expr: pfe_backup_app_status == 0
+        labels:
+          severity: warning
+          source: backup
+        annotations:
+          summary: "La base de l'application {{ $labels.application }} n'a pas été sauvegardée cette nuit"
+          description: "Les autres bases sont sauvegardées. Journal : journalctl -t pfe-backup sur {{ $labels.node }}."
 
       - alert: TestRestaurationEchoue
         expr: pfe_backup_restore_test_status == 0

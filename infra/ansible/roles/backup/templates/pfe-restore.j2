@@ -14,6 +14,8 @@ Utilisation (en root : sudo pfe-restore ...)
   pfe-restore tester                         test de restauration complet maintenant (sans rien modifier)
   pfe-restore extraire <jeu> <dossier>       décompresse tout le jeu dans un dossier vide (sans rien modifier)
   pfe-restore postgres <jeu> --confirmer     REMPLACE la base « {{ app_db_name }} » de l'application par celle du jeu
+  pfe-restore app <application> <jeu> --confirmer
+                                             REMPLACE la base d'une application de la plateforme (applications/<nom>/)
 <jeu> : nom (ex. 20261013T023000Z) ou chemin complet. Un nom est cherché d'abord dans les jeux locaux,
 puis dans les jeux reçus des autres nœuds.
 EOF
@@ -71,6 +73,23 @@ case "${1:-}" in
       'pg_restore -U "$POSTGRES_USER" -d {{ app_db_name }} --clean --if-exists --no-owner --no-privileges --single-transaction --exit-on-error' \
       < "$set_dir/postgres-{{ app_db_name }}.dump"
     echo "base {{ app_db_name }} restaurée depuis $(basename "$set_dir")" ;;
+  app)
+    # Applications de la plateforme dont la base est sauvegardée sur ce nœud : application:base
+    APPS_BASE="{% if node_app | bool and inventory_hostname == k3s_server_host %}{% for a in (plateforme_catalogue | default([])) | selectattr('base') %}{{ a.nom }}:{{ a.nom_base }} {% endfor %}{% endif %}"
+    app=${2:?application manquante}
+    entry=$(tr ' ' '
+' <<< "$APPS_BASE" | grep -x "$app:[a-z0-9_]*" || true)
+    [ -n "$entry" ] || { echo "application sans base sauvegardée sur ce nœud : $app (connues : ${APPS_BASE:-aucune})"; exit 2; }
+    base=${entry#*:}
+    set_dir=$(find_set "${3:?jeu manquant}")
+    [ "${4:-}" = "--confirmer" ] || { echo "Opération destructive : ajoutez --confirmer pour remplacer la base $base de $app."; exit 2; }
+    dump="$set_dir/app-$app-$base.dump"
+    [ -f "$dump" ] || { echo "ce jeu ne contient pas la base de $app"; exit 2; }
+    verify "$set_dir"
+    echo "$(date '+%F %T') restauration de la base $base de $app depuis $set_dir" | logger -t pfe-restore
+    # Une seule transaction : en cas d'erreur, la base reste dans son état précédent
+    k3s kubectl -n "$app" exec -i deploy/base -c postgres -- sh -c       'pg_restore -U "$POSTGRES_USER" -d "$1" --clean --if-exists --no-owner --no-privileges --single-transaction --exit-on-error' _ "$base"       < "$dump"
+    echo "base $base de $app restaurée depuis $(basename "$set_dir")" ;;
   *)
     usage; exit 2 ;;
 esac

@@ -77,6 +77,30 @@ panels.append(stat("Application en ligne", 16, y, 8, 5,
     text_mode="value", mappings=val({"1": ("EN LIGNE", "green"), "0": ("HORS LIGNE", "red")}), steps=RG,
     links=[{"title": "Ouvrir l'application", "url": f"http://{APP}__APP_URL_PATH__", "targetBlank": True}]))
 y += 5
+panels.append(row("Applications de la plateforme", y))
+y += 1
+APPLI = 'aiops_target_info{kind="application"}'
+panels.append(stat("En ligne", 0, y, 6, 4,
+    [tgt('probe_success{job="applications"}', "{{application}}")],
+    "Adresse web de chaque application (dossiers applications/<nom>/), testée toutes les 15 s. Cliquer pour l'ouvrir.",
+    mappings=val({"1": ("en ligne", "green"), "0": ("HORS LIGNE", "red")}), steps=RG,
+    links=[{"title": "Ouvrir ${__field.labels.application}", "url": "${__field.labels.instance}", "targetBlank": True}]))
+panels.append(stat("Détection par l'IA", 6, y, 6, 4,
+    [tgt(f'max by (application) (aiops_anomaly_active * on (node) group_left (application) {APPLI})', "{{application}}")],
+    "Un modèle par application : CPU et RAM de chaque composant, conteneurs, disponibilité et temps de réponse.",
+    mappings=val({"0": ("normal", "green"), "1": ("ANOMALIE", "orange")}), steps=[{"color": "green", "value": None}]))
+panels.append(stat("Mémoire", 12, y, 6, 4,
+    [tgt('sum by (application) (label_replace(container_memory_working_set_bytes{job="cadvisor-k3s",'
+         'container_label_io_kubernetes_container_name!="",container_label_io_kubernetes_container_name!="POD"},'
+         ' "application", "$1", "container_label_io_kubernetes_pod_namespace", "(.+)"))'
+         f' and on (application) {APPLI}', "{{application}}")],
+    "Mémoire utilisée par tous les conteneurs de l'application (plafonnée par son quota).", unit="bytes", decimals=0))
+panels.append(stat("Sauvegarde de la base", 18, y, 6, 4,
+    [tgt('(time() - pfe_backup_app_last_success_timestamp_seconds) / 3600 and pfe_backup_app_last_success_timestamp_seconds > 0',
+         "{{application}}")],
+    "Heures depuis la dernière sauvegarde réussie de la base de chaque application (restaurée chaque semaine pour test).",
+    unit="h", decimals=1, steps=[{"color": "green", "value": None}, {"color": "orange", "value": 26}, {"color": "red", "value": 50}]))
+y += 4
 panels.append(row("Services", y))
 y += 1
 panels.append(stat("État des services", 0, y, 24, 5,

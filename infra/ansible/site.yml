@@ -2,6 +2,16 @@
 # 1) supervision centrale  2) collecteurs, compte de l'agent et sauvegardes sur chaque nœud
 # 3) agent de remédiation (une fois les nœuds prêts à le recevoir)
 
+- name: Catalogue des applications (applications/<nom>/values.yaml), partagé par tous les rôles
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Lecture du dépôt
+      ansible.builtin.include_role:
+        name: applications
+        tasks_from: catalogue
+      tags: [always]
+
 - name: Fenêtre de maintenance pendant le déploiement (pas de fausse anomalie, pas d'action de l'agent)
   hosts: all
   become: true
