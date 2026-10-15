@@ -122,11 +122,13 @@ pipeline {
                     '''
                     script {
                         // qualitygate.wait : le scanner attend le verdict et echoue si le Quality Gate echoue.
+                        // Perimetre : l'application deployee (server/, client/, k8s/). Les outils de la plateforme
+                        // (moteur AIOps, agent, evaluation, Ansible, scripts) ont leurs propres tests, hors Quality Gate.
                         def rc = sh(returnStatus: true, script: '''
                             $SCANNER_HOME/bin/sonar-scanner \
                               -Dsonar.projectKey=$APP_NAME \
                               -Dsonar.sources=. \
-                              -Dsonar.exclusions=aiops-engine/**,infra/**,**/node_modules/**,**/build/**,**/coverage/**,**/*.png,**/*.ico,**/*.spec.ts,**/*.test.tsx \
+                              -Dsonar.exclusions=aiops-engine/**,remediation-agent/**,eval/**,infra/**,scripts/**,**/node_modules/**,**/build/**,**/coverage/**,**/*.png,**/*.ico,**/*.spec.ts,**/*.test.tsx \
                               -Dsonar.tests=server/src \
                               -Dsonar.test.inclusions=**/*.spec.ts \
                               -Dsonar.javascript.lcov.reportPaths=server/coverage/lcov.info \
