@@ -26,7 +26,43 @@
     quiet: true
   loop: "{{ plateforme_apps }}"
 
-- name: Argo CD et ses ApplicationSets présents sur le cluster
+- name: Version d'Argo CD installée
+  ansible.builtin.command: >-
+    k3s kubectl -n argocd get deployment argocd-server
+    -o jsonpath={.spec.template.spec.containers[0].image}
+  register: plateforme_argocd
+  changed_when: false
+  failed_when: false
+
+- name: Définition ApplicationSet présente ?
+  ansible.builtin.command: k3s kubectl get crd applicationsets.argoproj.io
+  register: plateforme_crd
+  changed_when: false
+  failed_when: false
+
+# Cas connu : « kubectl apply » (côté client) de l'installation d'Argo CD saute cette définition, trop grande
+# pour ses annotations. Le contrôleur ApplicationSet redémarre alors en boucle. On l'installe côté serveur,
+# dans la version exacte d'Argo CD (source officielle).
+- name: Installation de la définition ApplicationSet (version d'Argo CD, côté serveur)
+  ansible.builtin.command: >-
+    k3s kubectl apply --server-side --force-conflicts
+    -f https://raw.githubusercontent.com/argoproj/argo-cd/{{ plateforme_argocd.stdout.split(':')[-1] }}/manifests/crds/applicationset-crd.yaml
+  when:
+    - plateforme_crd.rc != 0
+    - plateforme_argocd.rc == 0
+    - plateforme_argocd.stdout is match('.*argocd:v[0-9]+\.[0-9]+\.[0-9]+$')
+  register: plateforme_crd_install
+
+- name: Contrôleur ApplicationSet relancé (sans attendre la fin de son attente entre deux redémarrages)
+  ansible.builtin.command: k3s kubectl -n argocd rollout restart deployment argocd-applicationset-controller
+  when: plateforme_crd_install is changed
+
+- name: Contrôleur ApplicationSet opérationnel
+  ansible.builtin.command: k3s kubectl -n argocd rollout status deployment argocd-applicationset-controller --timeout=180s
+  when: plateforme_crd_install is changed
+  changed_when: false
+
+- name: Définition ApplicationSet (après installation éventuelle)
   ansible.builtin.command: k3s kubectl get crd applicationsets.argoproj.io
   register: plateforme_crd
   changed_when: false

@@ -21,7 +21,10 @@ plateforme/chart/            →  modèle commun (Helm) utilisé par toutes les 
 ## Mise en service (une seule fois)
 
 Sur le serveur de supervision : `bash deploy.sh`. Le rôle `applications` installe l'ApplicationSet dans
-Argo CD, puis crée les namespaces et les secrets. Ensuite, chaque dossier ajouté dans `applications/` est
+Argo CD, puis crée les namespaces et les secrets. Si la définition ApplicationSet manque (cas connu :
+`kubectl apply` côté client saute ce fichier de 1,4 Mo à l'installation d'Argo CD, et son contrôleur
+redémarre alors en boucle), le rôle l'installe côté serveur, dans la version exacte d'Argo CD, puis relance
+le contrôleur. Ensuite, chaque dossier ajouté dans `applications/` est
 déployé automatiquement.
 
 ## Ajouter une application
@@ -102,7 +105,8 @@ avec `secrets: {DB_USER: postgres-user, DB_PASSWORD: postgres-password}`.
   - nouvelle clé ajoutée seule ;
   - nom invalide : arrêt avant toute action ;
   - ApplicationSet conforme au schéma d'Argo CD.
+- **Constaté sur le cluster réel (16/10/2026)** : Argo CD v3.5.2 sans la définition ApplicationSet,
+  contrôleur en erreur depuis 43 jours (8 752 redémarrages). Le rôle corrige ce cas.
 - **Non vérifié sur le cluster réel** :
-  - présence du contrôleur ApplicationSet dans l'Argo CD installé ;
   - comportement de la NetworkPolicy de k3s avec les sondes de santé : si les pods restent « non prêts »,
     c'est le premier point à regarder.

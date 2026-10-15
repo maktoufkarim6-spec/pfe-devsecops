@@ -66,9 +66,9 @@ plateforme rendue réutilisable (`docs/REUTILISER.md`).
 
 1. **Relancer `deploy.sh -e remediation_mode=actif`** : nouvelle version de l'agent, page d'accueil Grafana,
    testeur de services, profil d'application.
-2. **Sécurité SSH** : des milliers de tentatives de connexion par mot de passe par jour sur les VPS. Écrit
-   et testé en local (`infra/ansible/cles-ssh.yml`, procédure `docs/CLES-SSH.md`) : **à lancer** par le
-   propriétaire (`deploy.sh --cles`, vérification depuis le PC, puis `deploy.sh --fermer-mots-de-passe`).
+2. ~~Sécurité SSH~~ **Fait le 16/10/2026** : connexion par clé seulement sur les deux serveurs
+   (`docs/CLES-SSH.md`). Mot de passe SSH refusé (vérifié depuis le PC du propriétaire). Reste au propriétaire :
+   changer le mot de passe du compte `debian` (utile seulement pour la console KVM d'OVH).
 3. **Alertes par e-mail** (Gmail) : relancer `deploy.sh` avec l'adresse et un mot de passe d'application Gmail.
 4. **Calibration** du moteur après 24 h calmes, puis refaire la campagne (`eval/campagne.py`) pour comparer.
 5. Objectif 5 : Rundeck (ou justification de l'orchestration Ansible + minuteries systemd).
