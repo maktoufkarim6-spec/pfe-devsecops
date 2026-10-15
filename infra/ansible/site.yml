@@ -64,7 +64,7 @@
       delegate_to: "{{ k3s_server_host }}"
       when: node_app | bool
       register: etiquette
-      changed_when: "'labeled' in etiquette.stdout"
+      changed_when: "'labeled' in etiquette.stdout and 'not labeled' not in etiquette.stdout"
       # Un nœud absent du cluster k3s ne bloque pas le reste du déploiement
       failed_when: false
 
