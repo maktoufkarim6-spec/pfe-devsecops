@@ -248,9 +248,20 @@
           "instant": true,
           "range": false,
           "legendFormat": "{{application}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "label_replace(probe_success{job=\"services\",service=\"Application\"}, \"application\", \"__APP_NAME__\", \"\", \"\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{application}}"
         }
       ],
-      "description": "Adresse web de chaque application (dossiers applications/<nom>/), testée toutes les 15 s. Cliquer pour l'ouvrir.",
+      "description": "Adresse web de chaque application, testée toutes les 15 s. Cliquer pour l'ouvrir.",
       "fieldConfig": {
         "defaults": {
           "unit": "none",
@@ -334,9 +345,20 @@
           "instant": true,
           "range": false,
           "legendFormat": "{{application}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "label_replace((max(aiops_anomaly_active{node=\"__CTL_NODE__\"}) * max(aiops_top_feature{node=\"__CTL_NODE__\",feature=~\"cpu_server|ram_server_mb|ram_postgres_mb|app_containers\"})) or vector(0), \"application\", \"__APP_NAME__\", \"\", \"\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{application}}"
         }
       ],
-      "description": "Un modèle par application : CPU et RAM de chaque composant, conteneurs, disponibilité et temps de réponse.",
+      "description": "Un modèle par application : CPU et RAM de chaque composant, conteneurs, disponibilité et temps de réponse. Application cobaye : modèle de son serveur, quand la variable en cause est la sienne (API, base, conteneurs).",
       "fieldConfig": {
         "defaults": {
           "unit": "none",
@@ -410,6 +432,17 @@
           "instant": true,
           "range": false,
           "legendFormat": "{{application}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "label_replace(sum(container_memory_working_set_bytes{job=\"cadvisor-k3s\",container_label_io_kubernetes_pod_namespace=\"__APP_NAMESPACE__\",container_label_io_kubernetes_container_name!=\"\",container_label_io_kubernetes_container_name!=\"POD\"}), \"application\", \"__APP_NAME__\", \"\", \"\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{application}}"
         }
       ],
       "description": "Mémoire utilisée par tous les conteneurs de l'application (plafonnée par son quota).",
@@ -472,9 +505,20 @@
           "instant": true,
           "range": false,
           "legendFormat": "{{application}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "label_replace((time() - max(pfe_backup_last_success_timestamp_seconds{node=\"__CTL_NODE__\"})) / 3600, \"application\", \"__APP_NAME__\", \"\", \"\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{application}}"
         }
       ],
-      "description": "Heures depuis la dernière sauvegarde réussie de la base de chaque application (restaurée chaque semaine pour test).",
+      "description": "Heures depuis la dernière sauvegarde réussie de la base de chaque application (restaurée chaque semaine pour test). Application cobaye : sauvegarde de son serveur, qui contient sa base.",
       "fieldConfig": {
         "defaults": {
           "unit": "h",

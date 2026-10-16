@@ -103,6 +103,7 @@
     content: >-
       {{ lookup('ansible.builtin.file', item.src)
          | replace('__APP_NAMESPACE__', app_namespace) | replace('__APP_IP__', app_ip)
+         | replace('__APP_NAME__', app_name) | replace('__CTL_NODE__', hostvars[k3s_server_host].node_name)
          | replace('__APP_URL_PATH__', app_url_path) | replace('__REPO_WEB__', repo_web)
          | replace('__EVALUATION_URL__', evaluation_url) | replace('__JENKINS_JOB_URL__', jenkins_job_url)
          | replace('__JENKINS_APPS_URL__', jenkins_applications_url) }}
