@@ -158,6 +158,31 @@ Après l'installation :
 - **Il reste une action dans GitHub** : un webhook `http://<contrôle>:8080/github-webhook/` (événement *push*),
   pour que chaque push lance le pipeline.
 
+### Pour un autre compte (l'encadrant installe la plateforme chez lui)
+
+`bash deploy.sh --nouveau-parc` demande d'abord : « Installer la plateforme pour VOTRE compte GitHub et Docker
+Hub ? ». Répondre `oui`, puis donner :
+
+| Demandé | Pour quoi faire |
+|---|---|
+| un **jeton GitHub classique** (github.com/settings/tokens), avec les droits `repo` et `admin:repo_hook` | créer sa copie du dépôt, y pousser, et créer le webhook vers son Jenkins |
+| son **compte et un jeton Docker Hub** | publier ses images |
+| les **adresses de ses serveurs**, celui-ci compris | les seules que la découverte explorera |
+
+La plateforme fait alors tout seule :
+1. **Elle copie le dépôt dans son compte** (fork, par l'API GitHub). Si la copie existe déjà, elle la réutilise.
+2. **Elle adapte cette copie à lui** (`infra/outils/personnaliser.sh`) : son espace Docker Hub dans les deux
+   pipelines, ses serveurs dans `infra/parc.yml`, l'adresse de son dépôt (Argo CD, Jenkins, liens). Elle envoie
+   cette personnalisation dans sa copie, comme un commit.
+3. Elle **découvre ses serveurs**, puis attribue les rôles (voir plus haut).
+4. Au `bash deploy.sh` suivant, elle **installe tout depuis sa copie** : les identifiants ne sont pas
+   redemandés, et le **webhook GitHub est créé automatiquement**. Aucune action manuelle dans GitHub.
+
+Les applications tournent tout de suite avec les images publiques du premier parc. Leur premier build les
+remplace par des images construites dans son compte Docker Hub. Les identifiants sont conservés dans
+`~/.pfe-secrets/parc-neuf.env` sur son serveur de supervision, lisibles par ce compte seul, et jamais dans Git.
+L'ancien dossier du dépôt est gardé (`~/pfe-devsecops.premier-parc-<date>`) : rien n'est supprimé.
+
 ### Garde-fous
 
 - **Un nœud de contrôle existant n'est jamais touché** : si k3s y est déjà actif, toute la partie

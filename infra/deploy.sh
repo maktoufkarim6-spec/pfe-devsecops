@@ -23,6 +23,8 @@ esac
 # Serveurs ajoutés par --ajouter : inventaire propre au serveur de supervision (hors Git), lu en plus du dépôt
 PARC_DIR="$HOME/.pfe-parc"
 PARC_INV="$PARC_DIR/inventaire.ini"
+# Installation pour un autre compte (--nouveau-parc) : ses identifiants, lisibles par ce compte seul
+IDENTIFIANTS="$HOME/.pfe-secrets/parc-neuf.env"
 REPO=${PFE_REPO:-https://github.com/maktoufkarim6-spec/pfe-devsecops.git}   # autre projet : PFE_REPO=<dépôt> bash deploy.sh
 SRC="$HOME/pfe-devsecops"
 VENV="$HOME/.pfe-ansible"
@@ -90,6 +92,43 @@ fi
 
 if [ "$MODE" = nouveau ]; then
   echo "== Parc entièrement neuf : ce serveur devient la supervision =="
+  # --- Pour un AUTRE compte : sa propre copie du dépôt (fork), son Docker Hub, ses serveurs
+  if [ ! -s "$IDENTIFIANTS" ]; then
+    read -rp "Installer la plateforme pour VOTRE compte GitHub et Docker Hub (fork du dépôt) ? (oui/non) " POUR_MOI
+    if [ "$POUR_MOI" = oui ]; then
+      echo "  Jeton GitHub CLASSIQUE (github.com/settings/tokens) avec les droits « repo » et « admin:repo_hook »."
+      read -rsp "  Jeton GitHub (non affiché) : " PFE_GITHUB_TOKEN; echo
+      PFE_GITHUB_USER=$(GITHUB_TOKEN=$PFE_GITHUB_TOKEN "$VENV/bin/python" "$SRC/infra/outils/github_parc.py" utilisateur) || exit 1
+      echo "  Compte GitHub : $PFE_GITHUB_USER"
+      read -rp "  Compte Docker Hub : " PFE_DOCKERHUB_USER
+      [[ "$PFE_DOCKERHUB_USER" =~ ^[a-z0-9][a-z0-9_-]{2,29}$ ]] || { echo "Compte Docker Hub invalide."; exit 2; }
+      read -rsp "  Jeton d'accès Docker Hub (non affiché) : " PFE_DOCKERHUB_TOKEN; echo
+      read -rp "  Adresses IPv4 de VOS serveurs, séparées par des espaces (celui-ci compris) : " PFE_PARC_IPS
+      mkdir -p "$HOME/.pfe-secrets" && chmod 700 "$HOME/.pfe-secrets"
+      (umask 077 && printf "PFE_GITHUB_USER='%s'\nPFE_GITHUB_TOKEN='%s'\nPFE_DOCKERHUB_USER='%s'\nPFE_DOCKERHUB_TOKEN='%s'\nPFE_PARC_IPS='%s'\n" \
+        "$PFE_GITHUB_USER" "$PFE_GITHUB_TOKEN" "$PFE_DOCKERHUB_USER" "$PFE_DOCKERHUB_TOKEN" "$PFE_PARC_IPS" > "$IDENTIFIANTS")
+    fi
+  fi
+  if [ -s "$IDENTIFIANTS" ]; then
+    set -a; . "$IDENTIFIANTS"; set +a
+    source_depot=$(git -C "$SRC" remote get-url origin | sed -E 's#^https://github.com/##; s#\.git$##')
+    echo "  Copie du dépôt $source_depot dans le compte $PFE_GITHUB_USER…"
+    FORK=$(GITHUB_TOKEN=$PFE_GITHUB_TOKEN "$VENV/bin/python" "$SRC/infra/outils/github_parc.py" fork "$source_depot") || exit 1
+    git_jeton=(-c "credential.helper=!f() { echo username=$PFE_GITHUB_USER; echo \"password=\$PFE_GITHUB_TOKEN\"; }; f")
+    if [ "$(git -C "$SRC" remote get-url origin)" != "$FORK.git" ]; then
+      mv "$SRC" "$SRC.premier-parc-$(date +%Y%m%d%H%M%S)"     # rien n'est supprimé
+      git "${git_jeton[@]}" clone -q "$FORK.git" "$SRC"
+    fi
+    cd "$SRC/infra/ansible"
+    if ! grep -Eq "^repo_web: $FORK( |\$)" group_vars/all.yml; then
+      # shellcheck disable=SC2086
+      bash "$SRC/infra/outils/personnaliser.sh" "$PFE_DOCKERHUB_USER" "$FORK" $PFE_PARC_IPS || exit 1
+      git -C "$SRC" -c user.name=plateforme-pfe -c user.email=plateforme@pfe.local commit -qam \
+        "Personnalisation : Docker Hub $PFE_DOCKERHUB_USER, serveurs $PFE_PARC_IPS"
+      git -C "$SRC" "${git_jeton[@]}" push -q origin HEAD:main || { echo "Envoi vers $FORK refusé (droits du jeton)."; exit 1; }
+      echo "  Votre dépôt $FORK est prêt (commit de personnalisation envoyé)."
+    fi
+  fi
   if grep -q '^# parc-neuf :' "$PARC_INV" 2>/dev/null; then
     echo "Un parc neuf est déjà défini ($PARC_INV) :"; sed 's/^/    /' "$PARC_INV"
     read -rp "Le recalculer (les serveurs déjà installés ne sont pas réinstallés) ? (oui/non) " OK
@@ -202,11 +241,16 @@ case "$MODE" in
     CTL=$(grep -h 'k3s_server=true' "${FICHIERS_INV[@]}" | grep -o 'ansible_host=[0-9.]*' | head -1 | cut -d= -f2)
     if [ "${FICHIERS_INV[0]}" = "$PARC_INV" ] && [ -n "$CTL" ] \
        && ! ssh -i "$CLE" -o BatchMode=yes -o ConnectTimeout=10 "debian@$CTL" systemctl is-active --quiet k3s 2>/dev/null; then
-      echo "Nœud de contrôle $CTL à installer : identifiants pour Jenkins (non affichés, conservés sur ce nœud seulement)."
-      read -rp "  Compte Docker Hub : " PFE_DOCKERHUB_USER
-      read -rsp "  Jeton d'accès Docker Hub : " PFE_DOCKERHUB_TOKEN; echo
-      read -rp "  Compte GitHub : " PFE_GITHUB_USER
-      read -rsp "  Jeton GitHub (droit Contents: Read and write sur le dépôt) : " PFE_GITHUB_TOKEN; echo
+      if [ -s "$IDENTIFIANTS" ]; then
+        echo "Nœud de contrôle $CTL à installer : identifiants donnés à --nouveau-parc réutilisés."
+        set -a; . "$IDENTIFIANTS"; set +a
+      else
+        echo "Nœud de contrôle $CTL à installer : identifiants pour Jenkins (non affichés, conservés sur ce nœud seulement)."
+        read -rp "  Compte Docker Hub : " PFE_DOCKERHUB_USER
+        read -rsp "  Jeton d'accès Docker Hub : " PFE_DOCKERHUB_TOKEN; echo
+        read -rp "  Compte GitHub : " PFE_GITHUB_USER
+        read -rsp "  Jeton GitHub (droit Contents: Read and write sur le dépôt) : " PFE_GITHUB_TOKEN; echo
+      fi
       export PFE_DOCKERHUB_USER PFE_DOCKERHUB_TOKEN PFE_GITHUB_USER PFE_GITHUB_TOKEN
     fi
     PLAYBOOK=site.yml ;;
