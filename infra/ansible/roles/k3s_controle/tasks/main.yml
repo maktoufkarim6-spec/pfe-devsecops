@@ -1,0 +1,42 @@
+# Nœud de contrôle d'un PARC NEUF : serveur k3s (docs/PARC.md, « Parc entièrement neuf »).
+# Appelé seulement si k3s n'est pas déjà actif sur ce nœud (voir site.yml) : un nœud de contrôle existant
+# n'est jamais réinstallé ni modifié.
+
+- name: Version de k3s attendue
+  ansible.builtin.assert:
+    that: parc_k3s_version is match('^v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+$')
+    fail_msg: "parc_k3s_version invalide : {{ parc_k3s_version }}"
+    quiet: true
+
+- name: Dossier des outils
+  ansible.builtin.file:
+    path: /usr/local/lib/pfe
+    state: directory
+    mode: "0755"
+
+- name: Script d'installation officiel de k3s, figé sur la version choisie
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ parc_k3s_version | replace('+', '%2B') }}/install.sh"
+    dest: /usr/local/lib/pfe/k3s-install.sh
+    mode: "0755"
+
+- name: Installation du serveur k3s (fichier d'accès au cluster lisible par root seul)
+  ansible.builtin.command: /usr/local/lib/pfe/k3s-install.sh server --write-kubeconfig-mode 0600
+  environment:
+    INSTALL_K3S_VERSION: "{{ parc_k3s_version }}"
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: Service k3s actif
+  ansible.builtin.systemd_service:
+    name: k3s
+    state: started
+    enabled: true
+
+- name: Nœud de contrôle prêt
+  ansible.builtin.command: k3s kubectl wait --for=condition=Ready node --all --timeout=300s
+  changed_when: false
+  retries: 5
+  delay: 15
+  register: k3s_ctl_pret
+  until: k3s_ctl_pret.rc == 0

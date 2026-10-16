@@ -1,0 +1,12 @@
+# Extensions de Jenkins (versions compatibles avec Jenkins 2.568.2, choisies par jenkins-plugin-cli à la construction)
+configuration-as-code
+job-dsl
+workflow-aggregator
+pipeline-stage-view
+git
+github
+credentials-binding
+sonar
+timestamper
+build-timeout
+ws-cleanup

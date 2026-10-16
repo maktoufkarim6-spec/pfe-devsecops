@@ -1,0 +1,7 @@
+# Configuration ou identifiants modifiés : Jenkins redémarré pour relire sa configuration (Configuration as Code)
+- name: Recharger Jenkins
+  community.docker.docker_container:
+    name: jenkins
+    state: started
+    restart: true
+  failed_when: false    # premier passage : le conteneur n'existe pas encore, il sera créé avec la configuration

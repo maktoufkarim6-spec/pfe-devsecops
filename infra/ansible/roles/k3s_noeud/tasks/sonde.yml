@@ -1,0 +1,17 @@
+# Sonde de la découverte rejouée sur ce serveur (lecture seule) : faits k3s_sonde, k3s_conteneurs_etrangers, k3s_ports_etrangers.
+
+- name: État du serveur (sonde lecture seule de la découverte)
+  ansible.builtin.script: "{{ playbook_dir }}/../outils/sonde_serveur.sh"
+  register: k3s_sonde_brute
+  changed_when: false
+
+- name: Lecture de la sonde
+  ansible.builtin.set_fact:
+    k3s_sonde: "{{ k3s_sonde_brute.stdout_lines | last | from_json }}"
+    # Conteneurs et ports que la plateforme elle-même a déjà pu poser (déploiement précédent interrompu)
+    k3s_conteneurs_etrangers: >-
+      {{ (k3s_sonde_brute.stdout_lines | last | from_json).conteneurs.split()
+         | reject('in', ['node-exporter', 'cadvisor', 'cadvisor-k3s']) | list }}
+    k3s_ports_etrangers: >-
+      {{ (k3s_sonde_brute.stdout_lines | last | from_json).services_ecoute.split() | map('int')
+         | reject('in', [22, 53, port_node_exporter, port_cadvisor, port_cadvisor_k3s]) | list }}

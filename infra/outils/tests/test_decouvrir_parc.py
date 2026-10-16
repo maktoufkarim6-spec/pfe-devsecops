@@ -108,3 +108,51 @@ def test_exploration_complete_simulee(tmp_path):
     res = d.explorer(c, "/cle", str(tmp_path / "kh"), {}, executer=executer, ouvert=lambda ip, port: ip != "10.0.0.4")
     assert [(r["adresse"], r["etat"]) for r in res] == [
         ("10.0.0.1", "vide"), ("10.0.0.2", "cle_refusee"), ("10.0.0.3", "erreur"), ("10.0.0.4", "inaccessible")]
+
+
+# ------------------------------------------------------------------ parc entièrement neuf
+def serveur(ip, etat="vide", ram=3800, raison="ok"):
+    return {"adresse": ip, "inventaire": "", "etat": etat, "raison": raison, "sonde": avec(ram_mo=ram)}
+
+
+def test_parc_neuf_roles_automatiques():
+    res = [serveur("10.0.0.1"),                      # ce serveur : supervision
+           serveur("10.0.0.2", ram=3800), serveur("10.0.0.3", ram=7600), serveur("10.0.0.4", ram=3800),
+           serveur("10.0.0.5", "occupe", raison="conteneurs : wordpress")]
+    p = d.plan_parc_neuf(res, "10.0.0.1", VIDE, CONF, "2026-10-16")
+    assert p["statut"] == "pret"
+    assert [(x["nom"], x["adresse"]) for x in p["plan"]] == [
+        ("supervision", "10.0.0.1"), ("app-1", "10.0.0.3"), ("app-2", "10.0.0.2"), ("app-3", "10.0.0.4")]
+    assert "contrôle" in p["plan"][1]["role"]                     # le plus de RAM : nœud de contrôle
+    inv = p["inventaire"]
+    assert inv.startswith("# parc-neuf : ") and "provisoire" not in inv
+    assert "supervision ansible_host=10.0.0.1 ansible_connection=local node_name=monitoring node_app=false" in inv
+    assert "app-1 ansible_host=10.0.0.3 node_name=app-1 node_app=true k3s_server=true" in inv
+    assert inv.count("k3s_server=true") == 1 and "10.0.0.5" not in inv   # le serveur occupé n'est jamais pris
+    assert "10.0.0.5 (occupe" in p["message"]
+
+
+def test_parc_neuf_cles_a_poser_d_abord():
+    res = [serveur("10.0.0.2"), serveur("10.0.0.3", "cle_refusee")]
+    p = d.plan_parc_neuf(res, "10.0.0.1", VIDE, CONF)
+    assert p["statut"] == "cles" and "10.0.0.3" in p["message"]
+    assert p["inventaire"].startswith("# parc-neuf-provisoire")
+    assert "k3s_server" not in p["inventaire"]                     # aucun rôle tant que tout n'est pas sondé
+    assert "ansible_host=10.0.0.3" in p["inventaire"] and "ansible_host=10.0.0.2" in p["inventaire"]
+
+
+@pytest.mark.parametrize("res, soi, motif", [
+    ([serveur("10.0.0.2")], avec(conteneurs="nginx"), "pas vide"),          # ce serveur n'est pas vide
+    ([serveur("10.0.0.2", "occupe")], VIDE, "aucun autre serveur vide"),   # pas de candidat pour le contrôle
+    ([], VIDE, "aucun autre serveur vide"),
+])
+def test_parc_neuf_refus(res, soi, motif):
+    p = d.plan_parc_neuf(res, "10.0.0.1", soi, CONF)
+    assert p["statut"] == "erreur" and motif in p["message"] and p["inventaire"] == ""
+
+
+def test_parc_neuf_ce_serveur_ignore_dans_les_resultats():
+    """La découverte sonde aussi l'adresse de ce serveur : elle ne doit jamais devenir un nœud."""
+    p = d.plan_parc_neuf([serveur("10.0.0.1", "cle_refusee"), serveur("10.0.0.2")], "10.0.0.1", VIDE, CONF)
+    assert p["statut"] == "pret" and "app-1 ansible_host=10.0.0.2" in p["inventaire"]
+    assert p["inventaire"].count("10.0.0.1") == 1

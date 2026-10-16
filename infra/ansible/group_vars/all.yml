@@ -29,6 +29,17 @@ ansible_ssh_private_key_file: "{{ cle_parc }}"
 # Serveur de supervision (seule adresse autorisée à lire les collecteurs des nœuds)
 monitoring_ip: "{{ hostvars[groups['monitoring'][0]].ansible_host }}"
 
+# Parc NEUF : versions installées sur un nœud de contrôle vide (docs/PARC.md). Ce sont celles du premier parc,
+# relevées le 16/10/2026 ; un nœud de contrôle existant n'est jamais modifié.
+parc_k3s_version: v1.36.4+k3s1
+parc_argocd_version: v3.5.2
+parc_jenkins_tag: "2.568.2-1"                      # image pfe-jenkins (Jenkins 2.568.2 LTS, plateforme v1)
+parc_sonarqube_image: sonarqube:26.8.0.126808-community
+parc_postgres_image: postgres:16
+parc_sonar_scanner_version: "8.1.0.6389"
+parc_vault: true                                   # Vault en mode développement (comme le premier parc)
+parc_vault_image: hashicorp/vault:2.2.0
+
 # Images (versions figées ; cAdvisor « latest » requis pour le stockage containerd de Docker récent)
 image_node_exporter: quay.io/prometheus/node-exporter:v1.8.2
 image_cadvisor: gcr.io/cadvisor/cadvisor:latest

@@ -8,6 +8,8 @@
 # Parc de serveurs (docs/PARC.md) :
 #   bash deploy.sh --decouvrir             explore les adresses de infra/parc.yml (lecture seule)
 #   bash deploy.sh --ajouter <adresse>     ajoute un serveur VIDE au parc (après confirmation), puis : bash deploy.sh
+#   bash deploy.sh --nouveau-parc          parc ENTIÈREMENT NEUF : ce serveur devient la supervision, les serveurs
+#                                          vides de infra/parc.yml le nœud de contrôle (le plus de RAM) et les nœuds
 # Relançable sans risque : chaque étape ne change que ce qui diffère de l'état voulu.
 set -euo pipefail
 MODE=deploiement
@@ -16,6 +18,7 @@ case "${1:-}" in
   --fermer-mots-de-passe) MODE=fermer; shift ;;
   --decouvrir) MODE=decouvrir; shift ;;
   --ajouter) MODE=ajouter; AJOUT=${2:-}; shift 2 || shift ;;
+  --nouveau-parc) MODE=nouveau; shift ;;
 esac
 # Serveurs ajoutés par --ajouter : inventaire propre au serveur de supervision (hors Git), lu en plus du dépôt
 PARC_DIR="$HOME/.pfe-parc"
@@ -85,10 +88,53 @@ print("|".join([r["etat"], r["raison"], r.get("empreinte", ""), p]))' "$AJOUT")
   exit 0
 fi
 
-# Inventaires : celui du dépôt, plus les serveurs ajoutés sur ce serveur de supervision
-INVENTAIRES=(-i inventory.ini)
-[ -s "$PARC_INV" ] && INVENTAIRES+=(-i "$PARC_INV")
-hotes() { cat inventory.ini "$PARC_INV" 2>/dev/null | grep -v 'ansible_connection=local' | grep -v '^[[:space:]]*#' \
+if [ "$MODE" = nouveau ]; then
+  echo "== Parc entièrement neuf : ce serveur devient la supervision =="
+  if grep -q '^# parc-neuf :' "$PARC_INV" 2>/dev/null; then
+    echo "Un parc neuf est déjà défini ($PARC_INV) :"; sed 's/^/    /' "$PARC_INV"
+    read -rp "Le recalculer (les serveurs déjà installés ne sont pas réinstallés) ? (oui/non) " OK
+    [ "$OK" = "oui" ] || exit 0
+  elif [ -s "$PARC_INV" ] && ! grep -q '^# parc-neuf' "$PARC_INV"; then
+    echo "$PARC_INV contient des serveurs ajoutés au parc actuel (--ajouter) : parc neuf impossible ici."; exit 1
+  fi
+  SOI=$(ip -4 route get 1.1.1.1 2>/dev/null | grep -o 'src [0-9.]*' | cut -d' ' -f2)
+  [ -n "$SOI" ] || { echo "Adresse IPv4 de ce serveur introuvable."; exit 1; }
+  bash "$SRC/infra/outils/sonde_serveur.sh" > "$PARC_DIR/sonde-locale.json"
+  plan=$("${DECOUVRIR[@]}" --parc-neuf "$SOI" --sonde-locale "$PARC_DIR/sonde-locale.json") || exit 1
+  printf '%s' "$plan" | "$VENV/bin/python" -c '
+import json, sys
+p = json.load(sys.stdin)
+print("  statut : " + p["statut"])
+for x in p["plan"]:
+    print("  %-12s %-16s %s" % (x["nom"], x["adresse"], x["role"]))
+if p["message"]:
+    print("  " + p["message"])'
+  statut=$(printf '%s' "$plan" | "$VENV/bin/python" -c 'import json,sys; print(json.load(sys.stdin)["statut"])')
+  [ "$statut" != erreur ] || exit 1
+  if [ "$statut" = cles ]; then
+    printf '%s' "$plan" | "$VENV/bin/python" -c 'import json,sys; sys.stdout.write(json.load(sys.stdin)["inventaire"])' > "$PARC_INV"
+    echo "Inventaire provisoire écrit ($PARC_INV). Suite : bash deploy.sh --cles, puis bash deploy.sh --nouveau-parc"
+    exit 0
+  fi
+  read -rp "Adopter ce plan (rien n'est installé avant « bash deploy.sh ») ? (oui/non) " OK
+  [ "$OK" = "oui" ] || { echo "Abandon, rien n'a été modifié."; exit 1; }
+  printf '%s' "$plan" | "$VENV/bin/python" -c 'import json,sys; sys.stdout.write(json.load(sys.stdin)["inventaire"])' > "$PARC_INV"
+  echo "Plan adopté ($PARC_INV). Suite : bash deploy.sh (installe le nœud de contrôle, la supervision, puis les nœuds)."
+  exit 0
+fi
+
+# Inventaires. Parc neuf (--nouveau-parc) : son inventaire SEUL, celui du dépôt décrit le premier parc.
+# Sinon : celui du dépôt, plus les serveurs ajoutés sur ce serveur de supervision (--ajouter).
+if grep -q '^# parc-neuf' "$PARC_INV" 2>/dev/null; then
+  FICHIERS_INV=("$PARC_INV")
+  if grep -q '^# parc-neuf-provisoire' "$PARC_INV" && [ "$MODE" = deploiement ]; then
+    echo "Parc neuf encore provisoire : bash deploy.sh --cles, puis bash deploy.sh --nouveau-parc."; exit 1
+  fi
+else
+  FICHIERS_INV=(inventory.ini); [ -s "$PARC_INV" ] && FICHIERS_INV+=("$PARC_INV")
+fi
+INVENTAIRES=(); for f in "${FICHIERS_INV[@]}"; do INVENTAIRES+=(-i "$f"); done
+hotes() { cat "${FICHIERS_INV[@]}" 2>/dev/null | grep -v 'ansible_connection=local' | grep -v '^[[:space:]]*#' \
             | grep -o 'ansible_host=[0-9.]*' | cut -d= -f2; }
 
 echo "== 4/5 État actuel du serveur de supervision =="
@@ -99,7 +145,7 @@ mkdir -p ~/.ssh && chmod 700 ~/.ssh
 for h in $(hotes); do
   ssh-keygen -F "$h" >/dev/null || ssh-keyscan -H "$h" >> ~/.ssh/known_hosts 2>/dev/null
 done
-MONITORING_IP=$(grep 'ansible_connection=local' inventory.ini | grep -o 'ansible_host=[0-9.]*' | cut -d= -f2)
+MONITORING_IP=$(grep -h 'ansible_connection=local' "${FICHIERS_INV[@]}" | grep -o 'ansible_host=[0-9.]*' | head -1 | cut -d= -f2)
 
 # Connexion aux nœuds : par la clé du parc si elle est acceptée partout, sinon par mot de passe
 CLE="$HOME/.ssh/pfe_parc"
@@ -148,6 +194,17 @@ case "$MODE" in
       read -rsp "Mot de passe d'application Gmail (non affiché) : " PFE_SMTP_PASSWORD; echo
       export PFE_SMTP_PASSWORD
       EXTRA=(-e "alert_email_to=$MAIL" -e "alert_email_from=$FROM")
+    fi
+    # Parc neuf dont le nœud de contrôle n'est pas encore installé : identifiants de Jenkins (jamais écrits dans Git)
+    CTL=$(grep -h 'k3s_server=true' "${FICHIERS_INV[@]}" | grep -o 'ansible_host=[0-9.]*' | head -1 | cut -d= -f2)
+    if [ "${FICHIERS_INV[0]}" = "$PARC_INV" ] && [ -n "$CTL" ] \
+       && ! ssh -i "$CLE" -o BatchMode=yes -o ConnectTimeout=10 "debian@$CTL" systemctl is-active --quiet k3s 2>/dev/null; then
+      echo "Nœud de contrôle $CTL à installer : identifiants pour Jenkins (non affichés, conservés sur ce nœud seulement)."
+      read -rp "  Compte Docker Hub : " PFE_DOCKERHUB_USER
+      read -rsp "  Jeton d'accès Docker Hub : " PFE_DOCKERHUB_TOKEN; echo
+      read -rp "  Compte GitHub : " PFE_GITHUB_USER
+      read -rsp "  Jeton GitHub (droit Contents: Read and write sur le dépôt) : " PFE_GITHUB_TOKEN; echo
+      export PFE_DOCKERHUB_USER PFE_DOCKERHUB_TOKEN PFE_GITHUB_USER PFE_GITHUB_TOKEN
     fi
     PLAYBOOK=site.yml ;;
 esac

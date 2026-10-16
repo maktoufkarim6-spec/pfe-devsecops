@@ -173,6 +173,42 @@ def propositions(resultats, connus):
     return out
 
 
+def plan_parc_neuf(resultats, soi_ip, soi_sonde, conf, date=""):
+    """Parc ENTIÈREMENT NEUF : rôles attribués automatiquement. Ce serveur (soi) devient la supervision ; parmi les
+    autres serveurs vides, celui qui a le plus de RAM devient le nœud de contrôle, les autres des nœuds applicatifs.
+    Renvoie {statut: pret | cles | erreur, message, inventaire, plan}. Fonction pure (aucun accès réseau)."""
+    etat_soi, raison_soi = classer(soi_sonde, conf)
+    if etat_soi != "vide":
+        return {"statut": "erreur", "message": f"ce serveur ({soi_ip}) n'est pas vide : {raison_soi}", "inventaire": "", "plan": []}
+    autres = [r for r in resultats if r["adresse"] != soi_ip]
+    sans_cle = [r["adresse"] for r in autres if r["etat"] == "cle_refusee"]
+    vides = [r for r in autres if r["etat"] == "vide"]
+    ignores = [f"{r['adresse']} ({r['etat']} : {r['raison']})" for r in autres if r["etat"] not in ("vide", "cle_refusee")]
+    entete = (f"# parc-neuf{'-provisoire' if sans_cle else ''} : généré par deploy.sh --nouveau-parc {date}\n"
+              "# Inventaire propre à ce serveur de supervision : il remplace infra/ansible/inventory.ini (premier parc).\n")
+    sup = f"[monitoring]\nsupervision ansible_host={soi_ip} ansible_connection=local node_name=monitoring node_app=false\n"
+    pied = f"\n[all:vars]\nansible_user={conf.get('utilisateur_ssh', 'debian')}\n"
+    if sans_cle:
+        noeuds = [f"app-{i} ansible_host={ip} node_name=app-{i} node_app=true" for i, ip in enumerate(sans_cle + [r["adresse"] for r in vides], 1)]
+        return {"statut": "cles", "plan": [], "inventaire": entete + sup + "\n[nodes]\n" + "\n".join(noeuds) + "\n" + pied,
+                "message": f"clé du parc à poser d'abord sur : {', '.join(sans_cle)} (bash deploy.sh --cles, mot de passe demandé "
+                           "une fois), puis relancer bash deploy.sh --nouveau-parc"}
+    if not vides:
+        return {"statut": "erreur", "message": "aucun autre serveur vide dans plages_autorisees : il faut au moins un nœud de contrôle"
+                + (f" (ignorés : {'; '.join(ignores)})" if ignores else ""), "inventaire": "", "plan": []}
+    ordre = sorted(vides, key=lambda r: (-int(r["sonde"].get("ram_mo") or 0), [int(x) for x in r["adresse"].split(".")]))
+    plan = [{"nom": "supervision", "adresse": soi_ip, "role": "supervision (ce serveur)"}]
+    lignes = []
+    for i, r in enumerate(ordre, 1):
+        controle = i == 1
+        lignes.append(f"app-{i} ansible_host={r['adresse']} node_name=app-{i} node_app=true" + (" k3s_server=true" if controle else ""))
+        plan.append({"nom": f"app-{i}", "adresse": r["adresse"],
+                     "role": ("nœud de contrôle : k3s, Argo CD, Jenkins, SonarQube" if controle else "nœud applicatif")
+                     + f" ({r['sonde'].get('ram_mo')} Mo)"})
+    return {"statut": "pret", "plan": plan, "message": ("ignorés : " + "; ".join(ignores)) if ignores else "",
+            "inventaire": entete + sup + "\n[nodes]\n" + "\n".join(lignes) + "\n" + pied}
+
+
 def metriques(resultats):
     lignes = ["# HELP pfe_parc_serveur 1 par adresse explorée ; etat : vide, applicatif, occupe, inaccessible...",
               "# TYPE pfe_parc_serveur gauge"]
@@ -200,10 +236,22 @@ def main(argv=None):
                     default=[os.path.join(INFRA, "ansible", "inventory.ini"), os.path.expanduser("~/.pfe-parc/inventaire.ini")])
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--metriques")
+    ap.add_argument("--parc-neuf", metavar="ADRESSE_DE_CE_SERVEUR", help="plan d'un parc entièrement neuf (JSON)")
+    ap.add_argument("--sonde-locale", help="résultat de sonde_serveur.sh exécutée sur ce serveur (avec --parc-neuf)")
     a = ap.parse_args(argv)
     conf = lire_conf(a.conf)
     os.makedirs(os.path.dirname(a.known_hosts), mode=0o700, exist_ok=True)
     connus = inventaire_connu(*a.inventaire)
+    if a.parc_neuf:
+        ipaddress.ip_address(a.parc_neuf)
+        if not any(ipaddress.ip_address(a.parc_neuf) in r for r in conf["_reseaux"]):
+            raise ValueError(f"{a.parc_neuf} (ce serveur) n'est pas dans plages_autorisees")
+        res = explorer(conf, a.cle, a.known_hosts, {})
+        with open(a.sonde_locale, encoding="utf-8") as f:
+            soi = json.load(f)
+        import datetime
+        print(json.dumps(plan_parc_neuf(res, a.parc_neuf, soi, conf, datetime.date.today().isoformat()), ensure_ascii=False))
+        return 0
     res = explorer(conf, a.cle, a.known_hosts, connus)
     if a.metriques:
         ecrire_atomique(a.metriques, metriques(res))
