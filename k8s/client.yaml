@@ -19,7 +19,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - {key: kubernetes.io/hostname, operator: Exists}  # noeuds-choisis
+                  - {key: pfe.noeud, operator: In, values: [app-1]}  # noeuds-choisis
       # Une copie par noeud choisi (repartition, sans bloquer si un noeud manque)
       topologySpreadConstraints:
         - maxSkew: 1
@@ -31,7 +31,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: client
-          image: kariimm557/app-cobaye-client:64-b680b62
+          image: kariimm557/app-cobaye-client:66-2bfd218
           ports:
             - containerPort: 8080
           securityContext:
