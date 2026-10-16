@@ -111,6 +111,30 @@ groups:
             Argo CD remet les pods manquants seul (self-heal). Si l'alerte dure : Argo CD (état de app-{{ $labels.application }}),
             puis k3s kubectl -n {{ $labels.application }} get pods sur le nœud de contrôle.
 
+  - name: parc
+    rules:
+      # Découverte horaire des adresses de infra/parc.yml (lecture seule) : un serveur vide attend d'être ajouté
+      - alert: ServeurVideDetecte
+        expr: pfe_parc_serveur{etat="vide",inventaire=""} == 1
+        labels:
+          severity: info
+          source: parc
+        annotations:
+          summary: "Serveur vide disponible : {{ $labels.adresse }}"
+          description: "Proposé comme nouveau nœud applicatif. Sur le serveur de supervision : bash deploy.sh --ajouter {{ $labels.adresse }}"
+      - alert: DecouverteParcEnRetard
+        # Date du fichier écrit par la découverte (une métrique de fichier texte, elle, paraît toujours fraîche)
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*pfe_parc.prom"} > 3 * 3600
+          or absent(node_textfile_mtime_seconds{file=~".*pfe_parc.prom"})
+        for: 30m
+        labels:
+          severity: warning
+          source: parc
+        annotations:
+          summary: "La découverte du parc ne s'est pas exécutée depuis plus de 3 h"
+          description: "journalctl -u pfe-parc sur le serveur de supervision."
+
   - name: collecteurs
     rules:
       - alert: CollecteurArrete

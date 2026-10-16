@@ -1,0 +1,20 @@
+# Parc de serveurs : adresses que la plateforme a le droit d'explorer (docs/PARC.md).
+# La découverte ne contacte QUE ces adresses : sur un hébergeur (OVH), les autres appartiennent à d'autres
+# clients et les sonder serait interdit. Elle ne fait que lire (aucune installation) : port SSH, puis
+# connexion par la clé du parc et lecture de l'état du serveur.
+#
+# Un serveur vide trouvé ici est proposé comme nouveau nœud applicatif : il n'est équipé qu'après
+# confirmation (bash deploy.sh --ajouter <adresse>).
+
+plages_autorisees:
+  - 57.129.142.176/32     # app-1 (nœud de contrôle k3s)
+  - 54.37.13.100/32       # supervision
+  # - 51.38.0.10/32       # exemple : un nouveau VPS (une ligne par adresse, ou un réseau privé OVH /24)
+
+utilisateur_ssh: debian
+port_ssh: 22
+
+# Un serveur est « compatible » s'il respecte ces minimums
+systemes: ["debian 12", "debian 13"]
+ram_min_mo: 1800
+disque_libre_min_go: 10

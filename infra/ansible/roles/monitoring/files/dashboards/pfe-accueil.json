@@ -1029,14 +1029,92 @@
       }
     },
     {
+      "type": "stat",
+      "title": "Parc (découverte toutes les heures)",
+      "id": 18,
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "pfe_parc_serveur",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{adresse}} : {{etat}}"
+        }
+      ],
+      "description": "Adresses de infra/parc.yml explorées en lecture seule. « vide » : serveur disponible, à ajouter avec bash deploy.sh --ajouter <adresse> sur le serveur de supervision (voir docs/PARC.md).",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "links": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*: vide"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
       "type": "row",
       "title": "Auto-réparation, sauvegardes et alertes",
-      "id": 18,
+      "id": 19,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 34
       },
       "collapsed": false,
       "panels": []
@@ -1044,12 +1122,12 @@
     {
       "type": "stat",
       "title": "Agent",
-      "id": 19,
+      "id": 20,
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 32
+        "y": 35
       },
       "datasource": {
         "type": "prometheus",
@@ -1131,12 +1209,12 @@
     {
       "type": "stat",
       "title": "Réparations (24 h)",
-      "id": 20,
+      "id": 21,
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 32
+        "y": 35
       },
       "datasource": {
         "type": "prometheus",
@@ -1197,12 +1275,12 @@
     {
       "type": "stat",
       "title": "Dernière sauvegarde",
-      "id": 21,
+      "id": 22,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 8,
-        "y": 32
+        "y": 35
       },
       "datasource": {
         "type": "prometheus",
@@ -1272,12 +1350,12 @@
     {
       "type": "stat",
       "title": "Test de restauration",
-      "id": 22,
+      "id": 23,
       "gridPos": {
         "h": 4,
         "w": 5,
         "x": 14,
-        "y": 32
+        "y": 35
       },
       "datasource": {
         "type": "prometheus",
@@ -1352,12 +1430,12 @@
     {
       "type": "stat",
       "title": "Alertes en cours",
-      "id": 23,
+      "id": 24,
       "gridPos": {
         "h": 4,
         "w": 5,
         "x": 19,
-        "y": 32
+        "y": 35
       },
       "datasource": {
         "type": "prometheus",
@@ -1426,12 +1504,12 @@
     {
       "type": "row",
       "title": "Évaluation par injection de pannes",
-      "id": 24,
+      "id": 25,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 36
+        "y": 39
       },
       "collapsed": false,
       "panels": []
@@ -1439,12 +1517,12 @@
     {
       "type": "text",
       "title": "",
-      "id": 25,
+      "id": 26,
       "gridPos": {
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 37
+        "y": 40
       },
       "options": {
         "mode": "markdown",

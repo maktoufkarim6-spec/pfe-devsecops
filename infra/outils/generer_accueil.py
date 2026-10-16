@@ -138,6 +138,13 @@ panels.append(stat("Détection par l'IA", 18, y, 6, 4, [tgt('max by (node) (aiop
                    "Moteur AIOps (z-score robuste + Isolation Forest), un modèle par serveur.",
                    mappings=val({"0": ("normal", "green"), "1": ("ANOMALIE", "orange")}), steps=[{"color": "green", "value": None}]))
 y += 4
+panels.append(stat("Parc (découverte toutes les heures)", 0, y, 24, 3,
+    [tgt('pfe_parc_serveur', "{{adresse}} : {{etat}}")],
+    "Adresses de infra/parc.yml explorées en lecture seule. « vide » : serveur disponible, à ajouter avec "
+    "bash deploy.sh --ajouter <adresse> sur le serveur de supervision (voir docs/PARC.md).", text_mode="name",
+    overrides=[{"matcher": {"id": "byRegexp", "options": ".*: vide"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]}]))
+y += 3
 panels.append(row("Auto-réparation, sauvegardes et alertes", y))
 y += 1
 panels.append(stat("Agent", 0, y, 4, 4, [tgt('max(pfe_agent_mode) + 2 * max(pfe_agent_suspended) or vector(-1)')],

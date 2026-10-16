@@ -1,0 +1,102 @@
+# Serveur vide -> nœud applicatif du cluster k3s existant (docs/PARC.md).
+# Lancé pour chaque nœud applicatif de l'inventaire qui n'est pas le nœud de contrôle. Ne fait rien sur un nœud
+# déjà agent k3s. Refuse un serveur qui n'est pas vide (autre chose y tourne) : la sonde de la découverte est
+# rejouée ici, juste avant d'installer quoi que ce soit.
+
+- name: État du serveur (sonde lecture seule de la découverte)
+  ansible.builtin.script: "{{ playbook_dir }}/../outils/sonde_serveur.sh"
+  register: k3s_sonde_brute
+  changed_when: false
+
+- name: Lecture de la sonde
+  ansible.builtin.set_fact:
+    k3s_sonde: "{{ k3s_sonde_brute.stdout_lines | last | from_json }}"
+    # Conteneurs et ports que la plateforme elle-même a déjà pu poser (déploiement précédent interrompu)
+    k3s_conteneurs_etrangers: >-
+      {{ (k3s_sonde_brute.stdout_lines | last | from_json).conteneurs.split()
+         | reject('in', ['node-exporter', 'cadvisor', 'cadvisor-k3s']) | list }}
+    k3s_ports_etrangers: >-
+      {{ (k3s_sonde_brute.stdout_lines | last | from_json).services_ecoute.split() | map('int')
+         | reject('in', [22, 53, port_node_exporter, port_cadvisor, port_cadvisor_k3s]) | list }}
+
+- name: Rejoindre le cluster
+  when: not k3s_sonde.k3s_agent
+  block:
+    - name: "Serveur vide et compatible, sinon rien n'est installé"
+      ansible.builtin.assert:
+        that:
+          - not k3s_sonde.k3s_serveur
+          - k3s_conteneurs_etrangers | length == 0
+          - k3s_ports_etrangers | length == 0
+          - k3s_sonde.systeme in ['debian 12', 'debian 13']
+          - k3s_sonde.ram_mo | int >= 1800
+        fail_msg: >-
+          {{ inventory_hostname }} ({{ ansible_host }}) n'est pas un serveur vide compatible : rien n'est installé.
+          Système {{ k3s_sonde.systeme }}, {{ k3s_sonde.ram_mo }} Mo, conteneurs {{ k3s_conteneurs_etrangers }},
+          ports {{ k3s_ports_etrangers }}{{ ', déjà nœud de contrôle k3s' if k3s_sonde.k3s_serveur else '' }}.
+          Retirer la ligne de l'inventaire, ou libérer le serveur.
+
+    - name: Version de k3s du cluster (le nouveau nœud prend exactement la même)
+      ansible.builtin.command: k3s --version
+      delegate_to: "{{ k3s_server_host }}"
+      register: k3s_version_ctl
+      changed_when: false
+
+    - name: Jeton d'entrée dans le cluster (lu sur le nœud de contrôle, jamais affiché)
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      delegate_to: "{{ k3s_server_host }}"
+      register: k3s_jeton
+      no_log: true
+
+    - name: Paramètres
+      ansible.builtin.set_fact:
+        k3s_version: "{{ k3s_version_ctl.stdout_lines[0].split()[2] }}"
+        k3s_url: "https://{{ hostvars[k3s_server_host].ansible_host }}:6443"
+
+    - name: Version lisible
+      ansible.builtin.assert:
+        that: k3s_version is match('^v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+$')
+        fail_msg: "version de k3s inattendue sur le nœud de contrôle : {{ k3s_version }}"
+        quiet: true
+
+    - name: L'API du cluster est joignable depuis ce serveur (port 6443 du nœud de contrôle)
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[k3s_server_host].ansible_host }}"
+        port: 6443
+        timeout: 15
+
+    - name: Dossier des outils
+      ansible.builtin.file:
+        path: /usr/local/lib/pfe
+        state: directory
+        mode: "0755"
+
+    - name: Script d'installation officiel de k3s, figé sur la version du cluster
+      ansible.builtin.get_url:
+        url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_version | replace('+', '%2B') }}/install.sh"
+        dest: /usr/local/lib/pfe/k3s-install.sh
+        mode: "0755"
+
+    - name: Installation de l'agent k3s (rejoint le cluster)
+      ansible.builtin.command: /usr/local/lib/pfe/k3s-install.sh agent
+      environment:
+        INSTALL_K3S_VERSION: "{{ k3s_version }}"
+        K3S_URL: "{{ k3s_url }}"
+        K3S_TOKEN: "{{ k3s_jeton.content | b64decode | trim }}"
+      no_log: true
+      register: k3s_install
+
+    - name: Nœud prêt dans le cluster (vu depuis le nœud de contrôle)
+      ansible.builtin.command: >-
+        k3s kubectl wait --for=condition=Ready node/{{ ansible_nodename | lower }} --timeout=180s
+      delegate_to: "{{ k3s_server_host }}"
+      changed_when: false
+      retries: 3
+      delay: 10
+      register: k3s_pret
+      until: k3s_pret.rc == 0
+
+    - name: Nouveau nœud
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} a rejoint le cluster ({{ k3s_version }}) : il apparaît dans le champ NOEUDS de Jenkins."

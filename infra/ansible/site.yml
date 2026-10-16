@@ -38,6 +38,15 @@
   become: true
   roles: [docker]
 
+- name: Nouveaux nœuds applicatifs -> cluster k3s (serveur vide seulement, voir docs/PARC.md)
+  hosts: nodes
+  become: true
+  tasks:
+    - name: Rejoindre le cluster du nœud de contrôle (rien à faire sur un nœud déjà agent k3s)
+      ansible.builtin.include_role:
+        name: k3s_noeud
+      when: node_app | bool and inventory_hostname != k3s_server_host
+
 - name: Serveur de supervision
   hosts: monitoring
   become: true
