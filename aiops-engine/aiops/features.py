@@ -18,6 +18,7 @@ Profil de l'application cobaye (pour superviser une autre application, sans chan
   AIOPS_APP_DB (conteneur de la base, défaut postgres). Les noms internes des variables
   (cpu_server, ram_server_mb, ram_postgres_mb) restent fixes : « server » désigne l'API, « postgres » la base.
 """
+import hashlib
 import json
 import os
 import re
@@ -99,10 +100,12 @@ def build_app_features(app, composants, base=False, web=True):
     out.append(("app_containers", f'count(count by (container_label_io_kubernetes_container_name) (container_memory_working_set_bytes{{{ns},container_label_io_kubernetes_container_name!="",container_label_io_kubernetes_container_name!="POD"}})) or vector(0)',
                 0, 1000, 0.5, "both", INF))
     if web:
+        # Sans « or vector(0) » : avant la création de la sonde, il n'y a PAS de mesure (et non « 0 ») ;
+        # l'apprentissage ne garde que les instants où toutes les variables existent.
         probe = f'job="applications",application="{app}"'
         out += [
-            ("web_ok", f'min(probe_success{{{probe}}}) or vector(0)', 0, 1, 0.5, "down", INF),
-            ("web_ms", f'(max(probe_duration_seconds{{{probe}}}) * 1000) or vector(0)', 0, 60000, 200, "up", INF),
+            ("web_ok", f'min(probe_success{{{probe}}})', 0, 1, 0.5, "down", INF),
+            ("web_ms", f'max(probe_duration_seconds{{{probe}}}) * 1000', 0, 60000, 200, "up", INF),
         ]
     return [Feature(*f) for f in out]
 
@@ -171,6 +174,11 @@ class Target:
     def legacy(self):
         """Mode historique (un seul serveur) : noms de fichiers inchangés."""
         return self.kind == "node" and self.node is None
+
+    @property
+    def signature(self):
+        """Empreinte des formules des variables : un modèle appris avec d'autres formules n'est pas réutilisé."""
+        return hashlib.sha256("\n".join(f.expr for f in self.features).encode()).hexdigest()[:16]
 
     @property
     def forecasts(self):

@@ -79,6 +79,18 @@ plateforme rendue réutilisable (`docs/REUTILISER.md`).
    écrits et testés en local (`docs/APPLICATIONS.md`), **à mettre en service** avec `deploy.sh`.
    Phases suivantes : pipeline Jenkins commun, découverte des serveurs vides, installation d'un parc vide.
 
+## Incidents corrigés le 16/10/2026
+
+- **Copies de sauvegarde de la supervision vers app-1 refusées depuis le 13/10** : liste des clés autorisées
+  vide sur app-1. Cause : Ansible 2.18 renvoie la formule brute de `backup_peer` quand un autre nœud la lit.
+  Corrigé (`backup_pair` calculé par chaque nœud), puis relancer `deploy.sh`. Les sauvegardes locales des deux
+  serveurs et la copie app-1 → supervision n'étaient pas touchées.
+- **IA des applications aveugle sur la disponibilité** : le modèle de `demo-podinfo` avait appris
+  `web_ok = 0` sur les heures d'avant la création de la sonde. Corrigé (moteur 3.2.1) : ces heures sont
+  ignorées, et un modèle appris avec d'autres formules n'est pas rechargé.
+- Tests Ansible désormais faits avec **ansible-core 2.18**, la version de production : 2.18 et 2.21 ne se
+  comportent pas pareil.
+
 ## Règles de travail
 
 - Ne jamais écrire de mot de passe, token ou secret dans Git (dépôt public) ni dans un fichier non protégé.
