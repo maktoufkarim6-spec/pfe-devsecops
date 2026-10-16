@@ -138,6 +138,21 @@ Ensuite :
 cas d'échec, il retente toutes les 5 minutes, et l'alerte `SynchronisationEchouee` part au bout de 15 minutes.
 Son journal : `~/.pfe-parc/sync.log`.
 
+## Suivre les déploiements dans Grafana
+
+La section **Déploiements** de l'accueil Grafana (« PFE - Accueil ») montre, pour toutes les applications :
+
+| Tuile | Ce qu'elle montre | D'où ça vient |
+|---|---|---|
+| Version en ligne | l'image qui tourne vraiment pour chaque composant ; vert si toutes les copies sont prêtes, orange si une partie seulement | `pfe-etat-cluster`, chaque minute sur le nœud de contrôle |
+| Argo CD | Synced (cluster identique au dépôt) et Healthy (tout démarre) ; bleu pendant une synchronisation | `pfe-etat-cluster` |
+| Dernier build Jenkins | réussi, instable (Quality Gate non bloquante) ou échec, avec la version construite ; un clic ouvre le job | fin de chaque build (`post`) des deux pipelines |
+| Synchronisation auto | état de `pfe-sync` et date de sa dernière resynchronisation | `pfe-sync` |
+
+`pfe-etat-cluster` ne fait que **lire** Kubernetes (`k3s kubectl get`) ; il n'ouvre aucun port. Alertes associées :
+`ApplicationArgoCDDegradee` (application non Synced/Healthy depuis 15 min) et `EtatClusterMuet` (état non relu
+depuis 10 min ; journal : `journalctl -u pfe-etat-cluster` sur le nœud de contrôle).
+
 ## Construire une application depuis son code source (pipeline commun)
 
 Une application peut utiliser une image déjà publiée, ou être **construite depuis son code source** par le

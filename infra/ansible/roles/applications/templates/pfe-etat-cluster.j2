@@ -1,0 +1,92 @@
+#!/usr/bin/python3
+# {{ ansible_managed }}
+# pfe-etat-cluster : état des déploiements, LU chaque minute sur le nœud de contrôle (minuterie, root) et écrit
+# pour Prometheus (collecteur textfile de node-exporter). Aucune modification du cluster ; aucun port ouvert.
+#   pfe_argocd_app{application,nom,sync,sante,revision}       1 Synced+Healthy, 0.5 en cours, 0 sinon
+#   pfe_argocd_app_derniere_synchro_timestamp_seconds{...}    fin de la dernière synchronisation
+#   pfe_deploiement_version{application,composant,image,version} part des copies prêtes (1 = toutes)
+import json
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime
+
+TEXTFILE = "{{ textfile_dir }}"
+APP_COBAYE = "{{ app_name }}"            # nom de l'application cobaye (Application Argo CD du même nom)
+NS_COBAYE = "{{ app_namespace }}"        # son espace Kubernetes
+ESPACES_SYSTEME = {"kube-system", "kube-public", "kube-node-lease", "argocd"}
+{% raw %}
+
+def kubectl(*args):
+    p = subprocess.run(["k3s", "kubectl", *args, "-o", "json"], capture_output=True, text=True, timeout=60)
+    if p.returncode != 0:
+        raise RuntimeError(p.stderr.strip()[-300:])
+    return json.loads(p.stdout)["items"]
+
+
+def etiquette(v):
+    """Valeur d'étiquette Prometheus sûre (pas de guillemet ni de retour à la ligne)."""
+    return re.sub(r'[^A-Za-z0-9._:/@+ -]', "_", str(v or ""))[:200]
+
+
+def application_de(nom_argo):
+    """Application Argo CD -> nom affiché : la cobaye garde son nom, les autres « app-<nom> » -> <nom>."""
+    return nom_argo if nom_argo == APP_COBAYE else re.sub(r"^app-", "", nom_argo)
+
+
+def epoch(iso):
+    try:
+        return int(datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp())
+    except (AttributeError, ValueError):
+        return 0
+
+
+def lignes():
+    out = ["# HELP pfe_argocd_app État Argo CD (1 Synced et Healthy, 0.5 synchronisation ou démarrage en cours, 0 sinon)",
+           "# TYPE pfe_argocd_app gauge",
+           "# HELP pfe_argocd_app_derniere_synchro_timestamp_seconds Fin de la dernière synchronisation Argo CD",
+           "# TYPE pfe_argocd_app_derniere_synchro_timestamp_seconds gauge"]
+    for a in kubectl("-n", "argocd", "get", "applications.argoproj.io"):
+        st = a.get("status", {})
+        sync = st.get("sync", {}).get("status", "Unknown")
+        sante = st.get("health", {}).get("status", "Unknown")
+        valeur = 1 if (sync, sante) == ("Synced", "Healthy") else 0.5 if sante in ("Progressing",) or sync == "Unknown" else 0
+        lab = (f'application="{etiquette(application_de(a["metadata"]["name"]))}",nom="{etiquette(a["metadata"]["name"])}",'
+               f'sync="{etiquette(sync)}",sante="{etiquette(sante)}",revision="{etiquette((st.get("sync", {}).get("revision") or "")[:7])}"')
+        out.append(f"pfe_argocd_app{{{lab}}} {valeur}")
+        out.append(f"pfe_argocd_app_derniere_synchro_timestamp_seconds{{{lab}}} {epoch(st.get('operationState', {}).get('finishedAt'))}")
+    out += ["# HELP pfe_deploiement_version Image en ligne de chaque composant (valeur : part des copies prêtes)",
+            "# TYPE pfe_deploiement_version gauge"]
+    for d in kubectl("get", "deployments", "-A"):
+        ns = d["metadata"]["namespace"]
+        if ns in ESPACES_SYSTEME:
+            continue
+        voulu = d["spec"].get("replicas", 1) or 0
+        pret = d.get("status", {}).get("readyReplicas", 0) or 0
+        for c in d["spec"]["template"]["spec"]["containers"]:
+            image = c["image"]
+            version = image.rsplit(":", 1)[1] if ":" in image.rsplit("/", 1)[-1] else "latest"
+            app = APP_COBAYE if ns == NS_COBAYE else ns
+            out.append(f'pfe_deploiement_version{{application="{etiquette(app)}",composant="{etiquette(d["metadata"]["name"])}",'
+                       f'image="{etiquette(image)}",version="{etiquette(version)}"}} {round(pret / voulu, 3) if voulu else 0}')
+    return out
+
+
+def main():
+    try:
+        texte = "\n".join(lignes()) + "\n"
+    except Exception as e:      # cluster injoignable : l'ancien fichier vieillit et l'alerte EtatClusterMuet part
+        print(f"pfe-etat-cluster : lecture impossible : {e}", file=sys.stderr)
+        return 1
+    tmp = os.path.join(TEXTFILE, ".pfe_etat_cluster.prom")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(texte)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, os.path.join(TEXTFILE, "pfe_etat_cluster.prom"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+{% endraw %}

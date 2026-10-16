@@ -118,6 +118,38 @@ panels.append(stat("Sauvegarde de la base", 18, y, 6, 4,
     "Application cobaye : sauvegarde de son serveur, qui contient sa base.",
     unit="h", decimals=1, steps=[{"color": "green", "value": None}, {"color": "orange", "value": 26}, {"color": "red", "value": 50}]))
 y += 4
+panels.append(row("Déploiements", y))
+y += 1
+# Lus chaque minute sur le nœud de contrôle (pfe-etat-cluster) et écrits par les pipelines Jenkins en fin de build
+panels.append(stat("Version en ligne", 0, y, 9, 5,
+    [tgt('max by (application, composant, version) (pfe_deploiement_version)', "{{application}} / {{composant}} : {{version}}")],
+    "Image qui tourne réellement dans Kubernetes pour chaque composant (lue chaque minute). "
+    "Vert : toutes les copies sont prêtes ; orange : une partie seulement ; rouge : aucune.",
+    text_mode="name", steps=[{"color": "red", "value": None}, {"color": "orange", "value": 0.01}, {"color": "green", "value": 1}]))
+panels.append(stat("Argo CD", 9, y, 5, 5,
+    [tgt('max by (application, sync, sante) (pfe_argocd_app)', "{{application}} : {{sync}} / {{sante}}")],
+    "Synced : le cluster correspond au dépôt Git. Healthy : tout démarre correctement. "
+    "Bleu : synchronisation ou démarrage en cours ; rouge : à regarder dans Argo CD.",
+    text_mode="name", steps=[{"color": "red", "value": None}, {"color": "blue", "value": 0.5}, {"color": "green", "value": 1}],
+    links=[{"title": "Ouvrir Argo CD", "url": f"https://{APP}:32252/applications", "targetBlank": True}]))
+panels.append(stat("Dernier build Jenkins", 14, y, 6, 5,
+    [tgt('max by (application, job, version) (pfe_ci_dernier_build)', "{{application}} ({{version}})")],
+    "Résultat du dernier build de chaque application (réussi, instable : Quality Gate non bloquante, ou échec). "
+    "En cas d'échec rien n'est déployé : la version en ligne reste en place. Cliquer pour ouvrir le job.",
+    mappings=val({"1": ("réussi", "green"), "0.5": ("instable", "orange"), "0": ("ÉCHEC", "red")}),
+    steps=[{"color": "red", "value": None}, {"color": "orange", "value": 0.5}, {"color": "green", "value": 1}],
+    links=[{"title": "Ouvrir le job ${__field.labels.job}", "url": f"http://{APP}:8080/job/${{__field.labels.job}}/",
+            "targetBlank": True}]))
+panels.append(stat("Synchronisation auto", 20, y, 4, 5,
+    [tgt('max(pfe_sync_statut) or vector(-1)', "État"),
+     tgt('max(pfe_sync_derniere_reussite_timestamp_seconds) * 1000', "Dernière", "B")],
+    "pfe-sync vérifie GitHub toutes les 5 min : quand une application est ajoutée ou ses réglages modifiés, le parc "
+    "est resynchronisé automatiquement (supervision, IA, sauvegardes). « Dernière » : dernière resynchronisation réussie.",
+    mappings=val({"1": ("OK", "green"), "0": ("ÉCHEC", "red"), "-1": ("ABSENT", "red")}), steps=RG,
+    overrides=[{"matcher": {"id": "byFrameRefID", "options": "B"},
+                "properties": [{"id": "unit", "value": "dateTimeFromNow"}, {"id": "mappings", "value": []},
+                               {"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]}]))
+y += 5
 panels.append(row("Services", y))
 y += 1
 panels.append(stat("État des services", 0, y, 24, 5,

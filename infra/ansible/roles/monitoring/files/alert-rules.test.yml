@@ -107,3 +107,35 @@ tests:
             exp_annotations:
               summary: "La resynchronisation automatique des applications échoue depuis 15 minutes"
               description: "Une application ajoutée dans GitHub n'est pas encore supervisée ni sauvegardée. Journal : ~/.pfe-parc/sync.log sur le serveur de supervision."
+
+  # Déploiements : Argo CD dégradé plus de 15 min ; état du cluster figé plus de 10 min
+  - interval: 1m
+    input_series:
+      - series: 'pfe_argocd_app{node="app-1",application="boutique",nom="app-boutique",sync="OutOfSync",sante="Degraded",revision="abc1234"}'
+        values: '0x30'
+      - series: 'pfe_argocd_app{node="app-1",application="app-cobaye",nom="app-cobaye",sync="Synced",sante="Healthy",revision="abc1234"}'
+        values: '1x30'
+      - series: 'node_textfile_mtime_seconds{node="app-1",file="/host/textfile/pfe_etat_cluster.prom"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ApplicationArgoCDDegradee
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: ApplicationArgoCDDegradee
+        exp_alerts:
+          - exp_labels: {severity: warning, source: deploiement, node: app-1, application: boutique, nom: app-boutique,
+                         sync: OutOfSync, sante: Degraded, revision: abc1234}
+            exp_annotations:
+              summary: "boutique : Argo CD OutOfSync / Degraded depuis 15 minutes"
+              description: "Le cluster ne correspond pas au dépôt Git ou un composant ne démarre pas. Détail dans Argo CD (application app-boutique)."
+      - eval_time: 15m
+        alertname: EtatClusterMuet
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: EtatClusterMuet
+        exp_alerts:
+          - exp_labels: {severity: warning, source: deploiement, node: app-1, file: /host/textfile/pfe_etat_cluster.prom}
+            exp_annotations:
+              summary: "L'état des déploiements n'est plus lu depuis 10 minutes"
+              description: "journalctl -u pfe-etat-cluster sur le nœud de contrôle (Kubernetes injoignable ?)."

@@ -1,0 +1,43 @@
+# État des déploiements pour Grafana (versions en ligne, état Argo CD), lu chaque minute sur le nœud de contrôle.
+
+- name: Script de lecture de l'état du cluster
+  ansible.builtin.template:
+    src: pfe-etat-cluster.j2
+    dest: /usr/local/sbin/pfe-etat-cluster
+    owner: root
+    mode: "0755"
+
+- name: Service et minuterie (chaque minute)
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    mode: "0644"
+    content: "{{ item.content }}"
+  loop:
+    - name: pfe-etat-cluster.service
+      content: |
+        [Unit]
+        Description=État des déploiements PFE pour Grafana (lecture seule)
+        After=k3s.service
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/pfe-etat-cluster
+        TimeoutStartSec=2min
+        Nice=10
+    - name: pfe-etat-cluster.timer
+      content: |
+        [Unit]
+        Description=État des déploiements PFE chaque minute
+        [Timer]
+        OnBootSec=2min
+        OnUnitActiveSec=1min
+        AccuracySec=10s
+        [Install]
+        WantedBy=timers.target
+  register: etat_unites
+
+- name: Minuterie active
+  ansible.builtin.systemd_service:
+    name: pfe-etat-cluster.timer
+    enabled: true
+    state: started
+    daemon_reload: "{{ etat_unites is changed }}"
