@@ -243,3 +243,6 @@
       {% for a in plateforme_catalogue | default([]) %}
       - {"application": "{{ a.nom }}", "composants": {{ a.composants | to_json }}, "base": {{ a.base | to_json }}, "web": {{ (a.url != '') | to_json }}}
       {% endfor %}
+
+- name: Découverte du parc toutes les heures (lecture seule)
+  ansible.builtin.import_tasks: parc.yml

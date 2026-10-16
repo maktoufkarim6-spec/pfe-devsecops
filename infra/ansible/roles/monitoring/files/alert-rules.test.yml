@@ -61,3 +61,32 @@ tests:
             exp_annotations:
               summary: "La base de l'application boutique n'a pas été sauvegardée cette nuit"
               description: "Les autres bases sont sauvegardées. Journal : journalctl -t pfe-backup sur app-1."
+
+  # Parc : un serveur vide hors inventaire est signalé ; la découverte arrêtée depuis 4 h aussi
+  - interval: 1m
+    input_series:
+      - series: 'pfe_parc_serveur{adresse="51.38.0.10",etat="vide",inventaire="",node="monitoring"}'
+        values: '1x300'
+      - series: 'pfe_parc_serveur{adresse="57.129.142.176",etat="controle",inventaire="app-1",node="monitoring"}'
+        values: '1x300'
+      # fichier écrit à t=0 puis plus jamais (découverte arrêtée)
+      - series: 'node_textfile_mtime_seconds{file="/host/textfile/pfe_parc.prom",node="monitoring"}'
+        values: '0x300'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ServeurVideDetecte
+        exp_alerts:
+          - exp_labels: {severity: info, source: parc, adresse: 51.38.0.10, etat: vide, node: monitoring}
+            exp_annotations:
+              summary: "Serveur vide disponible : 51.38.0.10"
+              description: "Proposé comme nouveau nœud applicatif. Sur le serveur de supervision : bash deploy.sh --ajouter 51.38.0.10"
+      - eval_time: 2h
+        alertname: DecouverteParcEnRetard
+        exp_alerts: []
+      - eval_time: 4h
+        alertname: DecouverteParcEnRetard
+        exp_alerts:
+          - exp_labels: {severity: warning, source: parc, file: /host/textfile/pfe_parc.prom, node: monitoring}
+            exp_annotations:
+              summary: "La découverte du parc ne s'est pas exécutée depuis plus de 3 h"
+              description: "journalctl -u pfe-parc sur le serveur de supervision."

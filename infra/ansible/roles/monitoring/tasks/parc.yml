@@ -1,0 +1,86 @@
+# Découverte du parc toutes les heures (lecture seule) : métriques pfe_parc_* pour Grafana et l'alerte
+# ServeurVideDetecte. Rien n'est jamais installé par cette minuterie (docs/PARC.md).
+
+- name: PyYAML pour la découverte (paquet Debian)
+  ansible.builtin.apt:
+    name: python3-yaml
+    state: present
+
+- name: Dossiers de la découverte
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /usr/local/lib/pfe-parc, mode: "0755" }
+    - { path: /etc/pfe-parc, mode: "0755" }
+    - { path: /var/lib/pfe-parc, mode: "0700" }
+
+- name: "Script et sonde, copies appartenant à root (la minuterie n'exécute pas un fichier modifiable par un compte)"
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../outils/{{ item }}"
+    dest: "/usr/local/lib/pfe-parc/{{ item }}"
+    owner: root
+    mode: "0644"
+  loop: [decouvrir_parc.py, sonde_serveur.sh]
+
+- name: Adresses autorisées et inventaire du dépôt
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "/etc/pfe-parc/{{ item.dest }}"
+    owner: root
+    mode: "0644"
+  loop:
+    - { src: "{{ playbook_dir }}/../parc.yml", dest: parc.yml }
+    - { src: "{{ playbook_dir }}/inventory.ini", dest: inventory.ini }
+
+- name: Service et minuterie de la découverte (toutes les heures)
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    mode: "0644"
+    content: "{{ item.content }}"
+  loop:
+    - name: pfe-parc.service
+      content: |
+        [Unit]
+        Description=Découverte du parc PFE (lecture seule)
+        After=network-online.target
+        Wants=network-online.target
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/python3 /usr/local/lib/pfe-parc/decouvrir_parc.py --conf /etc/pfe-parc/parc.yml \
+          --cle {{ cle_parc }} --known-hosts /var/lib/pfe-parc/known_hosts \
+          --inventaire /etc/pfe-parc/inventory.ini --inventaire {{ lookup('ansible.builtin.env', 'HOME') }}/.pfe-parc/inventaire.ini \
+          --metriques {{ textfile_dir }}/pfe_parc.prom
+        TimeoutStartSec=20min
+        Nice=10
+        # Lecture seule côté serveur de supervision aussi : seuls le fichier de métriques et ses empreintes s'écrivent
+        ProtectSystem=strict
+        ReadWritePaths={{ textfile_dir }} /var/lib/pfe-parc
+        PrivateTmp=true
+        NoNewPrivileges=true
+    - name: pfe-parc.timer
+      content: |
+        [Unit]
+        Description=Découverte du parc PFE toutes les heures
+        [Timer]
+        OnBootSec=5min
+        OnUnitActiveSec=1h
+        RandomizedDelaySec=120
+        [Install]
+        WantedBy=timers.target
+  register: parc_unites
+
+- name: Minuterie active
+  ansible.builtin.systemd_service:
+    name: pfe-parc.timer
+    enabled: true
+    state: started
+    daemon_reload: "{{ parc_unites is changed }}"
+
+- name: Première découverte maintenant (sans attendre l'heure)
+  ansible.builtin.systemd_service:
+    name: pfe-parc.service
+    state: started
+  when: parc_unites is changed

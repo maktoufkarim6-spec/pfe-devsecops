@@ -5,13 +5,21 @@
 # Connexion par clé SSH (une fois, voir docs/CLES-SSH.md) :
 #   bash deploy.sh --cles                  pose la clé du parc et celle de votre PC (mot de passe encore accepté)
 #   bash deploy.sh --fermer-mots-de-passe  refuse ensuite les mots de passe SSH sur tout le parc
+# Parc de serveurs (docs/PARC.md) :
+#   bash deploy.sh --decouvrir             explore les adresses de infra/parc.yml (lecture seule)
+#   bash deploy.sh --ajouter <adresse>     ajoute un serveur VIDE au parc (après confirmation), puis : bash deploy.sh
 # Relançable sans risque : chaque étape ne change que ce qui diffère de l'état voulu.
 set -euo pipefail
 MODE=deploiement
 case "${1:-}" in
   --cles) MODE=cles; shift ;;
   --fermer-mots-de-passe) MODE=fermer; shift ;;
+  --decouvrir) MODE=decouvrir; shift ;;
+  --ajouter) MODE=ajouter; AJOUT=${2:-}; shift 2 || shift ;;
 esac
+# Serveurs ajoutés par --ajouter : inventaire propre au serveur de supervision (hors Git), lu en plus du dépôt
+PARC_DIR="$HOME/.pfe-parc"
+PARC_INV="$PARC_DIR/inventaire.ini"
 REPO=${PFE_REPO:-https://github.com/maktoufkarim6-spec/pfe-devsecops.git}   # autre projet : PFE_REPO=<dépôt> bash deploy.sh
 SRC="$HOME/pfe-devsecops"
 VENV="$HOME/.pfe-ansible"
@@ -29,12 +37,66 @@ echo "== 3/5 Ansible (environnement isolé dans $VENV) =="
 "$VENV/bin/pip" install -q "ansible-core==2.18.*"
 "$VENV/bin/ansible-galaxy" collection install -r requirements.yml >/dev/null
 
+mkdir -p "$PARC_DIR" && chmod 700 "$PARC_DIR"
+DECOUVRIR=("$VENV/bin/python" "$SRC/infra/outils/decouvrir_parc.py" --cle "$HOME/.ssh/pfe_parc"
+           --known-hosts "$PARC_DIR/known_hosts" --inventaire inventory.ini --inventaire "$PARC_INV")
+
+if [ "$MODE" = decouvrir ]; then
+  echo "== Découverte du parc (lecture seule) : adresses de infra/parc.yml =="
+  exec "${DECOUVRIR[@]}"
+fi
+
+if [ "$MODE" = ajouter ]; then
+  [[ "$AJOUT" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "usage : bash deploy.sh --ajouter <adresse IPv4>"; exit 2; }
+  grep -qE "ansible_host=$AJOUT( |$)" inventory.ini "$PARC_INV" 2>/dev/null && { echo "$AJOUT est déjà dans le parc."; exit 0; }
+  echo "== Vérification de $AJOUT (lecture seule) =="
+  rapport=$("${DECOUVRIR[@]}" --json)
+  ligne=$(printf '%s' "$rapport" | "$VENV/bin/python" -c '
+import json, sys
+d = json.load(sys.stdin); ip = sys.argv[1]
+r = next((x for x in d["serveurs"] if x["adresse"] == ip), None)
+if r is None: print("ABSENT"); sys.exit()
+p = next((x for x in d["propositions"] if f"ansible_host={ip} " in x + " "), "")
+print("|".join([r["etat"], r["raison"], r.get("empreinte", ""), p]))' "$AJOUT")
+  [ "$ligne" != ABSENT ] || { echo "$AJOUT n'est pas dans plages_autorisees (infra/parc.yml) : ajoutez-le d'abord au dépôt."; exit 2; }
+  IFS='|' read -r etat raison empreinte proposition <<< "$ligne"
+  echo "  état : $etat ($raison)"
+  case "$etat" in
+    vide) ;;
+    cle_refusee)
+      echo "  La clé du parc n'est pas encore sur ce serveur : ajout possible, puis « bash deploy.sh --cles »"
+      echo "  (mot de passe demandé une seule fois) avant « bash deploy.sh »."
+      dernier=$(cat inventory.ini "$PARC_INV" 2>/dev/null | grep -oE '^app-[0-9]+' | cut -d- -f2 | sort -n | tail -1)
+      nom=app-$(( ${dernier:-0} + 1 ))
+      proposition="$nom ansible_host=$AJOUT node_name=$nom node_app=true" ;;
+    *) echo "  Seul un serveur VIDE peut être ajouté : rien n'est modifié."; exit 1 ;;
+  esac
+  echo "  ligne ajoutée à $PARC_INV :"
+  echo "    $proposition"
+  [ -n "$empreinte" ] && echo "  empreinte SSH du serveur : $empreinte (à comparer avec celle de l'espace client de l'hébergeur)"
+  read -rp "Ajouter ce serveur au parc ? (oui/non) " OK
+  [ "$OK" = "oui" ] || { echo "Abandon, rien n'a été modifié."; exit 1; }
+  { [ -s "$PARC_INV" ] || echo "[nodes]"; echo "$proposition"; } >> "$PARC_INV"
+  # Empreinte vue par la découverte, mémorisée pour Ansible (pas de nouvelle confiance aveugle)
+  ssh-keygen -F "$AJOUT" -f "$PARC_DIR/known_hosts" 2>/dev/null | grep -v '^#' >> ~/.ssh/known_hosts || true
+  if [ "$etat" = cle_refusee ]; then echo "Ajouté. Suite : bash deploy.sh --cles, puis bash deploy.sh"
+  else echo "Ajouté. Suite : bash deploy.sh"; fi
+  echo "(le serveur rejoint le cluster k3s, puis reçoit supervision, IA, agent et sauvegardes)"
+  exit 0
+fi
+
+# Inventaires : celui du dépôt, plus les serveurs ajoutés sur ce serveur de supervision
+INVENTAIRES=(-i inventory.ini)
+[ -s "$PARC_INV" ] && INVENTAIRES+=(-i "$PARC_INV")
+hotes() { cat inventory.ini "$PARC_INV" 2>/dev/null | grep -v 'ansible_connection=local' | grep -v '^[[:space:]]*#' \
+            | grep -o 'ansible_host=[0-9.]*' | cut -d= -f2; }
+
 echo "== 4/5 État actuel du serveur de supervision =="
 docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' 2>/dev/null || echo "(Docker absent : il sera installé)"
 free -h | head -2
 df -h / | tail -1
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
-for h in $(grep -v 'ansible_connection=local' inventory.ini | grep -o 'ansible_host=[0-9.]*' | cut -d= -f2); do
+for h in $(hotes); do
   ssh-keygen -F "$h" >/dev/null || ssh-keyscan -H "$h" >> ~/.ssh/known_hosts 2>/dev/null
 done
 MONITORING_IP=$(grep 'ansible_connection=local' inventory.ini | grep -o 'ansible_host=[0-9.]*' | cut -d= -f2)
@@ -44,7 +106,7 @@ CLE="$HOME/.ssh/pfe_parc"
 CONNEXION=(--ask-pass)
 if [ -f "$CLE" ]; then
   tous_ok=1
-  for h in $(grep -v 'ansible_connection=local' inventory.ini | grep -v '^[[:space:]]*#' | grep -o 'ansible_host=[0-9.]*' | cut -d= -f2); do
+  for h in $(hotes); do
     if ssh -i "$CLE" -o BatchMode=yes -o PasswordAuthentication=no -o IdentitiesOnly=yes -o ConnectTimeout=10 "debian@$h" true 2>/dev/null; then echo "  $h : connexion par clé OK"
     else echo "  $h : clé refusée, mot de passe nécessaire"; tous_ok=0; fi
   done
@@ -64,10 +126,8 @@ case "$MODE" in
     [ -s "$ADMIN" ] && { echo "Déjà enregistrée(s) :"; cut -d' ' -f3- "$ADMIN"; }
     read -rp "Coller une clé publique (ssh-ed25519 AAAA...), ou Entrée pour ne rien ajouter : " K
     if [ -n "$K" ]; then
-      if printf '%s
-' "$K" | ssh-keygen -l -f - >/dev/null 2>&1; then
-        grep -qxF "$K" "$ADMIN" 2>/dev/null || printf '%s
-' "$K" >> "$ADMIN"; chmod 600 "$ADMIN"
+      if printf '%s\n' "$K" | ssh-keygen -l -f - >/dev/null 2>&1; then
+        grep -qxF "$K" "$ADMIN" 2>/dev/null || printf '%s\n' "$K" >> "$ADMIN"; chmod 600 "$ADMIN"
         echo "Clé enregistrée."
       else echo "Ce n'est pas une clé publique SSH valide : rien n'a été ajouté."; exit 1; fi
     fi
@@ -95,7 +155,7 @@ read -rp "Lancer ($PLAYBOOK) ? (oui/non) " OK
 [ "$OK" = "oui" ] || { echo "Abandon, rien n'a été modifié."; exit 1; }
 
 echo "== 5/5 Déploiement ${CONNEXION:+(Ansible demande le mot de passe SSH)} ${BECOME:+(et celui de sudo)} =="
-"$VENV/bin/ansible-playbook" "$PLAYBOOK" "${CONNEXION[@]}" "${BECOME[@]}" "${EXTRA[@]}" "$@"
+"$VENV/bin/ansible-playbook" "${INVENTAIRES[@]}" "$PLAYBOOK" "${CONNEXION[@]}" "${BECOME[@]}" "${EXTRA[@]}" "$@"
 
 [ "$MODE" = deploiement ] || exit 0
 echo
