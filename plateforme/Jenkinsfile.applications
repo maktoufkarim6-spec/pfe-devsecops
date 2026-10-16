@@ -19,8 +19,18 @@ pipeline {
 
     parameters {
         string(name: 'APPLICATION', defaultValue: '',
-               description: 'Application à construire et déployer : nom du dossier applications/<nom>/ (ex : demo-podinfo). ' +
-                            'Son values.yaml doit avoir une section « source » et des composants « construire ».')
+               description: 'Nom de l'application (dossier applications/<nom>/), ex : boutique. Minuscules, chiffres, tirets.')
+        string(name: 'DEPOT', defaultValue: '',
+               description: 'NOUVELLE application seulement : adresse https du dépôt Git (ex : https://github.com/compte/boutique.git). ' +
+                            'Vide : reconstruire une application existante. Le dépôt doit contenir un Dockerfile.')
+        string(name: 'BRANCHE', defaultValue: 'main', description: 'Nouvelle application : branche à construire.')
+        string(name: 'PORT', defaultValue: '', description: 'Nouvelle application : port de l'application. Vide : lu dans le Dockerfile (EXPOSE).')
+        string(name: 'DOSSIER', defaultValue: '.', description: 'Nouvelle application : dossier du dépôt qui contient le Dockerfile.')
+        string(name: 'DOCKERFILE', defaultValue: 'Dockerfile', description: 'Nouvelle application : nom du Dockerfile dans ce dossier.')
+        string(name: 'SANTE', defaultValue: '', description: 'Nouvelle application (facultatif) : page de santé, ex : /health. Vide : simple test du port.')
+        string(name: 'DOMAINE', defaultValue: '', description: 'Nouvelle application (facultatif) : nom de domaine. Vide : <nom>.<ip>.sslip.io.')
+        booleanParam(name: 'BASE', defaultValue: false, description: 'Nouvelle application : base PostgreSQL (variables PGHOST, PGUSER, PGPASSWORD, PGDATABASE fournies).')
+        choice(name: 'SONAR', choices: ['bloquant', 'informatif'], description: 'Nouvelle application : SonarQube bloquant, ou informatif (code d'un tiers).')
     }
 
     environment {
@@ -39,7 +49,20 @@ pipeline {
                         error("APPLICATION invalide : '${params.APPLICATION}' (nom d'un dossier applications/<nom>/)")
                     }
                     env.APPLICATION = params.APPLICATION
-                    currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.APPLICATION}"
+                    env.NOUVELLE = params.DEPOT?.trim() ? 'oui' : 'non'
+                    currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.APPLICATION}${env.NOUVELLE == 'oui' ? ' (nouvelle)' : ''}"
+                }
+                script {
+                    if (env.NOUVELLE == 'oui') {
+                        // Champs du formulaire transmis par variables d'environnement : jamais insérés dans une commande
+                        withEnv(["NOUVEAU_DEPOT=${params.DEPOT.trim()}", "NOUVEAU_BRANCHE=${params.BRANCHE.trim()}",
+                                 "NOUVEAU_PORT=${params.PORT.trim()}", "NOUVEAU_DOSSIER=${params.DOSSIER.trim()}",
+                                 "NOUVEAU_DOCKERFILE=${params.DOCKERFILE.trim()}", "NOUVEAU_SANTE=${params.SANTE.trim()}",
+                                 "NOUVEAU_DOMAINE=${params.DOMAINE.trim()}", "NOUVEAU_BASE=${params.BASE}",
+                                 "NOUVEAU_SONAR=${params.SONAR}"]) {
+                            sh 'bash "$CI" creer "$APPLICATION"'
+                        }
+                    }
                 }
                 sh 'bash "$CI" verifier "$APPLICATION"'
                 sh 'bash "$CI" source'
@@ -110,6 +133,8 @@ pipeline {
         stage('Images') {
             steps {
                 sh 'bash "$CI" images'
+                // Nouvelle application : port et utilisateur lus dans l'image (une image qui tourne en root est refusée)
+                sh 'bash "$CI" completer'
             }
         }
 
@@ -136,13 +161,25 @@ pipeline {
                         git config user.name  "jenkins-ci"
                         git config user.email "jenkins-ci@pfe.local"
                         git config credential.helper '!f() { echo "username=${GIT_USER}"; echo "password=${GIT_TOKEN}"; }; f'
+                        # Nouvelle application : son dossier, créé dans cet espace de travail, est ajouté au dépôt avec ses images
+                        if [ "$NOUVELLE" = oui ]; then
+                            rm -rf .ci/nouvelle-app && cp -r "applications/$APPLICATION" .ci/nouvelle-app && rm -rf "applications/$APPLICATION"
+                        fi
                         ok=0
                         for i in 1 2 3; do
                             git fetch -q origin main
-                            git checkout -q -B gitops-application origin/main
+                            git checkout -q -f -B gitops-application origin/main
+                            if [ "$NOUVELLE" = oui ]; then
+                                [ ! -e "applications/$APPLICATION" ] || { echo "applications/$APPLICATION créée entre-temps par quelqu'un d'autre : arrêt"; exit 1; }
+                                cp -r .ci/nouvelle-app "applications/$APPLICATION"
+                                git add "applications/$APPLICATION"
+                            fi
                             bash "$CI" maj "$APPLICATION" "$TAG"
-                            if git diff --quiet; then echo "Déjà à jour"; ok=1; break; fi
-                            git commit -qam "[skip ci] Application $APPLICATION : images $TAG"
+                            git add "applications/$APPLICATION/values.yaml"
+                            if git diff --cached --quiet; then echo "Déjà à jour"; ok=1; break; fi
+                            if [ "$NOUVELLE" = oui ]; then msg="[skip ci] Nouvelle application $APPLICATION : images $TAG"
+                            else msg="[skip ci] Application $APPLICATION : images $TAG"; fi
+                            git commit -qm "$msg"
                             if git push -q origin HEAD:main; then ok=1; break; fi
                             echo "Push refusé (main a avancé) : nouvel essai"
                         done

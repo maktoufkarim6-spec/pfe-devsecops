@@ -1,0 +1,59 @@
+# Resynchronisation automatique quand les applications changent dans GitHub (pfe-sync, toutes les 5 min).
+# Tourne sous le compte qui lance deploy.sh (clé du parc, environnement Ansible, options du dernier déploiement).
+
+- name: Script de resynchronisation
+  ansible.builtin.template:
+    src: pfe-sync.j2
+    dest: /usr/local/sbin/pfe-sync
+    owner: root
+    mode: "0755"
+
+- name: Service et minuterie (toutes les 5 min)
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    mode: "0644"
+    content: "{{ item.content }}"
+  loop:
+    - name: pfe-sync.service
+      content: |
+        [Unit]
+        Description=Resynchronisation PFE quand les applications changent dans GitHub
+        After=network-online.target
+        Wants=network-online.target
+        [Service]
+        Type=oneshot
+        User={{ ansible_user }}
+        ExecStart=/usr/local/sbin/pfe-sync
+        TimeoutStartSec=1h
+        Nice=10
+    - name: pfe-sync.timer
+      content: |
+        [Unit]
+        Description=Resynchronisation PFE toutes les 5 minutes
+        [Timer]
+        OnBootSec=10min
+        OnUnitActiveSec=5min
+        [Install]
+        WantedBy=timers.target
+  register: sync_unites
+
+# Point de départ : l'état actuel est celui que ce déploiement vient d'appliquer (pas de rejeu immédiat inutile)
+- name: Empreinte des applications déjà appliquées par ce déploiement
+  ansible.builtin.shell: |
+    set -o pipefail
+    cd "$HOME/pfe-devsecops" || exit 0
+    git ls-tree -r --name-only HEAD -- applications | grep '/values.yaml$' | sort | while read -r f; do
+      echo "== $f"; git show "HEAD:$f" | grep -vE '^[[:space:]]*(- )?image:'; done | sha256sum | cut -d' ' -f1 \
+      > "$HOME/.pfe-parc/sync-empreinte"
+  args:
+    executable: /bin/bash
+  become: false
+  changed_when: false
+  failed_when: false
+
+- name: Minuterie active
+  ansible.builtin.systemd_service:
+    name: pfe-sync.timer
+    enabled: true
+    state: started
+    daemon_reload: "{{ sync_unites is changed }}"

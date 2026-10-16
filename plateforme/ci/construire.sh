@@ -162,7 +162,90 @@ nettoyer() {   # images locales retirées (déjà sur Docker Hub) : le disque du
   while IFS='|' read -r _ _ _ img _; do docker rmi "docker.io/$img:$(tag)" >/dev/null 2>&1 || true; done < "$RACINE/.ci/composants.txt"
 }
 
+# ------------------------------------------------------------------ nouvelle application (formulaire Jenkins)
+# Variables NOUVEAU_* (champs du formulaire) : DEPOT (obligatoire), BRANCHE, PORT, DOSSIER, DOCKERFILE, SANTE,
+# DOMAINE, BASE (true/false), SONAR. Le values.yaml est écrit ici, contrôlé comme les autres, et n'est commité
+# qu'après un build réussi (étape GitOps) : une application en échec ne laisse aucune trace dans le dépôt.
+creer() {
+  local app=${1:-}
+  [[ "$app" =~ ^[a-z][a-z0-9-]{1,30}[a-z0-9]$ ]] || erreur "nom d'application invalide : '$app' (minuscules, chiffres, tirets, 3 à 32 caractères)"
+  case "$app" in default|kube-system|kube-public|kube-node-lease|argocd|plateforme) erreur "nom réservé : $app" ;; esac
+  [ ! -e "$RACINE/applications/$app" ] || erreur "l'application $app existe déjà : laisser DEPOT vide pour la reconstruire"
+  local depot=${NOUVEAU_DEPOT:-} branche=${NOUVEAU_BRANCHE:-main} port=${NOUVEAU_PORT:-} dossier=${NOUVEAU_DOSSIER:-.}
+  local dockerfile=${NOUVEAU_DOCKERFILE:-Dockerfile} sante=${NOUVEAU_SANTE:-} domaine=${NOUVEAU_DOMAINE:-}
+  local base=${NOUVEAU_BASE:-false} sonar=${NOUVEAU_SONAR:-bloquant}
+  sur "$depot" "DEPOT (adresse https du dépôt Git)" '^https://[a-z0-9.-]+(:[0-9]{1,5})?/[A-Za-z0-9_.~/-]+$'
+  sur "$branche" "BRANCHE" '^[A-Za-z0-9._/-]{1,100}$'
+  [ -z "$port" ] || { [[ "$port" =~ ^[0-9]{2,5}$ ]] && (( port >= 80 && port <= 65535 )); } || erreur "PORT invalide : '$port'"
+  [ "$dossier" = "." ] || sur "$dossier" "DOSSIER" '^[A-Za-z0-9._][A-Za-z0-9._/-]*$'
+  sur "$dockerfile" "DOCKERFILE" '^[A-Za-z0-9._][A-Za-z0-9._/-]*$'
+  [ -z "$sante" ] || sur "$sante" "SANTE (chemin de la page de santé)" '^/[A-Za-z0-9._~/-]{0,200}$'
+  [ -z "$domaine" ] || sur "$domaine" "DOMAINE" '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'
+  [[ "$base" =~ ^(true|false)$ ]] || erreur "BASE : true ou false"
+  [[ "$sonar" =~ ^(bloquant|informatif)$ ]] || erreur "SONAR : bloquant ou informatif"
+  mkdir -p "$RACINE/applications/$app"
+  {
+    echo "# Application $app : créée par le formulaire du job Jenkins plateforme-applications."
+    echo "# Construite depuis son code source ; la ligne image est écrite par le pipeline à chaque build."
+    [ -z "$domaine" ] || echo "domaine: $domaine"
+    echo "source:"
+    echo "  depot: $depot"
+    echo "  branche: $branche"
+    echo "  sonar: $sonar"
+    echo "composants:"
+    echo "  - nom: web"
+    echo "    image: docker.io/$REGISTRE/$app:0-0000000"
+    echo "    construire:"
+    echo "      contexte: $dossier"
+    echo "      dockerfile: $dockerfile"
+    echo "      image: $REGISTRE/$app"
+    if [ -n "$port" ]; then echo "    port: $port"
+    else echo "    port: 0            # lu dans l'image (EXPOSE) après la construction"; fi
+    echo "    utilisateur: 0            # lu dans l'image (USER) après la construction ; root refusé"
+    echo "    public: true"
+    [ -z "$sante" ] || echo "    sante: $sante"
+    if [ "$base" = true ]; then
+      echo "    env: {PGHOST: base, PGPORT: \"5432\", PGDATABASE: app}"
+      echo "    secrets: {PGUSER: postgres-user, PGPASSWORD: postgres-password}"
+      echo "base:"
+      echo "  active: true"
+    fi
+  } > "$RACINE/applications/$app/values.yaml"
+  mkdir -p "$RACINE/.ci" && echo "$app" > "$RACINE/.ci/nouvelle"
+  local extra=""; [ "$base" = true ] && extra=", base PostgreSQL"
+  echo "$app : values.yaml créé (dépôt $depot, branche $branche${domaine:+, domaine $domaine}$extra)"
+}
+
+completer() {   # nouvelle application : port et utilisateur lus dans l'image construite
+  lire_ci
+  [ -s "$RACINE/.ci/nouvelle" ] || { echo "application existante : rien à compléter"; return 0; }
+  local app nom img cfg user uid port ligne
+  app=$(cat "$RACINE/.ci/nouvelle"); FICHIER=$RACINE/applications/$app/values.yaml
+  IFS='|' read -r nom _ _ img _ < "$RACINE/.ci/composants.txt"
+  cfg=$(docker image inspect --format '{{.Config.User}}|{{range $p, $v := .Config.ExposedPorts}}{{$p}} {{end}}' "docker.io/$img:$(tag)")
+  user=${cfg%%|*}; user=${user%%:*}
+  if [[ "$user" =~ ^[0-9]+$ ]]; then uid=$user
+  elif [ -n "$user" ]; then
+    uid=$(docker run --rm --entrypoint id --user "$user" "docker.io/$img:$(tag)" -u 2>/dev/null) \
+      || erreur "utilisateur « $user » de l'image illisible : mettre un UID numérique (USER 1000) dans le Dockerfile"
+  fi
+  [[ "${uid:-}" =~ ^[0-9]+$ ]] && [ "$uid" -gt 0 ] \
+    || erreur "l'image tourne en root : ajouter « USER 1000 » (un utilisateur non root) dans le Dockerfile"
+  port=$(sed -n 's/^ *port: \([0-9]*\).*/\1/p' "$FICHIER" | head -1)
+  if [ "${port:-0}" = 0 ]; then
+    port=$(tr ' ' '\n' <<< "${cfg#*|}" | sed -n 's#^\([0-9]*\)/tcp$#\1#p' | head -1)
+    [ -n "$port" ] || erreur "port inconnu : ajouter « EXPOSE <port> » dans le Dockerfile, ou remplir le champ PORT"
+    sed -i -E "s/^(    port: )0( .*)?$/\1$port/" "$FICHIER"
+  fi
+  sed -i -E "s/^(    utilisateur: )0( .*)?$/\1$uid/" "$FICHIER"
+  grep -qE "^    port: $port$|^    port: $port " "$FICHIER" && grep -qE "^    utilisateur: $uid$" "$FICHIER" \
+    || erreur "port ou utilisateur non écrit dans values.yaml"
+  echo "$app : port $port et utilisateur $uid lus dans l'image"
+}
+
 case "${1:-}" in
+  creer) creer "${2:-}" ;;
+  completer) completer ;;
   verifier) verifier "${2:-}" ;;
   maj) maj "${2:-}" "${3:-}" ;;
   source) source_ ;;

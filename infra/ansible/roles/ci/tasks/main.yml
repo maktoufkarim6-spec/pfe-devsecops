@@ -245,9 +245,34 @@
   retries: 30
   delay: 10
 
+- name: Webhook GitHub vers ce Jenkins (chaque push lance le pipeline ; rien s'il existe déjà)
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ playbook_dir }}/../outils/github_parc.py"
+      - webhook
+      - "{{ repo_web | regex_replace('^https://github.com/', '') }}"
+      - "http://{{ ansible_host }}:8080/github-webhook/"
+  environment:
+    GITHUB_TOKEN: "{{ lookup('ansible.builtin.env', 'PFE_GITHUB_TOKEN') }}"
+  delegate_to: localhost
+  become: false
+  register: ci_webhook
+  changed_when: "'créé' in ci_webhook.stdout"
+  failed_when: false
+  when: repo_web is match('^https://github\.com/')
+  no_log: false
+
+- name: Webhook non créé automatiquement
+  ansible.builtin.debug:
+    msg: >-
+      Webhook GitHub non créé ({{ ci_webhook.stderr | default('') | trim }}). À ajouter à la main : dépôt -> Settings ->
+      Webhooks -> http://{{ ansible_host }}:8080/github-webhook/ (événement push).
+  when: ci_webhook.rc is defined and ci_webhook.rc != 0
+
 - name: Accès
   ansible.builtin.debug:
     msg: >-
       Jenkins : http://{{ ansible_host }}:8080/ (utilisateur admin ; mot de passe sur ce nœud :
       sudo cat /var/lib/pfe-ci/secrets/JENKINS_ADMIN_PASSWORD). Jobs {{ jenkins_job }} et {{ jenkins_job_applications }}.
-      Reste à faire dans GitHub : webhook http://{{ ansible_host }}:8080/github-webhook/ (événement push).
+      Webhook GitHub : {{ ci_webhook.stdout | default('à vérifier') }}.

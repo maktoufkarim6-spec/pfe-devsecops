@@ -73,8 +73,9 @@ panels.append(text("", 0, y, 16, 7,
     "Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n"
     f"### [🌐 Voir l'application en ligne](http://{APP}__APP_URL_PATH__)\n\n"
     f"### [📦 Construire et déployer une autre application]({DEPLOYER_APPS})\n"
-    "Applications du dossier `applications/` : champ **APPLICATION** (ex. `demo-podinfo`). Même chaîne de "
-    "sécurité, depuis le code source déclaré dans son `values.yaml`."))
+    "**Nouvelle application** : un nom dans **APPLICATION** et l'adresse de son dépôt Git dans **DEPOT** (son "
+    "Dockerfile suffit) ; la plateforme la construit, la contrôle, la déploie puis la supervise. "
+    "**Application existante** : son nom seul (ex. `demo-podinfo`)."))
 panels.append(stat("Application en ligne", 16, y, 8, 7,
     [tgt('probe_success{job="services",service="Application"}')],
     "Page de l'application testée toutes les 15 s depuis le serveur de supervision. Cliquer pour l'ouvrir.",

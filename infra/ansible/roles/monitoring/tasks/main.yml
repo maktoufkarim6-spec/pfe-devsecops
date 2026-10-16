@@ -246,3 +246,6 @@
 
 - name: Découverte du parc toutes les heures (lecture seule)
   ansible.builtin.import_tasks: parc.yml
+
+- name: Resynchronisation automatique quand les applications changent dans GitHub
+  ansible.builtin.import_tasks: sync.yml

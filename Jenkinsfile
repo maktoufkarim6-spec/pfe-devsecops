@@ -224,8 +224,11 @@ pipeline {
                         git config credential.helper '!f() { echo "username=${GIT_USER}"; echo "password=${GIT_TOKEN}"; }; f'
                         git fetch origin main
                         git checkout -B gitops-update origin/main
-                        sed -i -E "s#(image: ${IMAGE_SERVER}):[^[:space:]]+#\\1:${TAG}#" k8s/server.yaml
-                        sed -i -E "s#(image: ${IMAGE_CLIENT}):[^[:space:]]+#\\1:${TAG}#" k8s/client.yaml
+                        # Quel que soit le compte Docker Hub écrit avant (installation pour un autre compte : images
+                        # publiques du premier parc jusqu'au premier build), la ligne prend l'image de CE pipeline
+                        sed -i -E "s#image: [^[:space:]]*/${IMAGE_SERVER##*/}:[^[:space:]]+#image: ${IMAGE_SERVER}:${TAG}#" k8s/server.yaml
+                        sed -i -E "s#image: [^[:space:]]*/${IMAGE_CLIENT##*/}:[^[:space:]]+#image: ${IMAGE_CLIENT}:${TAG}#" k8s/client.yaml
+                        grep -q "image: ${IMAGE_SERVER}:${TAG}" k8s/server.yaml && grep -q "image: ${IMAGE_CLIENT}:${TAG}" k8s/client.yaml
                         # Noeuds choisis : lignes marquees "# noeuds-choisis" (contrainte de placement et nombre de copies)
                         if [ -n "$NOEUDS_CHOISIS" ]; then
                             if [ "$NOEUDS_CHOISIS" = "tous" ]; then

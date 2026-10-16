@@ -90,3 +90,20 @@ tests:
             exp_annotations:
               summary: "La découverte du parc ne s'est pas exécutée depuis plus de 3 h"
               description: "journalctl -u pfe-parc sur le serveur de supervision."
+
+  # Resynchronisation : alerte après 15 min d'échec seulement
+  - interval: 1m
+    input_series:
+      - series: 'pfe_sync_statut{node="monitoring"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: SynchronisationEchouee
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: SynchronisationEchouee
+        exp_alerts:
+          - exp_labels: {severity: warning, source: parc, node: monitoring}
+            exp_annotations:
+              summary: "La resynchronisation automatique des applications échoue depuis 15 minutes"
+              description: "Une application ajoutée dans GitHub n'est pas encore supervisée ni sauvegardée. Journal : ~/.pfe-parc/sync.log sur le serveur de supervision."
