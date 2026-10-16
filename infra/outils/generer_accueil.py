@@ -1,4 +1,4 @@
-"""Génère un tableau de bord Grafana du dépôt (python infra/outils/generer_accueil.py).
+"""Génère l'accueil Grafana simple et la page Détails (python infra/outils/generer_accueil.py).
 Les marqueurs __APP_IP__, __REPO_WEB__… sont remplacés par Ansible au déploiement (group_vars/all.yml)."""
 import json
 import os
@@ -19,22 +19,24 @@ def nid():
     return pid[0]
 
 
-def tgt(expr, legend=None, ref="A"):
+def tgt(expr, legend=None, ref="A", table=False):
     t = {"refId": ref, "datasource": DS, "expr": expr, "instant": True, "range": False}
+    if table:
+        t["format"] = "table"
     if legend:
         t["legendFormat"] = legend
     return t
 
 
 def stat(title, x, y, w, h, targets, desc="", unit="none", steps=None, mappings=None, decimals=0, overrides=None,
-         text_mode="value_and_name", links=None):
+         text_mode="value_and_name", links=None, color_mode="background"):
     p = {"type": "stat", "title": title, "id": nid(), "gridPos": {"h": h, "w": w, "x": x, "y": y}, "datasource": DS,
          "targets": targets, "description": desc,
          "fieldConfig": {"defaults": {"unit": unit, "decimals": decimals, "mappings": mappings or [],
                                       "thresholds": {"mode": "absolute", "steps": steps or [{"color": "green", "value": None}]},
                                       "links": links or []},
                          "overrides": overrides or []},
-         "options": {"colorMode": "background", "graphMode": "none", "textMode": text_mode, "justifyMode": "center",
+         "options": {"colorMode": color_mode, "graphMode": "none", "textMode": text_mode, "justifyMode": "center",
                      "orientation": "auto", "wideLayout": True,
                      "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}}}
     return p
@@ -53,35 +55,39 @@ def val(maps):
     return [{"type": "value", "options": {k: {"text": t, "color": c} for k, (t, c) in maps.items()}}]
 
 
+def table(title, x, y, w, h, targets, desc="", garder=None, vide="", jointure=None, overrides=None, links=None):
+    """Tableau Grafana : requêtes au format table (jointes sur une étiquette si besoin), colonnes de `garder`
+    seulement, dans cet ordre et sous ces noms."""
+    trans = []
+    if jointure:
+        trans.append({"id": "joinByField", "options": {"byField": jointure, "mode": "outer"}})
+    garder = garder or {}
+    trans.append({"id": "filterFieldsByName", "options": {"include": {"names": list(garder)}}})
+    trans.append({"id": "organize", "options": {"indexByName": {k: i for i, k in enumerate(garder)},
+                                                "renameByName": garder}})
+    return {"type": "table", "title": title, "id": nid(), "gridPos": {"h": h, "w": w, "x": x, "y": y}, "datasource": DS,
+            "targets": targets, "description": desc, "transformations": trans,
+            "fieldConfig": {"defaults": {"noValue": vide, "links": links or [],
+                                         "custom": {"align": "left", "cellOptions": {"type": "auto"}}},
+                            "overrides": overrides or []},
+            "options": {"showHeader": True, "cellHeight": "md", "footer": {"show": False}}}
+
+
+# Problèmes en cours : toutes les alertes, sauf la simple notification d'une action réussie de l'agent
+ALERTES_EN_COURS = 'ALERTS{alertstate="firing",alertname!="ActionAutomatique"}'
+
+
 RG = [{"color": "red", "value": None}, {"color": "green", "value": 1}]
 panels = []
 y = 0
-panels.append(text("", 0, y, 24, 3,
-    "## Projet PFE DevSecOps + AIOps\n"
-    "Chaîne CI/CD sécurisée (Jenkins, SonarQube, Trivy, Argo CD), supervision multi-nœuds avec détection d'anomalies par IA, "
-    "agent d'auto-réparation et sauvegardes croisées. **Tout l'état du projet sur une page** ; les liens en haut ouvrent chaque outil."))
-y += 3
-panels.append(row("Déploiement en un clic", y))
+# ============================== Page « PFE - Détails » : tout le détail technique
+panels.append(row("Alertes en cours", y))
 y += 1
-panels.append(text("", 0, y, 16, 7,
-    f"### [🚀 Déployer la dernière version]({DEPLOYER})\n"
-    "Lance la chaîne complète sur la branche `main` du dépôt : tests, SonarQube, construction des images, scan Trivy, "
-    "publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter ; "
-    "le champ **NOEUDS** choisit les serveurs où l'application tourne (noms de la section « Serveurs » ci-dessous, "
-    "ex. `app-1,app-2` ; `tous` : n'importe lequel ; vide : garder les serveurs actuels), puis **Build**. "
-    "Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. "
-    "Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n"
-    f"### [🌐 Voir l'application en ligne](http://{APP}__APP_URL_PATH__)\n\n"
-    f"### [📦 Construire et déployer une autre application]({DEPLOYER_APPS})\n"
-    "**Nouvelle application** : un nom dans **APPLICATION** et l'adresse de son dépôt Git dans **DEPOT** (son "
-    "Dockerfile suffit) ; la plateforme la construit, la contrôle, la déploie puis la supervise. "
-    "**Application existante** : son nom seul (ex. `demo-podinfo`)."))
-panels.append(stat("Application en ligne", 16, y, 8, 7,
-    [tgt('probe_success{job="services",service="Application"}')],
-    "Page de l'application testée toutes les 15 s depuis le serveur de supervision. Cliquer pour l'ouvrir.",
-    text_mode="value", mappings=val({"1": ("EN LIGNE", "green"), "0": ("HORS LIGNE", "red")}), steps=RG,
-    links=[{"title": "Ouvrir l'application", "url": f"http://{APP}__APP_URL_PATH__", "targetBlank": True}]))
-y += 7
+panels.append(table("Alertes en cours", 0, y, 24, 5, [tgt(ALERTES_EN_COURS, ref="A", table=True)],
+    "Alertes actives du parc (hors simple notification d'une action de l'agent). Le bandeau de l'accueil les compte.",
+    garder={"alertname": "Alerte", "severity": "Gravité", "node": "Serveur", "application": "Application", "source": "Origine"},
+    vide="Rien à signaler"))
+y += 5
 panels.append(row("Applications de la plateforme", y))
 y += 1
 APPLI = 'aiops_target_info{kind="application"}'
@@ -234,20 +240,98 @@ panels.append(row("Évaluation par injection de pannes", y))
 y += 1
 panels.append(text("", 0, y, 24, 6, md))
 
-links = [
-    {"title": "Déployer", "type": "link", "url": DEPLOYER, "icon": "cloud", "targetBlank": True},
-    {"title": "Supervision détaillée", "type": "link", "url": "/d/pfe-supervision", "icon": "dashboard"},
-    {"title": "Agent et sauvegardes", "type": "link", "url": "/d/pfe-agent-sauvegardes", "icon": "dashboard"},
-    {"title": "Application", "type": "link", "url": f"http://{APP}__APP_URL_PATH__", "icon": "external link", "targetBlank": True},
+ACCUEIL_LIEN = {"title": "Accueil", "type": "link", "url": "/d/pfe-accueil", "icon": "dashboard"}
+DETAILS_LIEN = {"title": "Détails techniques", "type": "link", "url": "/d/pfe-details", "icon": "dashboard"}
+OUTILS = [
     {"title": "Jenkins", "type": "link", "url": f"http://{APP}:8080/", "icon": "external link", "targetBlank": True},
     {"title": "Argo CD", "type": "link", "url": f"https://{APP}:32252/", "icon": "external link", "targetBlank": True},
-    {"title": "SonarQube", "type": "link", "url": f"http://{APP}:9000/", "icon": "external link", "targetBlank": True},
     {"title": "Dépôt GitHub", "type": "link", "url": DEPOT, "icon": "doc", "targetBlank": True},
-    {"title": "Résultats de la campagne", "type": "link", "url": RAPPORT, "icon": "info", "targetBlank": True},
 ]
-d = {"uid": "pfe-accueil", "title": "PFE - Accueil", "tags": ["pfe"], "timezone": "browser", "schemaVersion": 39, "version": 1,
-     "refresh": "30s", "time": {"from": "now-1h", "to": "now"}, "templating": {"list": []}, "annotations": {"list": []},
-     "links": links, "panels": panels}
-with open(os.path.join(RACINE, "infra/ansible/roles/monitoring/files/dashboards/pfe-accueil.json"), "w", encoding="utf-8", newline="\n") as f:
-    json.dump(d, f, ensure_ascii=False, indent=2)
-print(len(panels), "panneaux")
+
+
+def ecrire(uid, titre, liens, contenu):
+    d = {"uid": uid, "title": titre, "tags": ["pfe"], "timezone": "browser", "schemaVersion": 39, "version": 1,
+         "refresh": "30s", "time": {"from": "now-1h", "to": "now"}, "templating": {"list": []},
+         "annotations": {"list": []}, "links": liens, "panels": contenu}
+    with open(os.path.join(RACINE, f"infra/ansible/roles/monitoring/files/dashboards/{uid}.json"), "w",
+              encoding="utf-8", newline="\n") as f:
+        json.dump(d, f, ensure_ascii=False, indent=2)
+    print(uid, len(contenu), "panneaux")
+
+
+ecrire("pfe-details", "PFE - Détails", [ACCUEIL_LIEN,
+    {"title": "Supervision détaillée", "type": "link", "url": "/d/pfe-supervision", "icon": "dashboard"},
+    {"title": "Agent et sauvegardes", "type": "link", "url": "/d/pfe-agent-sauvegardes", "icon": "dashboard"},
+    *OUTILS,
+    {"title": "SonarQube", "type": "link", "url": f"http://{APP}:9000/", "icon": "external link", "targetBlank": True},
+    {"title": "Résultats de la campagne", "type": "link", "url": RAPPORT, "icon": "info", "targetBlank": True}], panels)
+
+# ============================== Page d'accueil « PFE - Accueil » : l'essentiel, lisible en quelques secondes
+pid[0] = 0
+panels = []
+y = 0
+ROUGE_SI_PLUS = [{"type": "range", "options": {"from": 1, "to": 1e9, "result": {"color": "red"}}}]
+rouge_si = [{"color": "green", "value": None}, {"color": "red", "value": 1}]
+# 1. Bandeau : tout va bien, ou combien de points sont à regarder (liste en haut de la page Détails)
+panels.append(stat("", 0, y, 24, 3, [tgt(f'count({ALERTES_EN_COURS}) or vector(0)')],
+    "Alertes actives sur tout le parc. Leur liste est en haut de la page « Détails techniques ».",
+    unit="suffix: point(s) à regarder", text_mode="value",
+    mappings=val({"0": ("Tout fonctionne", "green")}) + ROUGE_SI_PLUS, steps=rouge_si,
+    links=[{"title": "Voir les alertes", "url": "/d/pfe-details"}]))
+y += 3
+# 2. Les deux actions
+panels.append(text("", 0, y, 12, 4,
+    f"### [🚀 Déployer la dernière version]({DEPLOYER})\n"
+    "Tests, contrôles de sécurité, puis mise en ligne : environ 10 minutes. "
+    "Si un contrôle échoue, rien ne change et la version en ligne reste en place."))
+panels.append(text("", 12, y, 12, 4,
+    f"### [📦 Ajouter une application]({DEPLOYER_APPS})\n"
+    "Son nom et l'adresse de son dépôt Git : la plateforme la construit, la contrôle, la met en ligne puis la surveille."))
+y += 4
+# 3. Une ligne par application
+etat_app = val({"1": ("en ligne", "green"), "0": ("HORS LIGNE", "red")})
+build = val({"SUCCESS": ("réussi", "green"), "UNSTABLE": ("instable", "orange"), "FAILURE": ("ÉCHEC", "red"),
+             "ABORTED": ("interrompu", "text")})
+ia = val({"0": ("normal", "green"), "1": ("anomalie", "orange")})
+couleur = lambda m: [{"id": "mappings", "value": m}, {"id": "custom.cellOptions", "value": {"type": "color-text"}}]
+panels.append(table("Applications", 0, y, 24, 6, [
+        tgt('max by (application, instance) (probe_success{job="applications"}) or '
+            + COB('max by (instance) (probe_success{job="services",service="Application"})'), ref="A", table=True),
+        tgt('max by (application, version) (pfe_deploiement_version{version=~".+-[0-9a-f]{7}"}) or on (application) '
+            'max by (application, version) (pfe_deploiement_version)', ref="B", table=True),
+        tgt('max by (application, resultat) (pfe_ci_dernier_build)', ref="C", table=True),
+        tgt(f'max by (application) (aiops_anomaly_active * on (node) group_left (application) {APPLI}) or {COB(COB_IA)}',
+            ref="D", table=True)],
+    "État : adresse web testée toutes les 15 s. Version en ligne : celle qui tourne vraiment. Dernier build : "
+    "résultat du dernier passage dans Jenkins. IA : comportement anormal détecté. Cliquer sur un nom pour ouvrir l'application.",
+    garder={"application": "Application", "Value #A": "État", "version": "Version en ligne",
+            "resultat": "Dernier build", "Value #D": "IA", "instance": "instance"},
+    jointure="application", vide="—",
+    overrides=[{"matcher": {"id": "byName", "options": "État"}, "properties": couleur(etat_app)},
+               {"matcher": {"id": "byName", "options": "Dernier build"}, "properties": couleur(build)},
+               {"matcher": {"id": "byName", "options": "IA"}, "properties": couleur(ia)},
+               {"matcher": {"id": "byName", "options": "instance"}, "properties": [{"id": "custom.hidden", "value": True}]},
+               {"matcher": {"id": "byName", "options": "Application"}, "properties": [
+                   {"id": "links", "value": [{"title": "Ouvrir ${__value.text}", "url": "${__data.fields.instance}",
+                                              "targetBlank": True}]}]}]))
+y += 6
+# 4. Quatre voyants pour la plateforme
+tous = lambda txt: val({"0": (txt, "green")}) + ROUGE_SI_PLUS
+panels.append(stat("Serveurs", 0, y, 6, 4, [tgt('count(up{job="node-exporter"} == 0) or vector(0)')],
+    "Chaque serveur du parc répond-il ? Sinon : nombre de serveurs injoignables.", unit="suffix: hors ligne",
+    text_mode="value", color_mode="value", mappings=tous("tous en ligne"), steps=rouge_si))
+panels.append(stat("Services", 6, y, 6, 4, [tgt('count(probe_success{job="services",hors_build="non"} == 0) or vector(0)')],
+    "Jenkins, Argo CD, Vault, Grafana, Prometheus, IA, agent… testés toutes les 15 s. Sinon : nombre de services "
+    "arrêtés. SonarQube ne tourne que pendant les builds.", unit="suffix: arrêté(s)",
+    text_mode="value", color_mode="value", mappings=tous("tous en ligne"), steps=rouge_si))
+panels.append(stat("Sauvegardes", 12, y, 6, 4,
+    [tgt('(time() - min(pfe_backup_last_success_timestamp_seconds > 0)) / 3600')],
+    "Âge, en heures, de la plus ancienne des dernières sauvegardes (une par nuit et par serveur, copiée sur l'autre "
+    "serveur, restaurée chaque semaine pour test).", unit="suffix: h", decimals=0, text_mode="value", color_mode="value",
+    steps=[{"color": "green", "value": None}, {"color": "orange", "value": 26}, {"color": "red", "value": 50}]))
+panels.append(stat("Surveillance par l'IA", 18, y, 6, 4, [tgt('max(aiops_anomaly_active) or vector(0)')],
+    "Un modèle par serveur et par application apprend le comportement normal et signale ce qui s'en écarte ; "
+    "l'agent d'auto-réparation peut alors agir.", text_mode="value", color_mode="value",
+    mappings=val({"0": ("normal", "green"), "1": ("anomalie détectée", "orange")}), steps=[{"color": "green", "value": None}]))
+y += 4
+ecrire("pfe-accueil", "PFE - Accueil", [DETAILS_LIEN, *OUTILS], panels)

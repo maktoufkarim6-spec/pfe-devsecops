@@ -114,6 +114,7 @@
     - { src: dashboards/pfe-supervision.json, dest: dashboards/pfe-supervision.json }
     - { src: dashboards/pfe-agent-sauvegardes.json, dest: dashboards/pfe-agent-sauvegardes.json }
     - { src: dashboards/pfe-accueil.json, dest: dashboards/pfe-accueil.json }
+    - { src: dashboards/pfe-details.json, dest: dashboards/pfe-details.json }
 
 - name: Code du moteur AIOps
   ansible.builtin.git:
