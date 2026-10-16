@@ -148,6 +148,31 @@ groups:
           summary: "La resynchronisation automatique des applications échoue depuis 15 minutes"
           description: "Une application ajoutée dans GitHub n'est pas encore supervisée ni sauvegardée. Journal : ~/.pfe-parc/sync.log sur le serveur de supervision."
 
+  - name: deploiements
+    rules:
+      # pfe-etat-cluster lit Argo CD chaque minute sur le nœud de contrôle (tuiles « Déploiements » de l'accueil)
+      - alert: ApplicationArgoCDDegradee
+        expr: pfe_argocd_app < 1
+        for: 15m
+        labels:
+          severity: warning
+          source: deploiement
+        annotations:
+          summary: "{{ $labels.application }} : Argo CD {{ $labels.sync }} / {{ $labels.sante }} depuis 15 minutes"
+          description: "Le cluster ne correspond pas au dépôt Git ou un composant ne démarre pas. Détail dans Argo CD (application {{ $labels.nom }})."
+      - alert: EtatClusterMuet
+        # Date du fichier écrit par pfe-etat-cluster : figé, les tuiles « Déploiements » ne sont plus à jour
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*pfe_etat_cluster.prom"} > 600
+          or absent(node_textfile_mtime_seconds{file=~".*pfe_etat_cluster.prom"})
+        for: 10m
+        labels:
+          severity: warning
+          source: deploiement
+        annotations:
+          summary: "L'état des déploiements n'est plus lu depuis 10 minutes"
+          description: "journalctl -u pfe-etat-cluster sur le nœud de contrôle (Kubernetes injoignable ?)."
+
   - name: collecteurs
     rules:
       - alert: CollecteurArrete

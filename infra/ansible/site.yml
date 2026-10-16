@@ -140,6 +140,13 @@
       when: inventory_hostname == k3s_server_host
       tags: [applications]
 
+    - name: État des déploiements pour Grafana (versions, Argo CD), chaque minute
+      ansible.builtin.include_role:
+        name: applications
+        tasks_from: etat_cluster
+      when: inventory_hostname == k3s_server_host
+      tags: [applications]
+
 - name: Agent de remédiation
   hosts: monitoring
   become: true

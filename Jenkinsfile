@@ -267,6 +267,29 @@ pipeline {
             echo 'Le pipeline a echoue : aucune image n a ete deployee. Verifiez l etape en rouge.'
         }
         always {
+            script {
+                // Résultat du build pour Grafana (tuile « Dernier build ») : fichier lu par node-exporter de ce nœud
+                if (env.SKIP != 'true' && env.TAG) {
+                    def r = currentBuild.currentResult
+                    def statut = r == 'SUCCESS' ? '1' : (r == 'UNSTABLE' ? '0.5' : '0')
+                    def lab = "job=\"${env.JOB_NAME}\",application=\"${env.APP_NAME}\""
+                    def contenu = [
+                        '# HELP pfe_ci_dernier_build Résultat du dernier build (1 réussi, 0.5 instable, 0 échec)',
+                        '# TYPE pfe_ci_dernier_build gauge',
+                        "pfe_ci_dernier_build{${lab},resultat=\"${r}\",version=\"${env.TAG ?: ''}\"} ${statut}",
+                        '# TYPE pfe_ci_dernier_build_timestamp_seconds gauge',
+                        "pfe_ci_dernier_build_timestamp_seconds{${lab}} ${(long) (System.currentTimeMillis() / 1000)}",
+                        '# TYPE pfe_ci_dernier_build_numero gauge',
+                        "pfe_ci_dernier_build_numero{${lab}} ${env.BUILD_NUMBER}"].join('\n') + '\n'
+                    withEnv(["PFE_FICHIER=pfe_ci_${env.APP_NAME}.prom", "PFE_CONTENU=${contenu}"]) {
+                        sh '''
+                            docker run --rm -v /var/lib/node_exporter/textfile:/t -e PFE_FICHIER -e PFE_CONTENU alpine:3.20 sh -c \
+                              'printf "%s" "$PFE_CONTENU" > "/t/.$PFE_FICHIER" && mv "/t/.$PFE_FICHIER" "/t/$PFE_FICHIER"' \
+                              || echo "Résultat du build non publié pour Grafana : ignoré"
+                        '''
+                    }
+                }
+            }
             sh 'docker logout || true'
             sh 'git config --unset credential.helper || true'
             script {
