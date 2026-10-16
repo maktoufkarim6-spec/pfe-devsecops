@@ -51,6 +51,19 @@
   changed_when: false
   failed_when: false
 
+- name: Statut initial (ce déploiement vient d'appliquer l'état du dépôt ; jamais écrasé ensuite par Ansible)
+  ansible.builtin.copy:
+    dest: "{{ textfile_dir }}/pfe_sync.prom"
+    force: false
+    mode: "0644"
+    content: |
+      # HELP pfe_sync_statut 1 si la dernière resynchronisation automatique a réussi
+      # TYPE pfe_sync_statut gauge
+      pfe_sync_statut 1
+      # HELP pfe_sync_derniere_reussite_timestamp_seconds Dernière resynchronisation réussie
+      # TYPE pfe_sync_derniere_reussite_timestamp_seconds gauge
+      pfe_sync_derniere_reussite_timestamp_seconds {{ now(utc=true).strftime('%s') }}
+
 - name: Minuterie active
   ansible.builtin.systemd_service:
     name: pfe-sync.timer
