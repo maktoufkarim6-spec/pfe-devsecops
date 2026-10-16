@@ -85,25 +85,37 @@ y += 7
 panels.append(row("Applications de la plateforme", y))
 y += 1
 APPLI = 'aiops_target_info{kind="application"}'
+# Application cobaye : gérée par k8s/ (espace __APP_NAMESPACE__), suivie par le modèle IA du nœud de contrôle et
+# sauvegardée avec lui ; affichée ici avec les autres sous son nom (__APP_NAME__)
+COB = lambda expr: f'label_replace({expr}, "application", "__APP_NAME__", "", "")'
+COB_IA = ('(max(aiops_anomaly_active{node="__CTL_NODE__"}) * max(aiops_top_feature{node="__CTL_NODE__",'
+          'feature=~"cpu_server|ram_server_mb|ram_postgres_mb|app_containers"})) or vector(0)')
 panels.append(stat("En ligne", 0, y, 6, 4,
-    [tgt('probe_success{job="applications"}', "{{application}}")],
-    "Adresse web de chaque application (dossiers applications/<nom>/), testée toutes les 15 s. Cliquer pour l'ouvrir.",
+    [tgt('probe_success{job="applications"}', "{{application}}"),
+     tgt(COB('probe_success{job="services",service="Application"}'), "{{application}}", "B")],
+    "Adresse web de chaque application, testée toutes les 15 s. Cliquer pour l'ouvrir.",
     mappings=val({"1": ("en ligne", "green"), "0": ("HORS LIGNE", "red")}), steps=RG,
     links=[{"title": "Ouvrir ${__field.labels.application}", "url": "${__field.labels.instance}", "targetBlank": True}]))
 panels.append(stat("Détection par l'IA", 6, y, 6, 4,
-    [tgt(f'max by (application) (aiops_anomaly_active * on (node) group_left (application) {APPLI})', "{{application}}")],
-    "Un modèle par application : CPU et RAM de chaque composant, conteneurs, disponibilité et temps de réponse.",
+    [tgt(f'max by (application) (aiops_anomaly_active * on (node) group_left (application) {APPLI})', "{{application}}"),
+     tgt(COB(COB_IA), "{{application}}", "B")],
+    "Un modèle par application : CPU et RAM de chaque composant, conteneurs, disponibilité et temps de réponse. "
+    "Application cobaye : modèle de son serveur, quand la variable en cause est la sienne (API, base, conteneurs).",
     mappings=val({"0": ("normal", "green"), "1": ("ANOMALIE", "orange")}), steps=[{"color": "green", "value": None}]))
 panels.append(stat("Mémoire", 12, y, 6, 4,
     [tgt('sum by (application) (label_replace(container_memory_working_set_bytes{job="cadvisor-k3s",'
          'container_label_io_kubernetes_container_name!="",container_label_io_kubernetes_container_name!="POD"},'
          ' "application", "$1", "container_label_io_kubernetes_pod_namespace", "(.+)"))'
-         f' and on (application) {APPLI}', "{{application}}")],
+         f' and on (application) {APPLI}', "{{application}}"),
+     tgt(COB('sum(container_memory_working_set_bytes{job="cadvisor-k3s",container_label_io_kubernetes_pod_namespace="__APP_NAMESPACE__",'
+             'container_label_io_kubernetes_container_name!="",container_label_io_kubernetes_container_name!="POD"})'), "{{application}}", "B")],
     "Mémoire utilisée par tous les conteneurs de l'application (plafonnée par son quota).", unit="bytes", decimals=0))
 panels.append(stat("Sauvegarde de la base", 18, y, 6, 4,
     [tgt('(time() - pfe_backup_app_last_success_timestamp_seconds) / 3600 and pfe_backup_app_last_success_timestamp_seconds > 0',
-         "{{application}}")],
-    "Heures depuis la dernière sauvegarde réussie de la base de chaque application (restaurée chaque semaine pour test).",
+         "{{application}}"),
+     tgt(COB('(time() - max(pfe_backup_last_success_timestamp_seconds{node="__CTL_NODE__"})) / 3600'), "{{application}}", "B")],
+    "Heures depuis la dernière sauvegarde réussie de la base de chaque application (restaurée chaque semaine pour test). "
+    "Application cobaye : sauvegarde de son serveur, qui contient sa base.",
     unit="h", decimals=1, steps=[{"color": "green", "value": None}, {"color": "orange", "value": 26}, {"color": "red", "value": 50}]))
 y += 4
 panels.append(row("Services", y))
