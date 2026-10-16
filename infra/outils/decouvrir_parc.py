@@ -79,6 +79,24 @@ def port_ouvert(ip, port, delai=2.0):
         return False
 
 
+def adresses_locales(executer=subprocess.run):
+    """Adresses IPv4 de cette machine : elle se sonde elle-même sans SSH (la clé du parc n'est posée que sur les
+    AUTRES serveurs ; par SSH, le serveur de supervision se verrait « clé refusée »)."""
+    try:
+        p = executer(["ip", "-4", "-o", "addr", "show"], capture_output=True, text=True, timeout=10)
+        return set(re.findall(r"inet ([0-9.]+)/", p.stdout))
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+
+
+def sonder_localement(executer=subprocess.run):
+    try:
+        p = executer(["bash", os.path.join(ICI, "sonde_serveur.sh")], capture_output=True, timeout=60)
+        return json.loads(p.stdout.decode(errors="replace").strip().splitlines()[-1]), None
+    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError) as e:
+        return None, f"sonde locale impossible : {e}"
+
+
 def sonder(ip, conf, cle, known_hosts, executer=subprocess.run):
     """Sonde lecture seule par la clé du parc. Renvoie (dict sonde, erreur)."""
     cmd = ["ssh", "-i", cle, "-p", str(conf["port_ssh"]), "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
@@ -138,9 +156,17 @@ def empreinte(ip, known_hosts):
         return ""
 
 
-def explorer(conf, cle, known_hosts, connus, executer=subprocess.run, ouvert=port_ouvert):
+def explorer(conf, cle, known_hosts, connus, executer=subprocess.run, ouvert=port_ouvert, locales=None):
+    locales = adresses_locales(executer) if locales is None else locales
+
     def un(ip):
         r = {"adresse": ip, "inventaire": connus.get(ip, "")}
+        if ip in locales:
+            s, err = sonder_localement(executer)
+            if err:
+                return {**r, "etat": "erreur", "raison": err}
+            etat, raison = classer(s, conf)
+            return {**r, "etat": etat, "raison": raison + " (ce serveur)", "sonde": s, "empreinte": ""}
         if not ouvert(ip, conf["port_ssh"]):
             return {**r, "etat": "inaccessible", "raison": f"port {conf['port_ssh']} fermé"}
         s, err = sonder(ip, conf, cle, known_hosts, executer)

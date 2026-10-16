@@ -105,7 +105,8 @@ def test_exploration_complete_simulee(tmp_path):
         rc, out, err = reponses[ip]
         return types.SimpleNamespace(returncode=rc, stdout=out.encode(), stderr=err.encode())
 
-    res = d.explorer(c, "/cle", str(tmp_path / "kh"), {}, executer=executer, ouvert=lambda ip, port: ip != "10.0.0.4")
+    res = d.explorer(c, "/cle", str(tmp_path / "kh"), {}, executer=executer, ouvert=lambda ip, port: ip != "10.0.0.4",
+                     locales=set())
     assert [(r["adresse"], r["etat"]) for r in res] == [
         ("10.0.0.1", "vide"), ("10.0.0.2", "cle_refusee"), ("10.0.0.3", "erreur"), ("10.0.0.4", "inaccessible")]
 
@@ -156,3 +157,30 @@ def test_parc_neuf_ce_serveur_ignore_dans_les_resultats():
     p = d.plan_parc_neuf([serveur("10.0.0.1", "cle_refusee"), serveur("10.0.0.2")], "10.0.0.1", VIDE, CONF)
     assert p["statut"] == "pret" and "app-1 ansible_host=10.0.0.2" in p["inventaire"]
     assert p["inventaire"].count("10.0.0.1") == 1
+
+
+def test_ce_serveur_se_sonde_localement_sans_ssh(tmp_path):
+    """Le serveur de supervision n'a pas la clé du parc chez lui : il se sonde en local, jamais par SSH."""
+    c = d.lire_conf(ecrire(tmp_path, "plages_autorisees: [10.0.0.1/32, 10.0.0.2/32]\n"))
+    c.update({k: v for k, v in CONF.items() if k not in c})
+    appels = []
+
+    def executer(cmd, **kw):
+        appels.append(cmd)
+        if cmd[0] == "bash":                         # sonde locale
+            sortie = json.dumps(avec(conteneurs="mon-prometheus mon-grafana"))
+        else:                                        # SSH vers l'autre serveur
+            sortie = json.dumps(avec(k3s_serveur=True, k3s_version="v1.36.4+k3s1"))
+        return types.SimpleNamespace(returncode=0, stdout=sortie.encode(), stderr=b"")
+
+    res = d.explorer(c, "/cle", str(tmp_path / "kh"), {}, executer=executer, ouvert=lambda ip, port: True,
+                     locales={"10.0.0.1"})
+    assert [(r["adresse"], r["etat"]) for r in res] == [("10.0.0.1", "supervision"), ("10.0.0.2", "controle")]
+    assert "(ce serveur)" in res[0]["raison"]
+    assert not any(cmd[0] == "ssh" and cmd[-2].endswith("@10.0.0.1") for cmd in appels)   # jamais de SSH vers soi
+
+
+def test_adresses_locales_lues_dans_ip_addr():
+    sortie = "1: lo    inet 127.0.0.1/8 scope host lo\n2: ens3    inet 54.37.13.100/32 metric 100 scope global ens3\n"
+    vues = d.adresses_locales(lambda *a, **k: types.SimpleNamespace(stdout=sortie, returncode=0))
+    assert vues == {"127.0.0.1", "54.37.13.100"}
