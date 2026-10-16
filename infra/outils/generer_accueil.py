@@ -133,12 +133,12 @@ panels.append(stat("Argo CD", 9, y, 5, 5,
     text_mode="name", steps=[{"color": "red", "value": None}, {"color": "blue", "value": 0.5}, {"color": "green", "value": 1}],
     links=[{"title": "Ouvrir Argo CD", "url": f"https://{APP}:32252/applications", "targetBlank": True}]))
 panels.append(stat("Dernier build Jenkins", 14, y, 6, 5,
-    [tgt('max by (application, job, version) (pfe_ci_dernier_build)', "{{application}} ({{version}})")],
+    [tgt('max by (application, pipeline, version) (pfe_ci_dernier_build)', "{{application}} ({{version}})")],
     "Résultat du dernier build de chaque application (réussi, instable : Quality Gate non bloquante, ou échec). "
     "En cas d'échec rien n'est déployé : la version en ligne reste en place. Cliquer pour ouvrir le job.",
     mappings=val({"1": ("réussi", "green"), "0.5": ("instable", "orange"), "0": ("ÉCHEC", "red")}),
     steps=[{"color": "red", "value": None}, {"color": "orange", "value": 0.5}, {"color": "green", "value": 1}],
-    links=[{"title": "Ouvrir le job ${__field.labels.job}", "url": f"http://{APP}:8080/job/${{__field.labels.job}}/",
+    links=[{"title": "Ouvrir le job ${__field.labels.pipeline}", "url": f"http://{APP}:8080/job/${{__field.labels.pipeline}}/",
             "targetBlank": True}]))
 panels.append(stat("Synchronisation auto", 20, y, 4, 5,
     [tgt('max(pfe_sync_statut) or vector(-1)', "État"),

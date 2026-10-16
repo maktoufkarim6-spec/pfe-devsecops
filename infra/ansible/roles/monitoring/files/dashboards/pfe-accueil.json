@@ -741,7 +741,7 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "max by (application, job, version) (pfe_ci_dernier_build)",
+          "expr": "max by (application, pipeline, version) (pfe_ci_dernier_build)",
           "instant": true,
           "range": false,
           "legendFormat": "{{application}} ({{version}})"
@@ -790,8 +790,8 @@
           },
           "links": [
             {
-              "title": "Ouvrir le job ${__field.labels.job}",
-              "url": "http://__APP_IP__:8080/job/${__field.labels.job}/",
+              "title": "Ouvrir le job ${__field.labels.pipeline}",
+              "url": "http://__APP_IP__:8080/job/${__field.labels.pipeline}/",
               "targetBlank": true
             }
           ]
