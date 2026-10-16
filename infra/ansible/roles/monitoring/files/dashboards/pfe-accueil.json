@@ -20,30 +20,10 @@
   },
   "links": [
     {
-      "title": "Déployer",
+      "title": "Détails techniques",
       "type": "link",
-      "url": "__JENKINS_JOB_URL__",
-      "icon": "cloud",
-      "targetBlank": true
-    },
-    {
-      "title": "Supervision détaillée",
-      "type": "link",
-      "url": "/d/pfe-supervision",
+      "url": "/d/pfe-details",
       "icon": "dashboard"
-    },
-    {
-      "title": "Agent et sauvegardes",
-      "type": "link",
-      "url": "/d/pfe-agent-sauvegardes",
-      "icon": "dashboard"
-    },
-    {
-      "title": "Application",
-      "type": "link",
-      "url": "http://__APP_IP____APP_URL_PATH__",
-      "icon": "external link",
-      "targetBlank": true
     },
     {
       "title": "Jenkins",
@@ -60,30 +40,16 @@
       "targetBlank": true
     },
     {
-      "title": "SonarQube",
-      "type": "link",
-      "url": "http://__APP_IP__:9000/",
-      "icon": "external link",
-      "targetBlank": true
-    },
-    {
       "title": "Dépôt GitHub",
       "type": "link",
       "url": "__REPO_WEB__",
       "icon": "doc",
       "targetBlank": true
-    },
-    {
-      "title": "Résultats de la campagne",
-      "type": "link",
-      "url": "__EVALUATION_URL__",
-      "icon": "info",
-      "targetBlank": true
     }
   ],
   "panels": [
     {
-      "type": "text",
+      "type": "stat",
       "title": "",
       "id": 1,
       "gridPos": {
@@ -91,49 +57,6 @@
         "w": 24,
         "x": 0,
         "y": 0
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "## Projet PFE DevSecOps + AIOps\nChaîne CI/CD sécurisée (Jenkins, SonarQube, Trivy, Argo CD), supervision multi-nœuds avec détection d'anomalies par IA, agent d'auto-réparation et sauvegardes croisées. **Tout l'état du projet sur une page** ; les liens en haut ouvrent chaque outil."
-      }
-    },
-    {
-      "type": "row",
-      "title": "Déploiement en un clic",
-      "id": 2,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 3
-      },
-      "collapsed": false,
-      "panels": []
-    },
-    {
-      "type": "text",
-      "title": "",
-      "id": 3,
-      "gridPos": {
-        "h": 7,
-        "w": 16,
-        "x": 0,
-        "y": 4
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "### [🚀 Déployer la dernière version](__JENKINS_JOB_URL__)\nLance la chaîne complète sur la branche `main` du dépôt : tests, SonarQube, construction des images, scan Trivy, publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter ; le champ **NOEUDS** choisit les serveurs où l'application tourne (noms de la section « Serveurs » ci-dessous, ex. `app-1,app-2` ; `tous` : n'importe lequel ; vide : garder les serveurs actuels), puis **Build**. Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n### [🌐 Voir l'application en ligne](http://__APP_IP____APP_URL_PATH__)\n\n### [📦 Construire et déployer une autre application](__JENKINS_APPS_URL__)\n**Nouvelle application** : un nom dans **APPLICATION** et l'adresse de son dépôt Git dans **DEPOT** (son Dockerfile suffit) ; la plateforme la construit, la contrôle, la déploie puis la supervise. **Application existante** : son nom seul (ex. `demo-podinfo`)."
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Application en ligne",
-      "id": 4,
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 4
       },
       "datasource": {
         "type": "prometheus",
@@ -146,26 +69,32 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "probe_success{job=\"services\",service=\"Application\"}",
+          "expr": "count(ALERTS{alertstate=\"firing\",alertname!=\"ActionAutomatique\"}) or vector(0)",
           "instant": true,
           "range": false
         }
       ],
-      "description": "Page de l'application testée toutes les 15 s depuis le serveur de supervision. Cliquer pour l'ouvrir.",
+      "description": "Alertes actives sur tout le parc. Leur liste est en haut de la page « Détails techniques ».",
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
+          "unit": "suffix: point(s) à regarder",
           "decimals": 0,
           "mappings": [
             {
               "type": "value",
               "options": {
-                "1": {
-                  "text": "EN LIGNE",
-                  "color": "green"
-                },
                 "0": {
-                  "text": "HORS LIGNE",
+                  "text": "Tout fonctionne",
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 1,
+                "to": 1000000000.0,
+                "result": {
                   "color": "red"
                 }
               }
@@ -175,20 +104,19 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "green",
                 "value": null
               },
               {
-                "color": "green",
+                "color": "red",
                 "value": 1
               }
             ]
           },
           "links": [
             {
-              "title": "Ouvrir l'application",
-              "url": "http://__APP_IP____APP_URL_PATH__",
-              "targetBlank": true
+              "title": "Voir les alertes",
+              "url": "/d/pfe-details"
             }
           ]
         },
@@ -211,378 +139,44 @@
       }
     },
     {
-      "type": "row",
-      "title": "Applications de la plateforme",
-      "id": 5,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 11
-      },
-      "collapsed": false,
-      "panels": []
-    },
-    {
-      "type": "stat",
-      "title": "En ligne",
-      "id": 6,
+      "type": "text",
+      "title": "",
+      "id": 2,
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 12,
         "x": 0,
-        "y": 12
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "probe_success{job=\"applications\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{application}}"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "label_replace(probe_success{job=\"services\",service=\"Application\"}, \"application\", \"__APP_NAME__\", \"\", \"\")",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{application}}"
-        }
-      ],
-      "description": "Adresse web de chaque application, testée toutes les 15 s. Cliquer pour l'ouvrir.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "1": {
-                  "text": "en ligne",
-                  "color": "green"
-                },
-                "0": {
-                  "text": "HORS LIGNE",
-                  "color": "red"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "links": [
-            {
-              "title": "Ouvrir ${__field.labels.application}",
-              "url": "${__field.labels.instance}",
-              "targetBlank": true
-            }
-          ]
-        },
-        "overrides": []
+        "y": 3
       },
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
+        "mode": "markdown",
+        "content": "### [🚀 Déployer la dernière version](__JENKINS_JOB_URL__)\nTests, contrôles de sécurité, puis mise en ligne : environ 10 minutes. Si un contrôle échoue, rien ne change et la version en ligne reste en place."
       }
     },
     {
-      "type": "stat",
-      "title": "Détection par l'IA",
-      "id": 7,
+      "type": "text",
+      "title": "",
+      "id": 3,
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 12
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "max by (application) (aiops_anomaly_active * on (node) group_left (application) aiops_target_info{kind=\"application\"})",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{application}}"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "label_replace((max(aiops_anomaly_active{node=\"__CTL_NODE__\"}) * max(aiops_top_feature{node=\"__CTL_NODE__\",feature=~\"cpu_server|ram_server_mb|ram_postgres_mb|app_containers\"})) or vector(0), \"application\", \"__APP_NAME__\", \"\", \"\")",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{application}}"
-        }
-      ],
-      "description": "Un modèle par application : CPU et RAM de chaque composant, conteneurs, disponibilité et temps de réponse. Application cobaye : modèle de son serveur, quand la variable en cause est la sienne (API, base, conteneurs).",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "normal",
-                  "color": "green"
-                },
-                "1": {
-                  "text": "ANOMALIE",
-                  "color": "orange"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "links": []
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Mémoire",
-      "id": 8,
-      "gridPos": {
-        "h": 4,
-        "w": 6,
+        "w": 12,
         "x": 12,
-        "y": 12
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "sum by (application) (label_replace(container_memory_working_set_bytes{job=\"cadvisor-k3s\",container_label_io_kubernetes_container_name!=\"\",container_label_io_kubernetes_container_name!=\"POD\"}, \"application\", \"$1\", \"container_label_io_kubernetes_pod_namespace\", \"(.+)\")) and on (application) aiops_target_info{kind=\"application\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{application}}"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "label_replace(sum(container_memory_working_set_bytes{job=\"cadvisor-k3s\",container_label_io_kubernetes_pod_namespace=\"__APP_NAMESPACE__\",container_label_io_kubernetes_container_name!=\"\",container_label_io_kubernetes_container_name!=\"POD\"}), \"application\", \"__APP_NAME__\", \"\", \"\")",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{application}}"
-        }
-      ],
-      "description": "Mémoire utilisée par tous les conteneurs de l'application (plafonnée par son quota).",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "links": []
-        },
-        "overrides": []
+        "y": 3
       },
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
+        "mode": "markdown",
+        "content": "### [📦 Ajouter une application](__JENKINS_APPS_URL__)\nSon nom et l'adresse de son dépôt Git : la plateforme la construit, la contrôle, la met en ligne puis la surveille."
       }
     },
     {
-      "type": "stat",
-      "title": "Sauvegarde de la base",
-      "id": 9,
+      "type": "table",
+      "title": "Applications",
+      "id": 4,
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 12
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "(time() - pfe_backup_app_last_success_timestamp_seconds) / 3600 and pfe_backup_app_last_success_timestamp_seconds > 0",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{application}}"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "label_replace((time() - max(pfe_backup_last_success_timestamp_seconds{node=\"__CTL_NODE__\"})) / 3600, \"application\", \"__APP_NAME__\", \"\", \"\")",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{application}}"
-        }
-      ],
-      "description": "Heures depuis la dernière sauvegarde réussie de la base de chaque application (restaurée chaque semaine pour test). Application cobaye : sauvegarde de son serveur, qui contient sa base.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "h",
-          "decimals": 1,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 26
-              },
-              {
-                "color": "red",
-                "value": 50
-              }
-            ]
-          },
-          "links": []
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "row",
-      "title": "Déploiements",
-      "id": 10,
-      "gridPos": {
-        "h": 1,
+        "h": 6,
         "w": 24,
         "x": 0,
-        "y": 16
-      },
-      "collapsed": false,
-      "panels": []
-    },
-    {
-      "type": "stat",
-      "title": "Version en ligne",
-      "id": 11,
-      "gridPos": {
-        "h": 5,
-        "w": 9,
-        "x": 0,
-        "y": 17
+        "y": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -595,250 +189,10 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "max by (application, composant, version) (pfe_deploiement_version)",
+          "expr": "max by (application, instance) (probe_success{job=\"applications\"}) or label_replace(max by (instance) (probe_success{job=\"services\",service=\"Application\"}), \"application\", \"__APP_NAME__\", \"\", \"\")",
           "instant": true,
           "range": false,
-          "legendFormat": "{{application}} / {{composant}} : {{version}}"
-        }
-      ],
-      "description": "Image qui tourne réellement dans Kubernetes pour chaque composant (lue chaque minute). Vert : toutes les copies sont prêtes ; orange : une partie seulement ; rouge : aucune.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.01
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "links": []
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Argo CD",
-      "id": 12,
-      "gridPos": {
-        "h": 5,
-        "w": 5,
-        "x": 9,
-        "y": 17
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "max by (application, sync, sante) (pfe_argocd_app)",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{application}} : {{sync}} / {{sante}}"
-        }
-      ],
-      "description": "Synced : le cluster correspond au dépôt Git. Healthy : tout démarre correctement. Bleu : synchronisation ou démarrage en cours ; rouge : à regarder dans Argo CD.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "blue",
-                "value": 0.5
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "links": [
-            {
-              "title": "Ouvrir Argo CD",
-              "url": "https://__APP_IP__:32252/applications",
-              "targetBlank": true
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Dernier build Jenkins",
-      "id": 13,
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 14,
-        "y": 17
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "max by (application, pipeline, version) (pfe_ci_dernier_build)",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{application}} ({{version}})"
-        }
-      ],
-      "description": "Résultat du dernier build de chaque application (réussi, instable : Quality Gate non bloquante, ou échec). En cas d'échec rien n'est déployé : la version en ligne reste en place. Cliquer pour ouvrir le job.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "1": {
-                  "text": "réussi",
-                  "color": "green"
-                },
-                "0.5": {
-                  "text": "instable",
-                  "color": "orange"
-                },
-                "0": {
-                  "text": "ÉCHEC",
-                  "color": "red"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.5
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "links": [
-            {
-              "title": "Ouvrir le job ${__field.labels.pipeline}",
-              "url": "http://__APP_IP__:8080/job/${__field.labels.pipeline}/",
-              "targetBlank": true
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Synchronisation auto",
-      "id": 14,
-      "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 20,
-        "y": 17
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "max(pfe_sync_statut) or vector(-1)",
-          "instant": true,
-          "range": false,
-          "legendFormat": "État"
+          "format": "table"
         },
         {
           "refId": "B",
@@ -846,179 +200,96 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "max(pfe_sync_derniere_reussite_timestamp_seconds) * 1000",
+          "expr": "max by (application, version) (pfe_deploiement_version{version=~\".+-[0-9a-f]{7}\"}) or on (application) max by (application, version) (pfe_deploiement_version)",
           "instant": true,
           "range": false,
-          "legendFormat": "Dernière"
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "max by (application, resultat) (pfe_ci_dernier_build)",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "max by (application) (aiops_anomaly_active * on (node) group_left (application) aiops_target_info{kind=\"application\"}) or label_replace((max(aiops_anomaly_active{node=\"__CTL_NODE__\"}) * max(aiops_top_feature{node=\"__CTL_NODE__\",feature=~\"cpu_server|ram_server_mb|ram_postgres_mb|app_containers\"})) or vector(0), \"application\", \"__APP_NAME__\", \"\", \"\")",
+          "instant": true,
+          "range": false,
+          "format": "table"
         }
       ],
-      "description": "pfe-sync vérifie GitHub toutes les 5 min : quand une application est ajoutée ou ses réglages modifiés, le parc est resynchronisé automatiquement (supervision, IA, sauvegardes). « Dernière » : dernière resynchronisation réussie.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "1": {
-                  "text": "OK",
-                  "color": "green"
-                },
-                "0": {
-                  "text": "ÉCHEC",
-                  "color": "red"
-                },
-                "-1": {
-                  "text": "ABSENT",
-                  "color": "red"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "links": []
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "dateTimeFromNow"
-              },
-              {
-                "id": "mappings",
-                "value": []
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
+      "description": "État : adresse web testée toutes les 15 s. Version en ligne : celle qui tourne vraiment. Dernier build : résultat du dernier passage dans Jenkins. IA : comportement anormal détecté. Cliquer sur un nom pour ouvrir l'application.",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "application",
+            "mode": "outer"
           }
-        ]
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "row",
-      "title": "Services",
-      "id": 15,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 22
-      },
-      "collapsed": false,
-      "panels": []
-    },
-    {
-      "type": "stat",
-      "title": "État des services",
-      "id": 16,
-      "gridPos": {
-        "h": 5,
-        "w": 24,
-        "x": 0,
-        "y": 23
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
+        },
         {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "probe_success{job=\"services\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{service}}"
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "application",
+                "Value #A",
+                "version",
+                "resultat",
+                "Value #D",
+                "instance"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "application": 0,
+              "Value #A": 1,
+              "version": 2,
+              "resultat": 3,
+              "Value #D": 4,
+              "instance": 5
+            },
+            "renameByName": {
+              "application": "Application",
+              "Value #A": "État",
+              "version": "Version en ligne",
+              "resultat": "Dernier build",
+              "Value #D": "IA",
+              "instance": "instance"
+            }
+          }
         }
       ],
-      "description": "Chaque service est testé toutes les 15 s depuis le serveur de supervision. Cliquer sur un service pour l'ouvrir. SonarQube ne tourne que pendant les builds Jenkins (arrêté le reste du temps pour libérer 2 Go de RAM).",
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "1": {
-                  "text": "en ligne",
-                  "color": "green"
-                },
-                "0": {
-                  "text": "HORS LIGNE",
-                  "color": "red"
-                }
-              }
+          "noValue": "—",
+          "links": [],
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
             }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "links": [
-            {
-              "title": "Ouvrir ${__field.labels.service}",
-              "url": "${__field.labels.lien}",
-              "targetBlank": true
-            }
-          ]
+          }
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "SonarQube"
+              "options": "État"
             },
             "properties": [
               {
@@ -1028,14 +299,122 @@
                     "type": "value",
                     "options": {
                       "1": {
-                        "text": "en ligne (build)",
+                        "text": "en ligne",
                         "color": "green"
                       },
                       "0": {
-                        "text": "arrêté hors build",
-                        "color": "blue"
+                        "text": "HORS LIGNE",
+                        "color": "red"
                       }
                     }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Dernier build"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "SUCCESS": {
+                        "text": "réussi",
+                        "color": "green"
+                      },
+                      "UNSTABLE": {
+                        "text": "instable",
+                        "color": "orange"
+                      },
+                      "FAILURE": {
+                        "text": "ÉCHEC",
+                        "color": "red"
+                      },
+                      "ABORTED": {
+                        "text": "interrompu",
+                        "color": "text"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "IA"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "normal",
+                        "color": "green"
+                      },
+                      "1": {
+                        "text": "anomalie",
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "instance"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Application"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Ouvrir ${__value.text}",
+                    "url": "${__data.fields.instance}",
+                    "targetBlank": true
                   }
                 ]
               }
@@ -1044,30 +423,22 @@
         ]
       },
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false
         }
       }
     },
     {
       "type": "stat",
-      "title": "Services découverts automatiquement",
-      "id": 17,
+      "title": "Serveurs",
+      "id": 5,
       "gridPos": {
         "h": 4,
-        "w": 24,
+        "w": 6,
         "x": 0,
-        "y": 28
+        "y": 13
       },
       "datasource": {
         "type": "prometheus",
@@ -1080,27 +451,32 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "probe_success{job=\"services-decouverts\"}",
+          "expr": "count(up{job=\"node-exporter\"} == 0) or vector(0)",
           "instant": true,
-          "range": false,
-          "legendFormat": "{{service}}"
+          "range": false
         }
       ],
-      "description": "Ports publiés par Docker, services NodePort et Ingress de Kubernetes, découverts sur chaque serveur au déploiement puis chaque minute par l'agent (hors services déclarés ci-dessus). Test : le port répond.",
+      "description": "Chaque serveur du parc répond-il ? Sinon : nombre de serveurs injoignables.",
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
+          "unit": "suffix: hors ligne",
           "decimals": 0,
           "mappings": [
             {
               "type": "value",
               "options": {
-                "1": {
-                  "text": "répond",
-                  "color": "green"
-                },
                 "0": {
-                  "text": "NE RÉPOND PAS",
+                  "text": "tous en ligne",
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 1,
+                "to": 1000000000.0,
+                "result": {
                   "color": "red"
                 }
               }
@@ -1110,112 +486,23 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "green",
                 "value": null
               },
               {
-                "color": "green",
+                "color": "red",
                 "value": 1
               }
             ]
           },
-          "links": [
-            {
-              "title": "Ouvrir ${__field.labels.service}",
-              "url": "${__field.labels.lien}",
-              "targetBlank": true
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "row",
-      "title": "Serveurs",
-      "id": 18,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 32
-      },
-      "collapsed": false,
-      "panels": []
-    },
-    {
-      "type": "stat",
-      "title": "CPU",
-      "id": 19,
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 33
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "100 - avg by (node) (rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{node}}"
-        }
-      ],
-      "description": "Charge processeur moyenne de chaque serveur.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 75
-              },
-              {
-                "color": "red",
-                "value": 90
-              }
-            ]
-          },
           "links": []
         },
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "justifyMode": "center",
         "orientation": "auto",
         "wideLayout": true,
@@ -1230,13 +517,13 @@
     },
     {
       "type": "stat",
-      "title": "Mémoire",
-      "id": 20,
+      "title": "Services",
+      "id": 6,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 33
+        "y": 13
       },
       "datasource": {
         "type": "prometheus",
@@ -1249,18 +536,37 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100",
+          "expr": "count(probe_success{job=\"services\",hors_build=\"non\"} == 0) or vector(0)",
           "instant": true,
-          "range": false,
-          "legendFormat": "{{node}}"
+          "range": false
         }
       ],
-      "description": "Mémoire utilisée (hors cache récupérable).",
+      "description": "Jenkins, Argo CD, Vault, Grafana, Prometheus, IA, agent… testés toutes les 15 s. Sinon : nombre de services arrêtés. SonarQube ne tourne que pendant les builds.",
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "suffix: arrêté(s)",
           "decimals": 0,
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "tous en ligne",
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 1,
+                "to": 1000000000.0,
+                "result": {
+                  "color": "red"
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1269,12 +575,8 @@
                 "value": null
               },
               {
-                "color": "orange",
-                "value": 75
-              },
-              {
                 "color": "red",
-                "value": 90
+                "value": 1
               }
             ]
           },
@@ -1283,9 +585,9 @@
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "justifyMode": "center",
         "orientation": "auto",
         "wideLayout": true,
@@ -1300,13 +602,13 @@
     },
     {
       "type": "stat",
-      "title": "Disque",
-      "id": 21,
+      "title": "Sauvegardes",
+      "id": 7,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 33
+        "y": 13
       },
       "datasource": {
         "type": "prometheus",
@@ -1319,16 +621,15 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "100 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype=\"ext4\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype=\"ext4\"} * 100",
+          "expr": "(time() - min(pfe_backup_last_success_timestamp_seconds > 0)) / 3600",
           "instant": true,
-          "range": false,
-          "legendFormat": "{{node}}"
+          "range": false
         }
       ],
-      "description": "Occupation du disque système.",
+      "description": "Âge, en heures, de la plus ancienne des dernières sauvegardes (une par nuit et par serveur, copiée sur l'autre serveur, restaurée chaque semaine pour test).",
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "suffix: h",
           "decimals": 0,
           "mappings": [],
           "thresholds": {
@@ -1340,11 +641,11 @@
               },
               {
                 "color": "orange",
-                "value": 75
+                "value": 26
               },
               {
                 "color": "red",
-                "value": 90
+                "value": 50
               }
             ]
           },
@@ -1353,9 +654,9 @@
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "justifyMode": "center",
         "orientation": "auto",
         "wideLayout": true,
@@ -1370,13 +671,13 @@
     },
     {
       "type": "stat",
-      "title": "Détection par l'IA",
-      "id": 22,
+      "title": "Surveillance par l'IA",
+      "id": 8,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 33
+        "y": 13
       },
       "datasource": {
         "type": "prometheus",
@@ -1389,13 +690,12 @@
             "type": "prometheus",
             "uid": "efx9ykc7u57nkf"
           },
-          "expr": "max by (node) (aiops_anomaly_active)",
+          "expr": "max(aiops_anomaly_active) or vector(0)",
           "instant": true,
-          "range": false,
-          "legendFormat": "{{node}}"
+          "range": false
         }
       ],
-      "description": "Moteur AIOps (z-score robuste + Isolation Forest), un modèle par serveur.",
+      "description": "Un modèle par serveur et par application apprend le comportement normal et signale ce qui s'en écarte ; l'agent d'auto-réparation peut alors agir.",
       "fieldConfig": {
         "defaults": {
           "unit": "none",
@@ -1409,7 +709,7 @@
                   "color": "green"
                 },
                 "1": {
-                  "text": "ANOMALIE",
+                  "text": "anomalie détectée",
                   "color": "orange"
                 }
               }
@@ -1429,185 +729,7 @@
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Parc (découverte toutes les heures)",
-      "id": 23,
-      "gridPos": {
-        "h": 3,
-        "w": 24,
-        "x": 0,
-        "y": 37
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "pfe_parc_serveur",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{adresse}} : {{etat}}"
-        }
-      ],
-      "description": "Adresses de infra/parc.yml explorées en lecture seule. « vide » : serveur disponible, à ajouter avec bash deploy.sh --ajouter <adresse> sur le serveur de supervision (voir docs/PARC.md).",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "links": []
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*: vide"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "orange"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "row",
-      "title": "Auto-réparation, sauvegardes et alertes",
-      "id": 24,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 40
-      },
-      "collapsed": false,
-      "panels": []
-    },
-    {
-      "type": "stat",
-      "title": "Agent",
-      "id": 25,
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 0,
-        "y": 41
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "max(pfe_agent_mode) + 2 * max(pfe_agent_suspended) or vector(-1)",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "description": "Conseil : simule. Actif : répare. Suspendu : arrêté après des échecs répétés.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "ARRÊTÉ",
-                  "color": "red"
-                },
-                "0": {
-                  "text": "CONSEIL",
-                  "color": "blue"
-                },
-                "1": {
-                  "text": "ACTIF",
-                  "color": "green"
-                },
-                "2": {
-                  "text": "SUSPENDU",
-                  "color": "red"
-                },
-                "3": {
-                  "text": "SUSPENDU",
-                  "color": "red"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "links": []
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
         "textMode": "value",
         "justifyMode": "center",
@@ -1620,329 +742,6 @@
           "fields": "",
           "values": false
         }
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Réparations (24 h)",
-      "id": 26,
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 4,
-        "y": 41
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "sum(increase(pfe_agent_actions_total{outcome=\"succes\"}[24h])) or vector(0)",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "description": "Actions de l'agent exécutées avec succès sur les dernières 24 h.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "links": [
-            {
-              "title": "Détail de l'agent",
-              "url": "/d/pfe-agent-sauvegardes"
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Dernière sauvegarde",
-      "id": 27,
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 8,
-        "y": 41
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "(time() - pfe_backup_last_success_timestamp_seconds) / 3600 and pfe_backup_last_success_timestamp_seconds > 0",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{node}}"
-        }
-      ],
-      "description": "Heures depuis la dernière sauvegarde réussie (copiée chaque nuit sur l'autre serveur).",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "h",
-          "decimals": 1,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 26
-              },
-              {
-                "color": "red",
-                "value": 50
-              }
-            ]
-          },
-          "links": [
-            {
-              "title": "Détail des sauvegardes",
-              "url": "/d/pfe-agent-sauvegardes"
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Test de restauration",
-      "id": 28,
-      "gridPos": {
-        "h": 4,
-        "w": 5,
-        "x": 14,
-        "y": 41
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "pfe_backup_restore_test_status",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{node}}"
-        }
-      ],
-      "description": "Restauration réelle du dernier jeu dans un espace de test, chaque semaine.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "1": {
-                  "text": "réussi",
-                  "color": "green"
-                },
-                "0": {
-                  "text": "ÉCHEC",
-                  "color": "red"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "links": []
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Alertes en cours",
-      "id": 29,
-      "gridPos": {
-        "h": 4,
-        "w": 5,
-        "x": 19,
-        "y": 41
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "efx9ykc7u57nkf"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "efx9ykc7u57nkf"
-          },
-          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "description": "Toutes les alertes actives du parc (détail dans « Agent de remédiation et sauvegardes »).",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 3
-              }
-            ]
-          },
-          "links": [
-            {
-              "title": "Voir les alertes",
-              "url": "/d/pfe-agent-sauvegardes"
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "type": "row",
-      "title": "Évaluation par injection de pannes",
-      "id": 30,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 45
-      },
-      "collapsed": false,
-      "panels": []
-    },
-    {
-      "type": "text",
-      "title": "",
-      "id": 31,
-      "gridPos": {
-        "h": 6,
-        "w": 24,
-        "x": 0,
-        "y": 46
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**14 pannes réelles injectées** sur les serveurs (campagne du 13/10/2026).\n\n| IA : pannes vues | Délai médian | Précision | Agent : réparées | Rétablissement médian |\n|---|---|---|---|---|\n| 10/11 | 62 s | 92 % | 8/9 | 161 s |\n\n[Chronogramme de chaque panne et méthode](__EVALUATION_URL__)"
       }
     }
   ]

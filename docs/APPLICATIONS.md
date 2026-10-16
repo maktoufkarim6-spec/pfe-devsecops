@@ -140,7 +140,18 @@ Son journal : `~/.pfe-parc/sync.log`.
 
 ## Suivre les déploiements dans Grafana
 
-La section **Déploiements** de l'accueil Grafana (« PFE - Accueil ») montre, pour toutes les applications :
+Grafana a deux pages :
+
+- **PFE - Accueil**, l'essentiel en quelques secondes :
+  - un bandeau « Tout fonctionne », ou le nombre de points à regarder ;
+  - les boutons Déployer et Ajouter une application ;
+  - un tableau avec une ligne par application : état, version en ligne, dernier build, IA ;
+  - quatre voyants : serveurs, services, sauvegardes, IA.
+- **PFE - Détails**, tout le détail technique : liste des alertes en cours, applications, déploiements,
+  services, serveurs, parc, agent, sauvegardes et évaluation. Le lien « Détails techniques » est en haut de
+  l'accueil. Les deux pages sont générées par `python infra/outils/generer_accueil.py`.
+
+La section **Déploiements** de la page Détails montre, pour toutes les applications :
 
 | Tuile | Ce qu'elle montre | D'où ça vient |
 |---|---|---|
