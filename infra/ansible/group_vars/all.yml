@@ -71,7 +71,10 @@ aiops_version: "3.2.1"
 alert_email_to: ""
 alert_email_from: ""
 smtp_smarthost: smtp.gmail.com:587
-smtp_password: "{{ lookup('ansible.builtin.env', 'PFE_SMTP_PASSWORD') }}"
+smtp_password: >-
+  {{ lookup('ansible.builtin.env', 'PFE_SMTP_PASSWORD')
+     or lookup('ansible.builtin.file', lookup('ansible.builtin.env', 'HOME') + '/.pfe-secrets/smtp-password', errors='ignore')
+     | default('', true) }}
 
 # Agent de remédiation (voir remediation-agent/README.md)
 remediation_version: "1.1.0"

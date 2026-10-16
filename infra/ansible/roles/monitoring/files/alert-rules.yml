@@ -135,6 +135,19 @@ groups:
           summary: "La découverte du parc ne s'est pas exécutée depuis plus de 3 h"
           description: "journalctl -u pfe-parc sur le serveur de supervision."
 
+  - name: synchronisation
+    rules:
+      # pfe-sync rejoue le déploiement quand les applications changent dans GitHub (toutes les 5 min)
+      - alert: SynchronisationEchouee
+        expr: pfe_sync_statut == 0
+        for: 15m
+        labels:
+          severity: warning
+          source: parc
+        annotations:
+          summary: "La resynchronisation automatique des applications échoue depuis 15 minutes"
+          description: "Une application ajoutée dans GitHub n'est pas encore supervisée ni sauvegardée. Journal : ~/.pfe-parc/sync.log sur le serveur de supervision."
+
   - name: collecteurs
     rules:
       - alert: CollecteurArrete

@@ -1,0 +1,56 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# pfe-sync : resynchronisation automatique (minuterie toutes les 5 min, compte {{ ansible_user }}).
+# Quand la LISTE des applications ou leurs réglages changent dans GitHub (nouvelle application créée par le
+# formulaire Jenkins, application retirée, base ajoutée…), rejoue le déploiement (site.yml) avec les options du
+# dernier « bash deploy.sh » : supervision, modèle IA, sondes, agent, sauvegardes et secrets suivent seuls.
+# Un simple changement de version (ligne image, écrite par Jenkins à chaque build) ne déclenche rien.
+set -uo pipefail
+SRC=$HOME/pfe-devsecops
+VENV=$HOME/.pfe-ansible
+PARC_DIR=$HOME/.pfe-parc
+PARC_INV=$PARC_DIR/inventaire.ini
+ETAT=$PARC_DIR/sync-empreinte
+JOURNAL=$PARC_DIR/sync.log
+TEXTFILE={{ textfile_dir }}
+
+metrique() {   # $1 statut (1 réussi, 0 échec), $2 horodatage de la dernière réussite
+  printf '%s\n' "# HELP pfe_sync_statut 1 si la dernière resynchronisation automatique a réussi" "# TYPE pfe_sync_statut gauge" \
+    "pfe_sync_statut $1" "# HELP pfe_sync_derniere_reussite_timestamp_seconds Dernière resynchronisation réussie" \
+    "# TYPE pfe_sync_derniere_reussite_timestamp_seconds gauge" "pfe_sync_derniere_reussite_timestamp_seconds $2" \
+    | sudo -n tee "$TEXTFILE/.pfe_sync.prom" >/dev/null && sudo -n mv -f "$TEXTFILE/.pfe_sync.prom" "$TEXTFILE/pfe_sync.prom"
+}
+derniere=$(cat "$PARC_DIR/sync-derniere-reussite" 2>/dev/null || echo 0)
+
+cd "$SRC" || exit 1
+git fetch -q origin main || { echo "$(date '+%F %T') GitHub injoignable" >> "$JOURNAL"; exit 0; }
+# Empreinte des réglages des applications, sans les lignes image (versions)
+empreinte=$(git ls-tree -r --name-only origin/main -- applications | grep '/values.yaml$' | sort | while read -r f; do
+              echo "== $f"; git show "origin/main:$f" | grep -vE '^[[:space:]]*(- )?image:'; done | sha256sum | cut -d' ' -f1)
+[ "$empreinte" != "$(cat "$ETAT" 2>/dev/null)" ] || exit 0
+
+# Jamais en même temps qu'un « bash deploy.sh » lancé à la main
+exec 8>"$PARC_DIR/ansible.lock"
+flock -n 8 || { echo "$(date '+%F %T') déploiement en cours : nouvelle tentative dans 5 min" >> "$JOURNAL"; exit 0; }
+
+echo "$(date '+%F %T') applications modifiées dans GitHub : resynchronisation" >> "$JOURNAL"
+git pull -q --ff-only origin main >> "$JOURNAL" 2>&1 || { metrique 0 "$derniere"; exit 1; }
+cd "$SRC/infra/ansible" || exit 1
+# Mêmes inventaires que deploy.sh
+if grep -q '^# parc-neuf :' "$PARC_INV" 2>/dev/null; then INV=(-i "$PARC_INV")
+elif grep -q '^# parc-neuf' "$PARC_INV" 2>/dev/null; then echo "parc neuf provisoire : rien à faire" >> "$JOURNAL"; exit 0
+else INV=(-i inventory.ini); [ -s "$PARC_INV" ] && INV+=(-i "$PARC_INV"); fi
+OPTIONS=()
+while IFS= read -r ligne; do [ -n "$ligne" ] && OPTIONS+=("$ligne"); done < "$PARC_DIR/options-deploiement" 2>/dev/null
+if "$VENV/bin/ansible-playbook" "${INV[@]}" site.yml "${OPTIONS[@]}" >> "$JOURNAL" 2>&1; then
+  echo "$empreinte" > "$ETAT"
+  date +%s > "$PARC_DIR/sync-derniere-reussite"
+  echo "$(date '+%F %T') resynchronisation réussie" >> "$JOURNAL"
+  metrique 1 "$(cat "$PARC_DIR/sync-derniere-reussite")"
+else
+  echo "$(date '+%F %T') ÉCHEC de la resynchronisation (détail ci-dessus) ; nouvel essai dans 5 min" >> "$JOURNAL"
+  metrique 0 "$derniere"
+  exit 1
+fi
+# Journal limité aux 5000 dernières lignes
+tail -n 5000 "$JOURNAL" > "$JOURNAL.tmp" && mv -f "$JOURNAL.tmp" "$JOURNAL"

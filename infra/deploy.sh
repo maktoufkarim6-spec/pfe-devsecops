@@ -193,6 +193,9 @@ case "$MODE" in
       read -rp "Adresse Gmail d'envoi : " FROM
       read -rsp "Mot de passe d'application Gmail (non affiché) : " PFE_SMTP_PASSWORD; echo
       export PFE_SMTP_PASSWORD
+      # Conservé sur ce serveur (lisible par ce compte seul) : la resynchronisation automatique en a besoin
+      mkdir -p "$HOME/.pfe-secrets" && chmod 700 "$HOME/.pfe-secrets"
+      (umask 077 && printf '%s' "$PFE_SMTP_PASSWORD" > "$HOME/.pfe-secrets/smtp-password")
       EXTRA=(-e "alert_email_to=$MAIL" -e "alert_email_from=$FROM")
     fi
     # Parc neuf dont le nœud de contrôle n'est pas encore installé : identifiants de Jenkins (jamais écrits dans Git)
@@ -210,6 +213,15 @@ case "$MODE" in
 esac
 read -rp "Lancer ($PLAYBOOK) ? (oui/non) " OK
 [ "$OK" = "oui" ] || { echo "Abandon, rien n'a été modifié."; exit 1; }
+
+# Options de ce déploiement (ex. -e remediation_mode=actif, adresse des alertes) : rejouées par la
+# resynchronisation automatique (pfe-sync), qui ne doit jamais défaire un choix fait ici
+if [ "$MODE" = deploiement ]; then
+  printf '%s\n' "${EXTRA[@]}" "$@" > "$PARC_DIR/options-deploiement"
+fi
+# Jamais deux déploiements en même temps (deploy.sh à la main et pfe-sync automatique)
+exec 8>"$PARC_DIR/ansible.lock"
+flock -w 1800 8 || { echo "Un autre déploiement est en cours depuis plus de 30 min : réessayer plus tard."; exit 1; }
 
 echo "== 5/5 Déploiement ${CONNEXION:+(Ansible demande le mot de passe SSH)} ${BECOME:+(et celui de sudo)} =="
 "$VENV/bin/ansible-playbook" "${INVENTAIRES[@]}" "$PLAYBOOK" "${CONNEXION[@]}" "${BECOME[@]}" "${EXTRA[@]}" "$@"

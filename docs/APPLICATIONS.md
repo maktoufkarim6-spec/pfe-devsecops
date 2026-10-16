@@ -105,6 +105,39 @@ Sécurité : les valeurs de `values.yaml` qui finissent dans des scripts root ou
 Prometheus sont vérifiées avant tout usage, dans le catalogue Ansible : nom, composants, `base.nom_base`,
 domaine et chemin de la sonde. Une valeur invalide arrête le déploiement.
 
+## Créer une application en libre-service (formulaire)
+
+Sans écrire de fichier ni toucher au dépôt : page d'accueil Grafana → **📦 Construire et déployer une autre
+application** → Jenkins, puis :
+
+| Champ | Exemple | Obligatoire |
+|---|---|---|
+| `APPLICATION` | `boutique` (minuscules, chiffres, tirets) | oui |
+| `DEPOT` | `https://github.com/compte/boutique.git` (public, avec un Dockerfile) | oui pour une nouvelle application |
+| `BRANCHE`, `DOSSIER`, `DOCKERFILE` | `main`, `.`, `Dockerfile` | non (valeurs par défaut) |
+| `PORT` | `8080` | non : lu dans le Dockerfile (`EXPOSE`) |
+| `SANTE` | `/health` | non : test du port |
+| `DOMAINE` | `boutique.monsite.com` | non : `<nom>.<ip>.sslip.io` |
+| `BASE` | coché | non : PostgreSQL, variables `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` fournies |
+| `SONAR` | `bloquant` | non |
+
+Ensuite :
+1. La plateforme **écrit `applications/<nom>/values.yaml`** et le contrôle comme les autres.
+2. Elle clone, teste, analyse, construit et scanne l'application.
+3. Elle **lit dans l'image le port et l'utilisateur**. Une image qui tourne en root est **refusée**, avec le
+   message « ajouter USER 1000 dans le Dockerfile ».
+4. Elle publie l'image, puis **commite le dossier de l'application seulement si tout a réussi**.
+5. Argo CD la déploie.
+6. En moins de 5 minutes, la **resynchronisation automatique** (`pfe-sync`, sur le serveur de supervision)
+   rejoue le déploiement. L'application reçoit alors sa sonde web, son modèle IA, sa place dans la liste de
+   l'agent, la sauvegarde de sa base et ses secrets, **sans relancer `deploy.sh`**.
+
+`pfe-sync` ne se déclenche que si la liste des applications ou leurs réglages changent : un nouveau build (ligne
+`image:`) ne déclenche rien. Il reprend les options du dernier `bash deploy.sh` (par exemple
+`-e remediation_mode=actif`) et ne tourne jamais en même temps qu'un `deploy.sh` lancé à la main (verrou). En
+cas d'échec, il retente toutes les 5 minutes, et l'alerte `SynchronisationEchouee` part au bout de 15 minutes.
+Son journal : `~/.pfe-parc/sync.log`.
+
 ## Construire une application depuis son code source (pipeline commun)
 
 Une application peut utiliser une image déjà publiée, ou être **construite depuis son code source** par le
