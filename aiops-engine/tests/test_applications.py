@@ -140,3 +140,51 @@ def test_maintenance_d_un_noeud_couvre_les_applications(tmp_path):
     prom.maintenance_until = T0 + 20 * 60
     assert engine.maintenance_active(T0)
     assert not engine.maintenance_active(T0 + 21 * 60)
+
+
+def test_historique_d_avant_la_sonde_ignore(tmp_path):
+    """La sonde web est créée après l'application : les heures sans sonde ne sont pas apprises comme « 0 »
+    (sinon un site en panne, web_ok=0, paraîtrait normal)."""
+    rng = np.random.default_rng(16)
+    t = boutique()
+    hist = app_normal(rng, 1440)
+    engine, prom, clock = make(tmp_path, t, hist)
+    debut = sorted(prom.train[0])[:900]          # 900 premiers instants : la sonde n'existait pas
+    for k in (t.names.index("web_ok"), t.names.index("web_ms")):
+        for ts in debut:
+            del prom.train[k][ts]
+    assert "or vector(0)" not in t.features[t.names.index("web_ok")].expr
+    X, _ = engine.fetch_training_data(T0)
+    assert len(X) == 1440 - 900 and np.all(X[:, t.names.index("web_ok")] == 1)
+    assert engine.train(T0)
+    assert engine.model.median[t.names.index("web_ok")] == 1
+    stream = app_normal(rng, 40)
+    stream[10:, 6] = 0                            # le site tombe : l'IA doit le voir
+    run(engine, prom, clock, stream)
+    assert engine.active and metric("aiops_top_feature", "appli-boutique", feature="web_ok") == 1
+
+
+def test_modele_appris_avec_d_autres_formules_ignore(tmp_path):
+    rng = np.random.default_rng(17)
+    t = boutique()
+    engine, prom, clock = make(tmp_path, t, app_normal(rng, 800))
+    prom.current = app_normal(rng, 1)[0]
+    engine.run_once()
+    assert engine.model is not None and engine.model.signature == t.signature
+    from aiops.model import AnomalyModel
+    path = tmp_path / "model-appli-boutique.joblib"
+    m = AnomalyModel.load(str(path))
+    m.signature = "ancienne-formule"
+    m.save(str(path))
+    assert Engine(Config(data_dir=str(tmp_path)), prom, target=t).model is None    # ré-apprentissage
+    del m.signature                                                                  # modèle d'avant l'empreinte
+    m.save(str(path))
+    assert Engine(Config(data_dir=str(tmp_path)), prom, target=t).model is None
+    node = Target("app-1", "app-1", app=True)                                        # nœud : compatibilité gardée
+    en, pn, _ = make(tmp_path, node, normal(rng, 800))
+    pn.current = normal(rng, 1)[0]
+    en.run_once()
+    mn = AnomalyModel.load(str(tmp_path / "model-app-1.joblib"))
+    del mn.signature
+    mn.save(str(tmp_path / "model-app-1.joblib"))
+    assert Engine(Config(data_dir=str(tmp_path)), pn, target=node).model is not None

@@ -1,6 +1,13 @@
 # Sauvegardes croisées : chaque nuit, chaque nœud sauvegarde ses données puis les copie sur son pair
 # (backup_peer). Le compte de réception est en écriture seule et sans suppression (rrsync -wo -no-del).
 
+# Pair calculé ici, en valeur concrète : lu depuis un AUTRE nœud (hostvars[h].backup_peer), la variable de
+# group_vars n'est pas évaluée par Ansible 2.18 (formule brute renvoyée). Conséquence passée : liste des
+# clés autorisées vide sur app-1 et copies de la supervision refusées depuis le 13/10/2026.
+- name: Pair de sauvegarde de ce nœud (valeur lue ensuite par les autres nœuds)
+  ansible.builtin.set_fact:
+    backup_pair: "{{ backup_peer }}"
+
 - name: Outils de sauvegarde (rsync et rrsync, SQLite, zstd)
   ansible.builtin.apt:
     name: [rsync, sqlite3, zstd]
@@ -59,7 +66,7 @@
     owner: pfe-backup
     mode: "0700"
   loop: "{{ groups['all'] | select('ne', inventory_hostname) | list }}"
-  when: hostvars[item].backup_peer == inventory_hostname
+  when: hostvars[item].backup_pair == inventory_hostname
 
 - name: Clés des nœuds qui envoient ici (écriture seule dans leur dossier, sans suppression, adresse imposée)
   ansible.builtin.copy:
@@ -68,7 +75,7 @@
     group: root
     mode: "0644"
     content: |
-      {% for h in groups['all'] if h != inventory_hostname and hostvars[h].backup_peer == inventory_hostname %}
+      {% for h in groups['all'] if h != inventory_hostname and hostvars[h].backup_pair == inventory_hostname %}
       command="/usr/bin/rrsync -wo -no-del {{ backup_root }}/recu/{{ hostvars[h].node_name }}",restrict,from="{{ hostvars[h].ansible_host }}" {{ hostvars[h].backup_pubkey }}
       {% endfor %}
 

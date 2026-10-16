@@ -136,6 +136,11 @@ class Engine:
                     or model.directions != self.target.directions):
                 self.log.warning("Modèle sur disque incompatible avec la configuration, ignoré")
                 return
+            # Application : mêmes noms ne suffit pas, les formules doivent être celles du modèle (les modèles de
+            # nœud, plus anciens que cette empreinte, restent rechargés tels quels)
+            if self.target.kind == "application" and getattr(model, "signature", None) != self.target.signature:
+                self.log.warning("Modèle sur disque appris avec d'autres formules de variables : ignoré, ré-apprentissage")
+                return
             self._install(model)
             self.log.info("Modèle v%d rechargé depuis le disque (n=%d)", model.version, model.n_samples)
         except Exception as exc:
@@ -214,6 +219,7 @@ class Engine:
             self.m.DRIFT.set(0)
             return False
         self.m.CHALLENGER.labels(decision="accepted").inc()
+        challenger.signature = self.target.signature
         challenger.save(self.model_path)
         self._install(challenger)
         self.log.info("Modèle v%d en service : n=%d, psi=%d, c(psi)=%.3f, seuils=%.4f/%.4f, saisonnier=%s",
