@@ -106,6 +106,8 @@ app_ip: "{{ hostvars[k3s_server_host].ansible_host }}"
 # Page Jenkins « Lancer un build » : connexion Jenkins demandée, puis un clic sur « Build »
 jenkins_job_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job }}/build?delay=0sec"
 jenkins_applications_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job_applications }}/build?delay=0sec"
+# Formulaire du job commun avec le nom de l'application déjà rempli (bouton « Déployer » de chaque ligne de l'accueil)
+jenkins_applications_param_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job_applications }}/parambuild/?APPLICATION="
 image_blackbox: prom/blackbox-exporter:v0.25.0
 services_web:
   - { nom: "Application", url: "http://{{ app_ip }}{{ app_url_path }}", lien: "http://{{ app_ip }}{{ app_url_path }}" }

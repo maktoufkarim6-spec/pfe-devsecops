@@ -11,6 +11,7 @@ RAPPORT = "__EVALUATION_URL__"
 DEPOT = "__REPO_WEB__"
 DEPLOYER = "__JENKINS_JOB_URL__"
 DEPLOYER_APPS = "__JENKINS_APPS_URL__"
+DEPLOYER_UNE_APP = "__JENKINS_APPS_PARAM_URL__"   # formulaire du job commun, APPLICATION= à compléter
 pid = [0]
 
 
@@ -281,9 +282,9 @@ panels.append(stat("", 0, y, 24, 3, [tgt(f'count({ALERTES_EN_COURS}) or vector(0
 y += 3
 # 2. Les deux actions
 panels.append(text("", 0, y, 12, 4,
-    f"### [🚀 Déployer la dernière version]({DEPLOYER})\n"
-    "Tests, contrôles de sécurité, puis mise en ligne : environ 10 minutes. "
-    "Si un contrôle échoue, rien ne change et la version en ligne reste en place."))
+    "### 🚀 Déployer une application\n"
+    "Bouton **Déployer** sur sa ligne ci-dessous : son code (dernière version de son dépôt GitHub) est testé, "
+    "contrôlé (SonarQube, Trivy) puis mis en ligne, en 10 minutes environ. Si un contrôle échoue, rien ne change."))
 panels.append(text("", 12, y, 12, 4,
     f"### [📦 Ajouter une application]({DEPLOYER_APPS})\n"
     "Son nom et l'adresse de son dépôt Git : la plateforme la construit, la contrôle, la met en ligne puis la surveille."))
@@ -301,16 +302,30 @@ panels.append(table("Applications", 0, y, 24, 6, [
             'max by (application, version) (pfe_deploiement_version)', ref="B", table=True),
         tgt('max by (application, resultat) (pfe_ci_dernier_build)', ref="C", table=True),
         tgt(f'max by (application) (aiops_anomaly_active * on (node) group_left (application) {APPLI}) or {COB(COB_IA)}',
-            ref="D", table=True)],
+            ref="D", table=True),
+        # Lien « Déployer » : job de l'application cobaye, ou job commun avec le nom de l'application déjà rempli
+        tgt('label_replace(max by (application) (probe_success{job="applications"}), "deployer", '
+            f'"{DEPLOYER_UNE_APP}$1", "application", "(.+)") or '
+            'label_replace(' + COB('max(probe_success{job="services",service="Application"})')
+            + f', "deployer", "{DEPLOYER}", "", "")',
+            ref="E", table=True)],
     "État : adresse web testée toutes les 15 s. Version en ligne : celle qui tourne vraiment. Dernier build : "
-    "résultat du dernier passage dans Jenkins. IA : comportement anormal détecté. Cliquer sur un nom pour ouvrir l'application.",
+    "résultat du dernier passage dans Jenkins. IA : comportement anormal détecté. Cliquer sur un nom pour ouvrir l'application ; sur « Déployer » pour "
+    "la reconstruire et la remettre en ligne depuis son dépôt (formulaire Jenkins prérempli, puis Build).",
     garder={"application": "Application", "Value #A": "État", "version": "Version en ligne",
-            "resultat": "Dernier build", "Value #D": "IA", "instance": "instance"},
+            "resultat": "Dernier build", "Value #D": "IA", "Value #E": "Action", "instance": "instance", "deployer": "deployer"},
     jointure="application", vide="—",
     overrides=[{"matcher": {"id": "byName", "options": "État"}, "properties": couleur(etat_app)},
                {"matcher": {"id": "byName", "options": "Dernier build"}, "properties": couleur(build)},
                {"matcher": {"id": "byName", "options": "IA"}, "properties": couleur(ia)},
                {"matcher": {"id": "byName", "options": "instance"}, "properties": [{"id": "custom.hidden", "value": True}]},
+               {"matcher": {"id": "byName", "options": "deployer"}, "properties": [{"id": "custom.hidden", "value": True}]},
+               {"matcher": {"id": "byName", "options": "Action"}, "properties": [
+                   {"id": "mappings", "value": [{"type": "range", "options": {"from": -1, "to": 2,
+                                                  "result": {"text": "🚀 Déployer", "color": "blue"}}}]},
+                   {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+                   {"id": "links", "value": [{"title": "Déployer ${__data.fields.Application}",
+                                              "url": "${__data.fields.deployer}", "targetBlank": True}]}]},
                {"matcher": {"id": "byName", "options": "Application"}, "properties": [
                    {"id": "links", "value": [{"title": "Ouvrir ${__value.text}", "url": "${__data.fields.instance}",
                                               "targetBlank": True}]}]}]))
