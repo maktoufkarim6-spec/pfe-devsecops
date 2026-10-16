@@ -150,7 +150,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### [🚀 Déployer la dernière version](__JENKINS_JOB_URL__)\nTests, contrôles de sécurité, puis mise en ligne : environ 10 minutes. Si un contrôle échoue, rien ne change et la version en ligne reste en place."
+        "content": "### 🚀 Déployer une application\nBouton **Déployer** sur sa ligne ci-dessous : son code (dernière version de son dépôt GitHub) est testé, contrôlé (SonarQube, Trivy) puis mis en ligne, en 10 minutes environ. Si un contrôle échoue, rien ne change."
       }
     },
     {
@@ -226,9 +226,20 @@
           "instant": true,
           "range": false,
           "format": "table"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "label_replace(max by (application) (probe_success{job=\"applications\"}), \"deployer\", \"__JENKINS_APPS_PARAM_URL__$1\", \"application\", \"(.+)\") or label_replace(label_replace(max(probe_success{job=\"services\",service=\"Application\"}), \"application\", \"__APP_NAME__\", \"\", \"\"), \"deployer\", \"__JENKINS_JOB_URL__\", \"\", \"\")",
+          "instant": true,
+          "range": false,
+          "format": "table"
         }
       ],
-      "description": "État : adresse web testée toutes les 15 s. Version en ligne : celle qui tourne vraiment. Dernier build : résultat du dernier passage dans Jenkins. IA : comportement anormal détecté. Cliquer sur un nom pour ouvrir l'application.",
+      "description": "État : adresse web testée toutes les 15 s. Version en ligne : celle qui tourne vraiment. Dernier build : résultat du dernier passage dans Jenkins. IA : comportement anormal détecté. Cliquer sur un nom pour ouvrir l'application ; sur « Déployer » pour la reconstruire et la remettre en ligne depuis son dépôt (formulaire Jenkins prérempli, puis Build).",
       "transformations": [
         {
           "id": "joinByField",
@@ -247,7 +258,9 @@
                 "version",
                 "resultat",
                 "Value #D",
-                "instance"
+                "Value #E",
+                "instance",
+                "deployer"
               ]
             }
           }
@@ -261,7 +274,9 @@
               "version": 2,
               "resultat": 3,
               "Value #D": 4,
-              "instance": 5
+              "Value #E": 5,
+              "instance": 6,
+              "deployer": 7
             },
             "renameByName": {
               "application": "Application",
@@ -269,7 +284,9 @@
               "version": "Version en ligne",
               "resultat": "Dernier build",
               "Value #D": "IA",
-              "instance": "instance"
+              "Value #E": "Action",
+              "instance": "instance",
+              "deployer": "deployer"
             }
           }
         }
@@ -399,6 +416,58 @@
               {
                 "id": "custom.hidden",
                 "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "deployer"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Action"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "range",
+                    "options": {
+                      "from": -1,
+                      "to": 2,
+                      "result": {
+                        "text": "🚀 Déployer",
+                        "color": "blue"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Déployer ${__data.fields.Application}",
+                    "url": "${__data.fields.deployer}",
+                    "targetBlank": true
+                  }
+                ]
               }
             ]
           },
