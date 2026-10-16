@@ -14,7 +14,7 @@ source:
 
 composants:
   - nom: web
-    image: ghcr.io/stefanprodan/podinfo:6.7.1
+    image: docker.io/kariimm557/demo-podinfo:2-3e0ff8a
     construire:
       contexte: .
       dockerfile: Dockerfile
