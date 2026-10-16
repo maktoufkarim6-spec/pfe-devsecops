@@ -1,0 +1,87 @@
+# Géré par Ansible (roles/ci) : configuration complète de Jenkins (Configuration as Code).
+# Les ${…} sont lus par Jenkins dans /run/secrets (un fichier par secret), jamais écrits ici.
+jenkins:
+  systemMessage: "Plateforme PFE : chaîne CI sécurisée (tests, SonarQube, Trivy, Docker Hub, GitOps). Configuration gérée par Ansible."
+  numExecutors: 2
+  mode: NORMAL
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: admin
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: false
+  slaveAgentPort: -1
+
+unclassified:
+  location:
+    url: "http://{{ ansible_host }}:8080/"
+  sonarGlobalConfiguration:
+    buildWrapperEnabled: false
+    installations:
+      - name: sonarqube
+        serverUrl: "http://sonarqube:9000"
+        credentialsId: sonarqube-token
+
+tool:
+  sonarRunnerInstallation:
+    installations:
+      - name: sonar-scanner
+        properties:
+          - installSource:
+              installers:
+                - sonarRunnerInstaller:
+                    id: "{{ parc_sonar_scanner_version }}"
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: dockerhub
+              description: "Docker Hub (publication des images)"
+              username: "${DOCKERHUB_USER}"
+              password: "${DOCKERHUB_TOKEN}"
+          - usernamePassword:
+              scope: GLOBAL
+              id: github-token
+              description: "GitHub (commits GitOps de Jenkins)"
+              username: "${GITHUB_USER}"
+              password: "${GITHUB_TOKEN}"
+          - string:
+              scope: GLOBAL
+              id: sonarqube-token
+              description: "Jeton d'analyse SonarQube"
+              secret: "${SONAR_TOKEN}"
+
+jobs:
+  - script: |
+      pipelineJob('{{ jenkins_job }}') {
+        description('Application cobaye : Jenkinsfile à la racine du dépôt (déclenché par le webhook GitHub)')
+        properties {
+          pipelineTriggers { triggers { githubPush() } }
+        }
+        definition {
+          cpsScm {
+            scm { git { remote { url('{{ repo_url }}') }; branches('*/{{ plateforme_branche }}') } }
+            scriptPath('Jenkinsfile')
+            lightweight(true)
+          }
+        }
+      }
+      pipelineJob('{{ jenkins_job_applications }}') {
+        description('Pipeline commun des applications (applications/<nom>/, champ APPLICATION)')
+        definition {
+          cpsScm {
+            scm { git { remote { url('{{ repo_url }}') }; branches('*/{{ plateforme_branche }}') } }
+            scriptPath('plateforme/Jenkinsfile.applications')
+            lightweight(true)
+          }
+        }
+      }

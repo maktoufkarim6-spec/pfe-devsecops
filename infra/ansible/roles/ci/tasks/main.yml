@@ -1,0 +1,253 @@
+# Chaîne CI d'un PARC NEUF sur le nœud de contrôle : SonarQube (et sa base), Vault, Jenkins configuré par fichier.
+# Appelé seulement pour un nœud de contrôle neuf (voir site.yml) : le Jenkins existant du premier parc, installé
+# à la main, n'est jamais remplacé.
+#
+# Identifiants fournis par la personne qui installe (deploy.sh les demande, rien n'est écrit dans Git) :
+#   PFE_DOCKERHUB_USER, PFE_DOCKERHUB_TOKEN, PFE_GITHUB_USER, PFE_GITHUB_TOKEN (variables d'environnement)
+
+- name: Identifiants Docker Hub et GitHub fournis
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.env', 'PFE_DOCKERHUB_USER') | length > 0
+      - lookup('ansible.builtin.env', 'PFE_DOCKERHUB_TOKEN') | length > 0
+      - lookup('ansible.builtin.env', 'PFE_GITHUB_USER') | length > 0
+      - lookup('ansible.builtin.env', 'PFE_GITHUB_TOKEN') | length > 0
+    fail_msg: >-
+      Identifiants manquants pour Jenkins : relancer bash deploy.sh, qui les demande pour un parc neuf
+      (jeton Docker Hub, et jeton GitHub avec droit d'écriture sur le dépôt).
+    quiet: true
+
+- name: Dossiers de la chaîne CI
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /var/lib/pfe-ci, owner: root, mode: "0755" }
+    - { path: /var/lib/pfe-ci/secrets, owner: "1000", mode: "0700" }    # 1000 : utilisateur jenkins de l'image
+    - { path: /var/lib/pfe-ci/jenkins-conf, owner: root, mode: "0755" }
+    - { path: /var/lib/pfe-ci/jenkins-image, owner: root, mode: "0755" }
+
+- name: Secrets générés une fois (mot de passe admin Jenkins, base de SonarQube, jeton racine de Vault)
+  ansible.builtin.copy:
+    dest: "/var/lib/pfe-ci/secrets/{{ item }}"
+    content: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['ascii_letters', 'digits']) }}"
+    owner: "1000"
+    mode: "0400"
+    force: false
+  loop: [JENKINS_ADMIN_PASSWORD, SONAR_DB_PASSWORD, VAULT_ROOT_TOKEN]
+  no_log: true
+
+- name: Identifiants Docker Hub et GitHub (fichiers lus par Jenkins seul)
+  ansible.builtin.copy:
+    dest: "/var/lib/pfe-ci/secrets/{{ item }}"
+    content: "{{ lookup('ansible.builtin.env', 'PFE_' + item) }}"
+    owner: "1000"
+    mode: "0400"
+  loop: [DOCKERHUB_USER, DOCKERHUB_TOKEN, GITHUB_USER, GITHUB_TOKEN]
+  no_log: true
+  notify: Recharger Jenkins
+
+- name: Lecture des secrets générés
+  ansible.builtin.slurp:
+    src: "/var/lib/pfe-ci/secrets/{{ item }}"
+  loop: [SONAR_DB_PASSWORD, VAULT_ROOT_TOKEN]
+  register: ci_secrets
+  no_log: true
+
+- name: Réseau Docker de la chaîne CI
+  community.docker.docker_network:
+    name: pfe-ci
+
+# ---------------------------------------------------------------- SonarQube
+- name: Limite mémoire virtuelle requise par SonarQube (Elasticsearch)
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-sonarqube.conf
+    content: "vm.max_map_count = 524288\nfs.file-max = 131072\n"
+    mode: "0644"
+  register: ci_sysctl
+
+- name: Limite appliquée
+  ansible.builtin.command: sysctl --system
+  when: ci_sysctl is changed
+
+- name: Base de SonarQube
+  community.docker.docker_container:
+    name: sonar-db
+    image: "{{ parc_postgres_image }}"
+    restart_policy: unless-stopped
+    networks: [{ name: pfe-ci }]
+    env:
+      POSTGRES_USER: sonar
+      POSTGRES_DB: sonar
+      POSTGRES_PASSWORD: "{{ ci_secrets.results[0].content | b64decode }}"
+    volumes: ["sonar-db-data:/var/lib/postgresql/data"]
+    memory: 512m
+  no_log: true
+
+- name: Jeton SonarQube de Jenkins déjà créé ?
+  ansible.builtin.stat:
+    path: /var/lib/pfe-ci/secrets/SONAR_TOKEN
+  register: ci_sonar_jeton
+
+- name: SonarQube (démarré pour sa configuration initiale ; ensuite, seulement pendant les builds)
+  community.docker.docker_container:
+    name: sonarqube
+    image: "{{ parc_sonarqube_image }}"
+    state: "{{ 'started' if not ci_sonar_jeton.stat.exists else 'present' }}"
+    restart_policy: "no"
+    networks: [{ name: pfe-ci }]
+    published_ports: ["9000:9000"]
+    env:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: "{{ ci_secrets.results[0].content | b64decode }}"
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube-extensions:/opt/sonarqube/extensions
+      - sonarqube-logs:/opt/sonarqube/logs
+    memory: 2500m
+  no_log: true
+
+- name: Configuration initiale de SonarQube (mot de passe admin, jeton de Jenkins)
+  when: not ci_sonar_jeton.stat.exists
+  block:
+    - name: SonarQube opérationnel
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9000/api/system/status
+        return_content: true
+      register: ci_sonar_etat
+      until: ci_sonar_etat.status == 200 and (ci_sonar_etat.content | from_json).status == 'UP'
+      retries: 60
+      delay: 10
+
+    - name: Mot de passe admin de SonarQube (remplace admin/admin, conservé sur ce nœud)
+      ansible.builtin.copy:
+        dest: /var/lib/pfe-ci/secrets/SONAR_ADMIN_PASSWORD
+        content: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['ascii_letters', 'digits']) }}"
+        owner: root
+        mode: "0400"
+        force: false
+      no_log: true
+
+    - name: Lecture du mot de passe admin
+      ansible.builtin.slurp:
+        src: /var/lib/pfe-ci/secrets/SONAR_ADMIN_PASSWORD
+      register: ci_sonar_admin
+      no_log: true
+
+    - name: Remplacement du mot de passe par défaut
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9000/api/users/change_password
+        method: POST
+        url_username: admin
+        url_password: admin
+        force_basic_auth: true
+        body_format: form-urlencoded
+        body: {login: admin, previousPassword: admin, password: "{{ ci_sonar_admin.content | b64decode }}"}
+        status_code: [204, 401]    # 401 : déjà changé lors d'un passage précédent
+      no_log: true
+
+    - name: Jeton d'analyse pour Jenkins
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9000/api/user_tokens/generate
+        method: POST
+        url_username: admin
+        url_password: "{{ ci_sonar_admin.content | b64decode }}"
+        force_basic_auth: true
+        body_format: form-urlencoded
+        body: {name: "jenkins-{{ ansible_date_time.epoch | default(now(utc=true).strftime('%s')) }}", type: GLOBAL_ANALYSIS_TOKEN}
+        return_content: true
+      register: ci_sonar_token
+      no_log: true
+
+    - name: Jeton conservé (fichier lu par Jenkins seul)
+      ansible.builtin.copy:
+        dest: /var/lib/pfe-ci/secrets/SONAR_TOKEN
+        content: "{{ (ci_sonar_token.content | from_json).token }}"
+        owner: "1000"
+        mode: "0400"
+      no_log: true
+
+    - name: SonarQube arrêté (2,5 Go de RAM rendus ; chaque build le redémarre puis l'arrête)
+      community.docker.docker_container:
+        name: sonarqube
+        state: stopped
+
+# ---------------------------------------------------------------- Vault (mode développement, comme le premier parc)
+- name: Vault (mode développement : données en mémoire, à remplacer par un Vault persistant en production)
+  community.docker.docker_container:
+    name: vault
+    image: "{{ parc_vault_image }}"
+    restart_policy: unless-stopped
+    published_ports: ["8200:8200"]
+    capabilities: [IPC_LOCK]
+    env:
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_DEV_ROOT_TOKEN_ID: "{{ ci_secrets.results[1].content | b64decode }}"
+    memory: 256m
+  no_log: true
+  when: parc_vault | bool
+
+# ---------------------------------------------------------------- Jenkins
+- name: Fichiers de l'image Jenkins
+  ansible.builtin.copy:
+    src: "jenkins/{{ item }}"
+    dest: "/var/lib/pfe-ci/jenkins-image/{{ item }}"
+    mode: "0644"
+  loop: [Dockerfile, plugins.txt]
+  register: ci_image_fichiers
+
+- name: Image Jenkins de la plateforme (version figée, Docker et Trivy inclus)
+  community.docker.docker_image:
+    name: pfe-jenkins
+    tag: "{{ parc_jenkins_tag }}"
+    source: build
+    build:
+      path: /var/lib/pfe-ci/jenkins-image
+      pull: true
+    force_source: "{{ ci_image_fichiers is changed }}"
+
+- name: Configuration de Jenkins (Configuration as Code)
+  ansible.builtin.template:
+    src: jenkins.yaml.j2
+    dest: /var/lib/pfe-ci/jenkins-conf/jenkins.yaml
+    mode: "0644"
+  notify: Recharger Jenkins
+
+- name: Groupe docker de l'hôte (accès de Jenkins au socket Docker)
+  ansible.builtin.command: getent group docker
+  register: ci_groupe_docker
+  changed_when: false
+
+- name: Jenkins
+  community.docker.docker_container:
+    name: jenkins
+    image: "pfe-jenkins:{{ parc_jenkins_tag }}"
+    restart_policy: unless-stopped
+    networks: [{ name: pfe-ci }]
+    published_ports: ["8080:8080"]
+    groups: ["{{ ci_groupe_docker.stdout.split(':')[2] }}"]
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/pfe-ci/jenkins-conf:/var/jenkins_conf:ro
+      - /var/lib/pfe-ci/secrets:/run/secrets:ro
+    memory: 1500m
+
+- name: Jenkins opérationnel (configuration lue, jobs créés)
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8080/login
+    status_code: 200
+  register: ci_jenkins
+  until: ci_jenkins.status == 200
+  retries: 30
+  delay: 10
+
+- name: Accès
+  ansible.builtin.debug:
+    msg: >-
+      Jenkins : http://{{ ansible_host }}:8080/ (utilisateur admin ; mot de passe sur ce nœud :
+      sudo cat /var/lib/pfe-ci/secrets/JENKINS_ADMIN_PASSWORD). Jobs {{ jenkins_job }} et {{ jenkins_job_applications }}.
+      Reste à faire dans GitHub : webhook http://{{ ansible_host }}:8080/github-webhook/ (événement push).

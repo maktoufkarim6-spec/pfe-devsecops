@@ -113,6 +113,78 @@ pare-feu est ajouté, ces ports doivent rester ouverts **entre les nœuds**.
 
 ## Parc entièrement neuf
 
-L'installation d'un parc vide de zéro (nœud de contrôle : k3s, Argo CD, Jenkins, SonarQube, Vault ; puis
-supervision) est l'étape suivante. Aujourd'hui, le nœud de contrôle et la supervision existants sont
-installés ; tout nouveau serveur vide les rejoint comme nœud applicatif.
+Pour installer la plateforme **de zéro** sur des serveurs vides (un nouveau client, un nouvel environnement),
+il faut au moins 2 VPS Debian 12 ou 13 : un pour la supervision et un pour le nœud de contrôle. Les rôles sont
+attribués automatiquement :
+
+| Serveur | Rôle | Installé |
+|---|---|---|
+| celui où l'on lance `deploy.sh` | **supervision** | Prometheus, Grafana, moteur IA, agent, sauvegardes |
+| le serveur vide qui a **le plus de RAM** | **nœud de contrôle** | k3s serveur, Argo CD (et l'application cobaye), SonarQube et sa base, Vault, **Jenkins configuré par fichier** (identifiants, SonarQube, scanner, les 2 jobs) |
+| les autres serveurs vides | **nœuds applicatifs** | agent k3s, collecteurs, sauvegardes |
+
+Les versions installées sont celles du premier parc, relevées le 16/10/2026 et figées dans `group_vars/all.yml`
+(`parc_*`) : k3s v1.36.4+k3s1, Argo CD v3.5.2, Jenkins 2.568.2 LTS, SonarQube 26.8 community, Vault 2.2.0.
+
+### Étapes (sur le futur serveur de supervision)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/<compte>/<dépôt>/main/infra/deploy.sh -o deploy.sh
+```
+```bash
+bash deploy.sh --nouveau-parc
+```
+1. Ce serveur se sonde lui-même : il doit être vide.
+2. La découverte explore `plages_autorisees`. Si la clé du parc n'est pas encore posée sur les autres serveurs
+   (VPS neufs), un **inventaire provisoire** est écrit. Lancer alors `bash deploy.sh --cles` (le mot de passe est
+   demandé une seule fois), puis relancer `bash deploy.sh --nouveau-parc`.
+3. Le **plan** s'affiche (rôle et RAM de chaque serveur ; les serveurs occupés sont ignorés) : répondre `oui`.
+   Rien n'est encore installé.
+
+```bash
+bash deploy.sh
+```
+Pour le nœud de contrôle à installer, `deploy.sh` demande **une seule fois** le compte et le jeton Docker Hub,
+ainsi que le compte et le jeton GitHub (droit *Contents : Read and write* sur le dépôt). Ces identifiants ne
+sont pas affichés et ne sont écrits que sur le nœud de contrôle (`/var/lib/pfe-ci/secrets`, lisibles par
+Jenkins seul), jamais dans Git.
+
+Après l'installation :
+- Jenkins : `http://<contrôle>:8080/`. Utilisateur `admin` ; mot de passe :
+  `sudo cat /var/lib/pfe-ci/secrets/JENKINS_ADMIN_PASSWORD` sur le nœud de contrôle. Les jobs
+  `pipeline-app-cobaye` et `plateforme-applications` sont déjà créés.
+- Argo CD : `https://<contrôle>:32252/`. Utilisateur `admin` ; la commande qui affiche le mot de passe est
+  donnée par `deploy.sh`.
+- **Il reste une action dans GitHub** : un webhook `http://<contrôle>:8080/github-webhook/` (événement *push*),
+  pour que chaque push lance le pipeline.
+
+### Garde-fous
+
+- **Un nœud de contrôle existant n'est jamais touché** : si k3s y est déjà actif, toute la partie
+  « nœud de contrôle » est sautée. C'est le cas du premier parc : son Jenkins installé à la main et son Argo CD
+  restent tels quels.
+- Le futur nœud de contrôle est **sondé juste avant l'installation**. S'il n'est pas vide, rien n'est installé,
+  ni k3s, ni Argo CD, ni Jenkins.
+- L'inventaire d'un parc neuf (`~/.pfe-parc/inventaire.ini`, marqué `# parc-neuf`) **remplace** celui du dépôt,
+  qui décrit le premier parc : impossible de mélanger les deux parcs.
+- Argo CD est installé côté serveur (`--server-side`) : la définition ApplicationSet est bien présente, ce qui
+  évite le problème vécu sur le premier parc.
+- Jenkins vient d'une **image construite par la plateforme** (`roles/ci/files/jenkins/Dockerfile`) : version
+  figée, clients Docker et Trivy inclus (archive Trivy vérifiée par son empreinte), sans assistant ni réglage
+  manuel. Le mot de passe admin de SonarQube est remplacé par un mot de passe aléatoire, et son jeton d'analyse
+  est créé pour Jenkins. Tous les secrets générés sont conservés sur le nœud de contrôle.
+
+### Vérifié / non vérifié
+
+- **Vérifié en local** :
+  - attribution des rôles (6 tests) : le plus de RAM devient le nœud de contrôle, les serveurs occupés et ce
+    serveur lui-même ne sont jamais pris, et l'étape « clés à poser d'abord » est gérée ;
+  - inventaire généré relu par ansible-core 2.18, avec contrôle, supervision et adresses bien résolus ;
+  - `jenkins.yaml` valide : 3 identifiants, 2 jobs, aucun secret en clair, inscription fermée, lecture anonyme
+    interdite ;
+  - Application Argo CD de la cobaye conforme au schéma ;
+  - **refus d'installer sur un nœud de contrôle non vide** ;
+  - syntaxe de `site.yml` et de `deploy.sh`.
+- **Non vérifié** : une installation réelle de bout en bout (il faut 2 VPS vides) ; la construction de l'image
+  Jenkins et le démarrage de la Configuration as Code (pas de Docker disponible pour l'essai) ; les versions
+  exactes des extensions Jenkins, choisies par `jenkins-plugin-cli` au moment de la construction.

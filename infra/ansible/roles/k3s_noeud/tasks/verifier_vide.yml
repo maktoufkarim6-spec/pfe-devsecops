@@ -1,0 +1,16 @@
+# Refus d'installer sur un serveur qui n'est pas vide et compatible (après sonde.yml). Partagé par l'ajout d'un
+# nœud (k3s_noeud) et l'installation du nœud de contrôle d'un parc neuf (site.yml).
+
+- name: "Serveur vide et compatible, sinon rien n'est installé"
+  ansible.builtin.assert:
+    that:
+      - not k3s_sonde.k3s_serveur
+      - k3s_conteneurs_etrangers | length == 0
+      - k3s_ports_etrangers | length == 0
+      - k3s_sonde.systeme in ['debian 12', 'debian 13']
+      - k3s_sonde.ram_mo | int >= 1800
+    fail_msg: >-
+      {{ inventory_hostname }} ({{ ansible_host }}) n'est pas un serveur vide compatible : rien n'est installé.
+      Système {{ k3s_sonde.systeme }}, {{ k3s_sonde.ram_mo }} Mo, conteneurs {{ k3s_conteneurs_etrangers }},
+      ports {{ k3s_ports_etrangers }}{{ ', déjà nœud de contrôle k3s' if k3s_sonde.k3s_serveur else '' }}.
+      Retirer la ligne de l'inventaire, ou libérer le serveur.

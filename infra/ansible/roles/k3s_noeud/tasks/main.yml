@@ -3,38 +3,14 @@
 # déjà agent k3s. Refuse un serveur qui n'est pas vide (autre chose y tourne) : la sonde de la découverte est
 # rejouée ici, juste avant d'installer quoi que ce soit.
 
-- name: État du serveur (sonde lecture seule de la découverte)
-  ansible.builtin.script: "{{ playbook_dir }}/../outils/sonde_serveur.sh"
-  register: k3s_sonde_brute
-  changed_when: false
-
-- name: Lecture de la sonde
-  ansible.builtin.set_fact:
-    k3s_sonde: "{{ k3s_sonde_brute.stdout_lines | last | from_json }}"
-    # Conteneurs et ports que la plateforme elle-même a déjà pu poser (déploiement précédent interrompu)
-    k3s_conteneurs_etrangers: >-
-      {{ (k3s_sonde_brute.stdout_lines | last | from_json).conteneurs.split()
-         | reject('in', ['node-exporter', 'cadvisor', 'cadvisor-k3s']) | list }}
-    k3s_ports_etrangers: >-
-      {{ (k3s_sonde_brute.stdout_lines | last | from_json).services_ecoute.split() | map('int')
-         | reject('in', [22, 53, port_node_exporter, port_cadvisor, port_cadvisor_k3s]) | list }}
+- name: État du serveur (sonde de la découverte, lecture seule)
+  ansible.builtin.include_tasks: sonde.yml
 
 - name: Rejoindre le cluster
   when: not k3s_sonde.k3s_agent
   block:
-    - name: "Serveur vide et compatible, sinon rien n'est installé"
-      ansible.builtin.assert:
-        that:
-          - not k3s_sonde.k3s_serveur
-          - k3s_conteneurs_etrangers | length == 0
-          - k3s_ports_etrangers | length == 0
-          - k3s_sonde.systeme in ['debian 12', 'debian 13']
-          - k3s_sonde.ram_mo | int >= 1800
-        fail_msg: >-
-          {{ inventory_hostname }} ({{ ansible_host }}) n'est pas un serveur vide compatible : rien n'est installé.
-          Système {{ k3s_sonde.systeme }}, {{ k3s_sonde.ram_mo }} Mo, conteneurs {{ k3s_conteneurs_etrangers }},
-          ports {{ k3s_ports_etrangers }}{{ ', déjà nœud de contrôle k3s' if k3s_sonde.k3s_serveur else '' }}.
-          Retirer la ligne de l'inventaire, ou libérer le serveur.
+    - name: Serveur vide et compatible, sinon rien n'est installé
+      ansible.builtin.include_tasks: verifier_vide.yml
 
     - name: Version de k3s du cluster (le nouveau nœud prend exactement la même)
       ansible.builtin.command: k3s --version

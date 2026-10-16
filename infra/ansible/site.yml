@@ -38,6 +38,43 @@
   become: true
   roles: [docker]
 
+- name: Nœud de contrôle d'un PARC NEUF (k3s serveur, Argo CD, chaîne CI) ; jamais sur un nœud de contrôle existant
+  hosts: nodes
+  become: true
+  tasks:
+    - name: k3s déjà actif sur le nœud de contrôle ?
+      ansible.builtin.command: systemctl is-active --quiet k3s
+      register: parc_k3s_actif
+      changed_when: false
+      failed_when: false
+      when: inventory_hostname == k3s_server_host
+
+    - name: Nœud de contrôle existant
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} : k3s déjà installé, nœud de contrôle existant non modifié (Jenkins, Argo CD conservés tels quels)."
+      when: inventory_hostname == k3s_server_host and parc_k3s_actif.rc == 0
+
+    - name: Installation complète du nœud de contrôle (serveur vide seulement)
+      when: inventory_hostname == k3s_server_host and parc_k3s_actif.rc != 0
+      block:
+        - name: Sonde du serveur (lecture seule)
+          ansible.builtin.include_role:
+            name: k3s_noeud
+            tasks_from: sonde
+        - name: Serveur vide et compatible, sinon rien n'est installé
+          ansible.builtin.include_role:
+            name: k3s_noeud
+            tasks_from: verifier_vide
+        - name: Serveur k3s
+          ansible.builtin.include_role:
+            name: k3s_controle
+        - name: Argo CD et application cobaye
+          ansible.builtin.include_role:
+            name: argocd
+        - name: Chaîne CI (SonarQube, Vault, Jenkins)
+          ansible.builtin.include_role:
+            name: ci
+
 - name: Nouveaux nœuds applicatifs -> cluster k3s (serveur vide seulement, voir docs/PARC.md)
   hosts: nodes
   become: true
