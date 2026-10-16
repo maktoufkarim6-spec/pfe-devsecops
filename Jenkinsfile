@@ -272,7 +272,7 @@ pipeline {
                 if (env.SKIP != 'true' && env.TAG) {
                     def r = currentBuild.currentResult
                     def statut = r == 'SUCCESS' ? '1' : (r == 'UNSTABLE' ? '0.5' : '0')
-                    def lab = "job=\"${env.JOB_NAME}\",application=\"${env.APP_NAME}\""
+                    def lab = "pipeline=\"${env.JOB_NAME}\",application=\"${env.APP_NAME}\""
                     def contenu = [
                         '# HELP pfe_ci_dernier_build Résultat du dernier build (1 réussi, 0.5 instable, 0 échec)',
                         '# TYPE pfe_ci_dernier_build gauge',
