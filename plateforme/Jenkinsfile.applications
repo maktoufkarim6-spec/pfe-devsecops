@@ -1,0 +1,175 @@
+// Pipeline commun des applications de la plateforme (applications/<nom>/values.yaml, section « source »).
+// Même chaîne de sécurité que l'application cobaye : tests -> SonarQube -> images -> Trivy -> Docker Hub,
+// puis mise à jour GitOps de applications/<nom>/values.yaml (commit [skip ci]) : Argo CD déploie.
+// Toute la logique et tous les contrôles sont dans plateforme/ci/construire.sh (testable hors Jenkins).
+//
+// Job Jenkins « plateforme-applications » (une seule fois, voir docs/APPLICATIONS.md) : Pipeline depuis SCM,
+// ce dépôt, branche main, chemin du script plateforme/Jenkinsfile.applications.
+// Credentials : 'dockerhub', 'github-token' (mêmes que le pipeline de l'application cobaye), serveur SonarQube
+// 'sonarqube', outil 'sonar-scanner'.
+
+pipeline {
+    agent any
+
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 45, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+    }
+
+    parameters {
+        string(name: 'APPLICATION', defaultValue: '',
+               description: 'Application à construire et déployer : nom du dossier applications/<nom>/ (ex : demo-podinfo). ' +
+                            'Son values.yaml doit avoir une section « source » et des composants « construire ».')
+    }
+
+    environment {
+        DOCKERHUB    = credentials('dockerhub')
+        SCANNER_HOME = tool 'sonar-scanner'
+        REGISTRE     = 'kariimm557'     // seul espace Docker Hub où le pipeline peut pousser
+        CI           = 'plateforme/ci/construire.sh'
+    }
+
+    stages {
+        stage('Application et code source') {
+            steps {
+                script {
+                    // Validation stricte avant tout usage du paramètre (il finit dans des commandes)
+                    if (!(params.APPLICATION ==~ /[a-z][a-z0-9-]{1,30}[a-z0-9]/)) {
+                        error("APPLICATION invalide : '${params.APPLICATION}' (nom d'un dossier applications/<nom>/)")
+                    }
+                    env.APPLICATION = params.APPLICATION
+                    currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.APPLICATION}"
+                }
+                sh 'bash "$CI" verifier "$APPLICATION"'
+                sh 'bash "$CI" source'
+                script {
+                    env.TAG = readFile('.ci/tag').trim()
+                    env.SONAR_MODE = sh(returnStdout: true, script: '. .ci/source.env && echo "$SONAR_MODE"').trim()
+                    currentBuild.description = "${env.APPLICATION} : images ${env.TAG}"
+                }
+            }
+        }
+
+        stage('Fenêtre de maintenance AIOps') {
+            steps {
+                // Build lourd : maintenance annoncée (30 min) pour éviter les fausses anomalies et les actions de l'agent
+                sh '''
+                    docker run --rm -v /var/lib/node_exporter/textfile:/t alpine:3.20 sh -c \
+                      'echo "pfe_maintenance_until_seconds $(( $(date +%s) + 1800 ))" > /t/.maintenance && mv /t/.maintenance /t/maintenance.prom' \
+                      || echo "Annonce de maintenance impossible : ignoré"
+                '''
+            }
+        }
+
+        stage('Tests') {
+            steps {
+                sh 'bash "$CI" tests'
+            }
+        }
+
+        stage('Analyse SonarQube') {
+            steps {
+                script {
+                    def running = sh(returnStdout: true, script: 'docker inspect -f "{{.State.Running}}" sonarqube 2>/dev/null || echo absent').trim()
+                    if (running == 'false') {
+                        sh 'docker start sonarqube'
+                        env.SONAR_STARTED_BY_PIPELINE = 'true'
+                    }
+                }
+                withSonarQubeEnv('sonarqube') {
+                    sh '''
+                        for i in $(seq 1 60); do
+                            curl -sf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"' && exit 0
+                            sleep 5
+                        done
+                        echo "SonarQube indisponible après 5 min"; exit 1
+                    '''
+                    script {
+                        def rc = sh(returnStatus: true, script: '''
+                            $SCANNER_HOME/bin/sonar-scanner \
+                              -Dsonar.projectKey=app-$APPLICATION \
+                              -Dsonar.projectName="Application $APPLICATION" \
+                              -Dsonar.projectBaseDir=.ci/src \
+                              -Dsonar.sources=. \
+                              -Dsonar.exclusions=**/node_modules/**,**/vendor/**,**/build/**,**/dist/**,**/*.png,**/*.jpg,**/*.svg \
+                              -Dsonar.qualitygate.wait=true \
+                              -Dsonar.qualitygate.timeout=300
+                        ''')
+                        if (rc != 0) {
+                            if (env.SONAR_MODE == 'bloquant') {
+                                error("Quality Gate SonarQube en échec pour ${env.APPLICATION} (détail dans SonarQube, projet app-${env.APPLICATION})")
+                            }
+                            unstable("Quality Gate en échec, non bloquant pour ${env.APPLICATION} (source.sonar: informatif)")
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Images') {
+            steps {
+                sh 'bash "$CI" images'
+            }
+        }
+
+        stage('Scan sécurité Trivy') {
+            steps {
+                sh 'bash "$CI" trivy'
+            }
+        }
+
+        stage('Publication Docker Hub') {
+            steps {
+                sh 'echo "$DOCKERHUB_PSW" | docker login -u "$DOCKERHUB_USR" --password-stdin'
+                sh 'bash "$CI" pousser'
+            }
+        }
+
+        stage('Mise à jour GitOps') {
+            steps {
+                // Écrit les nouvelles images dans applications/<nom>/values.yaml : Argo CD (ApplicationSet) déploie
+                withCredentials([usernamePassword(credentialsId: 'github-token',
+                                                  usernameVariable: 'GIT_USER',
+                                                  passwordVariable: 'GIT_TOKEN')]) {
+                    sh '''
+                        git config user.name  "jenkins-ci"
+                        git config user.email "jenkins-ci@pfe.local"
+                        git config credential.helper '!f() { echo "username=${GIT_USER}"; echo "password=${GIT_TOKEN}"; }; f'
+                        ok=0
+                        for i in 1 2 3; do
+                            git fetch -q origin main
+                            git checkout -q -B gitops-application origin/main
+                            bash "$CI" maj "$APPLICATION" "$TAG"
+                            if git diff --quiet; then echo "Déjà à jour"; ok=1; break; fi
+                            git commit -qam "[skip ci] Application $APPLICATION : images $TAG"
+                            if git push -q origin HEAD:main; then ok=1; break; fi
+                            echo "Push refusé (main a avancé) : nouvel essai"
+                        done
+                        git config --unset credential.helper
+                        [ "$ok" = 1 ]
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Application ${env.APPLICATION} : images ${env.TAG} testées, analysées, scannées, publiées ; Argo CD déploie."
+        }
+        failure {
+            echo "Échec : rien n'a été déployé, la version en ligne de ${env.APPLICATION} reste en place. Voir l'étape en rouge."
+        }
+        always {
+            sh 'docker logout || true'
+            sh 'git config --unset credential.helper || true'
+            sh 'bash "$CI" nettoyer || true'
+            script {
+                if (env.SONAR_STARTED_BY_PIPELINE == 'true') {
+                    sh 'docker stop sonarqube || true'   // ~2 Go de RAM rendus hors build
+                }
+            }
+        }
+    }
+}

@@ -105,14 +105,73 @@ Sécurité : les valeurs de `values.yaml` qui finissent dans des scripts root ou
 Prometheus sont vérifiées avant tout usage, dans le catalogue Ansible : nom, composants, `base.nom_base`,
 domaine et chemin de la sonde. Une valeur invalide arrête le déploiement.
 
+## Construire une application depuis son code source (pipeline commun)
+
+Une application peut utiliser une image déjà publiée, ou être **construite depuis son code source** par le
+job Jenkins `plateforme-applications` (`plateforme/Jenkinsfile.applications`). Ce job applique la même chaîne
+que l'application cobaye.
+
+```yaml
+source:
+  depot: https://github.com/compte/mon-appli.git   # https seulement, dépôt public
+  branche: main
+  sonar: bloquant          # bloquant (défaut) ou informatif (code d'un tiers : affiché sans bloquer)
+composants:
+  - nom: api
+    image: docker.io/kariimm557/mon-appli-api:12-abc1234   # écrite par le pipeline à chaque build
+    construire:
+      contexte: api            # dossier du dépôt source (défaut .)
+      dockerfile: Dockerfile   # relatif au contexte (défaut Dockerfile)
+      image: kariimm557/mon-appli-api   # dépôt Docker Hub, sans tag (espace kariimm557 seulement)
+      cible_tests: test        # étape du Dockerfile qui lance les tests (facultatif, recommandé)
+    port: 5500
+    utilisateur: 1000
+```
+
+| Étape | Bloquant |
+|---|---|
+| Contrôle de `values.yaml` (`plateforme/ci/construire.sh verifier`) : adresse https, branche, chemins sans `..`, image dans l'espace autorisé, sans tag | oui |
+| Clone de la branche et tag `<build>-<commit>` | — |
+| Tests : `docker build --target <cible_tests>` | oui |
+| SonarQube, projet `app-<nom>` | selon `source.sonar` |
+| Images, scan **Trivy** (faille CRITIQUE corrigeable ; exceptions : `.trivyignore` du dépôt source) | oui |
+| Publication Docker Hub, puis écriture de la ligne `image:` (et d'elle seule) dans `applications/<nom>/values.yaml`, commit `[skip ci]` | — |
+| Argo CD déploie la nouvelle version | — |
+
+Si une étape échoue, rien n'est publié et la version en ligne reste en place. Toute la logique est dans
+`plateforme/ci/construire.sh`, testable sans Jenkins. Le Jenkinsfile ne fait qu'enchaîner les étapes.
+
+**Lancer :** page d'accueil Grafana, lien **📦 Construire et déployer une autre application**, puis le champ
+**APPLICATION** (par exemple `demo-podinfo`) et **Build**.
+
+**Création du job (une seule fois)** : Jenkins → *Nouvel élément* → nom `plateforme-applications` → type
+*Pipeline* → *Pipeline script from SCM* → Git, dépôt `https://github.com/maktoufkarim6-spec/pfe-devsecops.git`,
+branche `*/main`, *Script Path* `plateforme/Jenkinsfile.applications`. Pas de déclencheur : le job se lance à
+la main ou depuis Grafana. Il reprend les credentials `dockerhub` et `github-token` et le serveur SonarQube du
+pipeline de la cobaye. Le premier build peut échouer avant d'afficher le champ APPLICATION : Jenkins ne lit les
+paramètres qu'à l'exécution. Il suffit de le relancer.
+
+Limites : dépôts sources publics seulement (un dépôt privé demandera un credential de lecture) ; images
+poussées dans l'espace Docker Hub `kariimm557` ; pas de déclenchement automatique quand le dépôt source change
+(webhook à ajouter).
+
 ## Ce qui reste à faire (phases suivantes)
 
-- **Construction depuis le code source** : pipeline Jenkins commun qui construit, teste et scanne
-  (SonarQube, Trivy), puis écrit le nouveau tag dans `applications/<nom>/values.yaml`. Aujourd'hui, une
-  application utilise une image déjà publiée.
+- Déclenchement automatique quand le dépôt source d'une application change (webhook) ; dépôts privés.
 - **HTTPS** et vrais noms de domaine.
 
 ## Vérifications faites
+
+**Pipeline commun** (38 tests, avec `yq` 4.44.3 réel, un vrai dépôt Git local servi en https, et `docker` et
+`trivy` simulés) :
+- chaîne complète sur une application à 2 composants construits et 1 image publique ;
+- Trivy bloquant ;
+- **seule la ligne `image:` change**, commentaires conservés, même avec un en-tête de commentaires ;
+- mise à jour idempotente ;
+- le chart accepte le résultat ;
+- 17 refus : http, `..`, option déguisée en branche, contexte absolu, image d'un autre compte ou avec tag,
+  étape de tests piégée, tag piégé, Dockerfile absent…
+
 
 **Supervision par application** (en local, mêmes versions qu'en production) :
 - **Moteur AIOps, 71 tests** (Python 3.11, versions figées), dont 14 nouveaux. Ils vérifient : les

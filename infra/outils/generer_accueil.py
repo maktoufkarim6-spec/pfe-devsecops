@@ -10,6 +10,7 @@ APP = "__APP_IP__"
 RAPPORT = "__EVALUATION_URL__"
 DEPOT = "__REPO_WEB__"
 DEPLOYER = "__JENKINS_JOB_URL__"
+DEPLOYER_APPS = "__JENKINS_APPS_URL__"
 pid = [0]
 
 
@@ -62,7 +63,7 @@ panels.append(text("", 0, y, 24, 3,
 y += 3
 panels.append(row("Déploiement en un clic", y))
 y += 1
-panels.append(text("", 0, y, 16, 5,
+panels.append(text("", 0, y, 16, 7,
     f"### [🚀 Déployer la dernière version]({DEPLOYER})\n"
     "Lance la chaîne complète sur la branche `main` du dépôt : tests, SonarQube, construction des images, scan Trivy, "
     "publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter ; "
@@ -70,13 +71,16 @@ panels.append(text("", 0, y, 16, 5,
     "ex. `app-1,app-2` ; `tous` : n'importe lequel ; vide : garder les serveurs actuels), puis **Build**. "
     "Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. "
     "Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n"
-    f"### [🌐 Voir l'application en ligne](http://{APP}__APP_URL_PATH__)"))
-panels.append(stat("Application en ligne", 16, y, 8, 5,
+    f"### [🌐 Voir l'application en ligne](http://{APP}__APP_URL_PATH__)\n\n"
+    f"### [📦 Construire et déployer une autre application]({DEPLOYER_APPS})\n"
+    "Applications du dossier `applications/` : champ **APPLICATION** (ex. `demo-podinfo`). Même chaîne de "
+    "sécurité, depuis le code source déclaré dans son `values.yaml`."))
+panels.append(stat("Application en ligne", 16, y, 8, 7,
     [tgt('probe_success{job="services",service="Application"}')],
     "Page de l'application testée toutes les 15 s depuis le serveur de supervision. Cliquer pour l'ouvrir.",
     text_mode="value", mappings=val({"1": ("EN LIGNE", "green"), "0": ("HORS LIGNE", "red")}), steps=RG,
     links=[{"title": "Ouvrir l'application", "url": f"http://{APP}__APP_URL_PATH__", "targetBlank": True}]))
-y += 5
+y += 7
 panels.append(row("Applications de la plateforme", y))
 y += 1
 APPLI = 'aiops_target_info{kind="application"}'

@@ -115,14 +115,14 @@
       "title": "",
       "id": 3,
       "gridPos": {
-        "h": 5,
+        "h": 7,
         "w": 16,
         "x": 0,
         "y": 4
       },
       "options": {
         "mode": "markdown",
-        "content": "### [🚀 Déployer la dernière version](__JENKINS_JOB_URL__)\nLance la chaîne complète sur la branche `main` du dépôt : tests, SonarQube, construction des images, scan Trivy, publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter ; le champ **NOEUDS** choisit les serveurs où l'application tourne (noms de la section « Serveurs » ci-dessous, ex. `app-1,app-2` ; `tous` : n'importe lequel ; vide : garder les serveurs actuels), puis **Build**. Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n### [🌐 Voir l'application en ligne](http://__APP_IP____APP_URL_PATH__)"
+        "content": "### [🚀 Déployer la dernière version](__JENKINS_JOB_URL__)\nLance la chaîne complète sur la branche `main` du dépôt : tests, SonarQube, construction des images, scan Trivy, publication sur Docker Hub, puis déploiement par Argo CD sur Kubernetes. Jenkins demande de se connecter ; le champ **NOEUDS** choisit les serveurs où l'application tourne (noms de la section « Serveurs » ci-dessous, ex. `app-1,app-2` ; `tous` : n'importe lequel ; vide : garder les serveurs actuels), puis **Build**. Compter environ 10 minutes ; l'avancement s'affiche étape par étape dans Jenkins. Si une étape de sécurité échoue, rien n'est déployé et la version en ligne reste en place.\n\n### [🌐 Voir l'application en ligne](http://__APP_IP____APP_URL_PATH__)\n\n### [📦 Construire et déployer une autre application](__JENKINS_APPS_URL__)\nApplications du dossier `applications/` : champ **APPLICATION** (ex. `demo-podinfo`). Même chaîne de sécurité, depuis le code source déclaré dans son `values.yaml`."
       }
     },
     {
@@ -130,7 +130,7 @@
       "title": "Application en ligne",
       "id": 4,
       "gridPos": {
-        "h": 5,
+        "h": 7,
         "w": 8,
         "x": 16,
         "y": 4
@@ -218,7 +218,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 11
       },
       "collapsed": false,
       "panels": []
@@ -231,7 +231,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 10
+        "y": 12
       },
       "datasource": {
         "type": "prometheus",
@@ -317,7 +317,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 10
+        "y": 12
       },
       "datasource": {
         "type": "prometheus",
@@ -393,7 +393,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 10
+        "y": 12
       },
       "datasource": {
         "type": "prometheus",
@@ -455,7 +455,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 10
+        "y": 12
       },
       "datasource": {
         "type": "prometheus",
@@ -525,7 +525,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 16
       },
       "collapsed": false,
       "panels": []
@@ -538,7 +538,7 @@
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 17
       },
       "datasource": {
         "type": "prometheus",
@@ -651,7 +651,7 @@
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 22
       },
       "datasource": {
         "type": "prometheus",
@@ -737,7 +737,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 26
       },
       "collapsed": false,
       "panels": []
@@ -750,7 +750,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 25
+        "y": 27
       },
       "datasource": {
         "type": "prometheus",
@@ -820,7 +820,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 25
+        "y": 27
       },
       "datasource": {
         "type": "prometheus",
@@ -890,7 +890,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 25
+        "y": 27
       },
       "datasource": {
         "type": "prometheus",
@@ -960,7 +960,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 25
+        "y": 27
       },
       "datasource": {
         "type": "prometheus",
@@ -1036,7 +1036,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 31
       },
       "collapsed": false,
       "panels": []
@@ -1049,7 +1049,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 30
+        "y": 32
       },
       "datasource": {
         "type": "prometheus",
@@ -1136,7 +1136,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 30
+        "y": 32
       },
       "datasource": {
         "type": "prometheus",
@@ -1202,7 +1202,7 @@
         "h": 4,
         "w": 6,
         "x": 8,
-        "y": 30
+        "y": 32
       },
       "datasource": {
         "type": "prometheus",
@@ -1277,7 +1277,7 @@
         "h": 4,
         "w": 5,
         "x": 14,
-        "y": 30
+        "y": 32
       },
       "datasource": {
         "type": "prometheus",
@@ -1357,7 +1357,7 @@
         "h": 4,
         "w": 5,
         "x": 19,
-        "y": 30
+        "y": 32
       },
       "datasource": {
         "type": "prometheus",
@@ -1431,7 +1431,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 36
       },
       "collapsed": false,
       "panels": []
@@ -1444,7 +1444,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 37
       },
       "options": {
         "mode": "markdown",

@@ -15,6 +15,7 @@ repo_web: https://github.com/maktoufkarim6-spec/pfe-devsecops   # dépôt (liens
 evaluation_url: https://claude.ai/artifact/MYtKLPBoj4eNnS1GNgYaaU   # résultats de la campagne ("" = aucun)
 plateforme_dossier: /var/lib/pfe             # fichiers de travail sur le nœud de contrôle
 plateforme_branche: main          # branche lue par Argo CD pour applications/ et plateforme/chart
+jenkins_job_applications: plateforme-applications   # pipeline commun des applications (plateforme/Jenkinsfile.applications)
 jenkins_job: pipeline-app-cobaye        # job Jenkins du pipeline (bouton « Déployer » de la page d'accueil)
 # =====================================================================================================
 
@@ -90,6 +91,7 @@ k3s_server_host: >-
 app_ip: "{{ hostvars[k3s_server_host].ansible_host }}"
 # Page Jenkins « Lancer un build » : connexion Jenkins demandée, puis un clic sur « Build »
 jenkins_job_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job }}/build?delay=0sec"
+jenkins_applications_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job_applications }}/build?delay=0sec"
 image_blackbox: prom/blackbox-exporter:v0.25.0
 services_web:
   - { nom: "Application", url: "http://{{ app_ip }}{{ app_url_path }}", lien: "http://{{ app_ip }}{{ app_url_path }}" }

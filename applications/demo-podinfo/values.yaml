@@ -1,10 +1,24 @@
 # Application de démonstration : 2e application du parc, à côté de l'application cobaye.
 # podinfo (https://github.com/stefanprodan/podinfo) : petite application web de test pour Kubernetes.
 # Adresse : http://demo-podinfo.<ip-du-nœud-de-contrôle-avec-tirets>.sslip.io/
+#
+# Construite DEPUIS SON CODE SOURCE par le pipeline commun (job Jenkins plateforme-applications,
+# APPLICATION=demo-podinfo) : clone, SonarQube, image, Trivy, Docker Hub, puis le pipeline écrit ci-dessous
+# la ligne « image » du composant (kariimm557/demo-podinfo:<build>-<commit>). Avant le premier build,
+# l'image publiée par l'auteur est utilisée.
+
+source:
+  depot: https://github.com/stefanprodan/podinfo.git
+  branche: master
+  sonar: informatif         # code d'un tiers : le Quality Gate est affiché sans bloquer
 
 composants:
   - nom: web
     image: ghcr.io/stefanprodan/podinfo:6.7.1
+    construire:
+      contexte: .
+      dockerfile: Dockerfile
+      image: kariimm557/demo-podinfo
     port: 9898
     copies: 1
     public: true
