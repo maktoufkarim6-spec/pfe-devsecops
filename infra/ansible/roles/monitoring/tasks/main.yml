@@ -239,3 +239,6 @@
       {% for h in groups['all'] %}
       - {"node": "{{ hostvars[h].node_name }}", "app": {{ (hostvars[h].node_app | bool) | to_json }}}
       {% endfor %}
+      {% for a in plateforme_catalogue | default([]) %}
+      - {"application": "{{ a.nom }}", "composants": {{ a.composants | to_json }}, "base": {{ a.base | to_json }}, "web": {{ (a.url != '') | to_json }}}
+      {% endfor %}

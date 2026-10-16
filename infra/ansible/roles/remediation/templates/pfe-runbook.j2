@@ -21,6 +21,8 @@ NODE={{ node_name }}
 CONTAINERS="{{ runbook_containers | join(' ') }}"
 NAMESPACE={{ app_namespace }}
 RESTARTABLE="{{ app_restartable | join(' ') }}"
+# Applications de la plateforme : <application>/<composant> redémarrables (jamais la base)
+APP_RESTARTABLE="{% for a in plateforme_catalogue | default([]) %}{% for c in a.redemarrables %}{{ a.nom }}/{{ c }} {% endfor %}{% endfor %}"
 CI_HEAVY={{ app_ci_heavy_container }}
 APP={{ 'oui' if node_app | bool else 'non' }}
 K3S_SERVER={{ 'oui' if inventory_hostname == k3s_server_host else 'non' }}   # kubectl ne fonctionne que sur le nœud de contrôle
@@ -37,7 +39,11 @@ maintenance() {
   [ -n "$fin" ] && [ "$fin" -gt "$(date +%s)" ]
 }
 
-[[ "$ACTION" =~ ^[a-z-]{1,30}$ && "$ARG" =~ ^[a-z0-9-]{0,40}$ ]] || { echo "demande invalide"; exit 2; }
+if [ "$ACTION" = rollout-app ]; then
+  [[ "$ARG" =~ ^[a-z0-9-]{1,32}/[a-z0-9-]{1,32}$ ]] || { echo "demande invalide"; exit 2; }
+else
+  [[ "$ACTION" =~ ^[a-z-]{1,30}$ && "$ARG" =~ ^[a-z0-9-]{0,40}$ ]] || { echo "demande invalide"; exit 2; }
+fi
 case "$ACTION" in status|decouvrir) ;; *) logger -t pfe-runbook -- "demande : $ACTION $ARG" ;; esac
 
 # Découverte des services exposés : lecture seule, n'attend pas une action en cours
@@ -70,6 +76,17 @@ case "$ACTION" in
     k3s kubectl -n "$NAMESPACE" rollout restart "deployment/$ARG" >/dev/null || { say "échec du lancement"; exit 1; }
     if k3s kubectl -n "$NAMESPACE" rollout status "deployment/$ARG" --timeout=180s >/dev/null; then
       say "redémarrage progressif terminé"; exit 0
+    fi
+    say "redémarrage progressif non terminé en 180 s (l'ancien pod reste actif)"; exit 1 ;;
+
+  rollout-app)
+    [ "$K3S_SERVER" = oui ] || { say "pas le nœud de contrôle k3s (kubectl indisponible ici)"; exit 4; }
+    in_list "$ARG" "$APP_RESTARTABLE" || { say "composant hors liste autorisée ($APP_RESTARTABLE)"; exit 4; }
+    maintenance && { say "maintenance ou build en cours : refus"; exit 4; }
+    ns=${ARG%%/*}; dep=${ARG#*/}
+    k3s kubectl -n "$ns" rollout restart "deployment/$dep" >/dev/null || { say "échec du lancement"; exit 1; }
+    if k3s kubectl -n "$ns" rollout status "deployment/$dep" --timeout=180s >/dev/null; then
+      say "redémarrage progressif de $dep ($ns) terminé"; exit 0
     fi
     say "redémarrage progressif non terminé en 180 s (l'ancien pod reste actif)"; exit 1 ;;
 

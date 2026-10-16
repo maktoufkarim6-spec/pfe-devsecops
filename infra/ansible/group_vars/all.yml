@@ -52,7 +52,7 @@ monitoring_dir: /opt/pfe-monitoring
 repo_url: "{{ repo_web }}.git"
 repo_dir: /opt/pfe-devsecops
 prometheus_retention: 15d
-aiops_version: "3.1.0"
+aiops_version: "3.2.0"
 
 # Alertes par e-mail (Gmail). Vide : alertes visibles dans Alertmanager et Grafana seulement.
 # Le mot de passe d'application n'est jamais écrit ici : variable d'environnement PFE_SMTP_PASSWORD.
@@ -62,7 +62,7 @@ smtp_smarthost: smtp.gmail.com:587
 smtp_password: "{{ lookup('ansible.builtin.env', 'PFE_SMTP_PASSWORD') }}"
 
 # Agent de remédiation (voir remediation-agent/README.md)
-remediation_version: "1.0.0"
+remediation_version: "1.1.0"
 # conseil : l'agent simule et journalise ce qu'il ferait ; actif : il exécute. Passer en actif après
 # avoir relu son journal (docker exec mon-remediation python -m agent journal) puis relancer deploy.sh.
 remediation_mode: conseil

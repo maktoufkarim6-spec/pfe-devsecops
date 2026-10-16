@@ -74,9 +74,10 @@ plateforme rendue réutilisable (`docs/REUTILISER.md`).
 5. Objectif 5 : Rundeck (ou justification de l'orchestration Ansible + minuteries systemd).
 6. **Plusieurs applications** (phase 1, écrite et testée en local, `docs/APPLICATIONS.md`) : un dossier
    `applications/<nom>/` par application, déployé par Argo CD (ApplicationSet) avec le chart commun
-   `plateforme/chart`, dans un namespace isolé. Application de test : `demo-podinfo`. **À mettre en service**
-   avec `deploy.sh`. Phases suivantes : pipeline Jenkins commun, supervision et sauvegardes par application,
-   découverte des serveurs vides, installation d'un parc vide.
+   `plateforme/chart`, dans un namespace isolé. Application de test : `demo-podinfo`, **en service depuis le 16/10/2026**
+   (Argo CD ApplicationSet réparé, isolement réseau vérifié). Supervision, IA, agent et sauvegardes par application :
+   écrits et testés en local (`docs/APPLICATIONS.md`), **à mettre en service** avec `deploy.sh`.
+   Phases suivantes : pipeline Jenkins commun, découverte des serveurs vides, installation d'un parc vide.
 
 ## Règles de travail
 

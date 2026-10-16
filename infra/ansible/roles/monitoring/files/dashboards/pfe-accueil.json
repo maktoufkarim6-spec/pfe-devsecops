@@ -212,7 +212,7 @@
     },
     {
       "type": "row",
-      "title": "Services",
+      "title": "Applications de la plateforme",
       "id": 5,
       "gridPos": {
         "h": 1,
@@ -225,13 +225,320 @@
     },
     {
       "type": "stat",
-      "title": "État des services",
+      "title": "En ligne",
       "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "probe_success{job=\"applications\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{application}}"
+        }
+      ],
+      "description": "Adresse web de chaque application (dossiers applications/<nom>/), testée toutes les 15 s. Cliquer pour l'ouvrir.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "en ligne",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "HORS LIGNE",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "Ouvrir ${__field.labels.application}",
+              "url": "${__field.labels.instance}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Détection par l'IA",
+      "id": 7,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "max by (application) (aiops_anomaly_active * on (node) group_left (application) aiops_target_info{kind=\"application\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{application}}"
+        }
+      ],
+      "description": "Un modèle par application : CPU et RAM de chaque composant, conteneurs, disponibilité et temps de réponse.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "normal",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "ANOMALIE",
+                  "color": "orange"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "links": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Mémoire",
+      "id": 8,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "sum by (application) (label_replace(container_memory_working_set_bytes{job=\"cadvisor-k3s\",container_label_io_kubernetes_container_name!=\"\",container_label_io_kubernetes_container_name!=\"POD\"}, \"application\", \"$1\", \"container_label_io_kubernetes_pod_namespace\", \"(.+)\")) and on (application) aiops_target_info{kind=\"application\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{application}}"
+        }
+      ],
+      "description": "Mémoire utilisée par tous les conteneurs de l'application (plafonnée par son quota).",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "links": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Sauvegarde de la base",
+      "id": 9,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "efx9ykc7u57nkf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "efx9ykc7u57nkf"
+          },
+          "expr": "(time() - pfe_backup_app_last_success_timestamp_seconds) / 3600 and pfe_backup_app_last_success_timestamp_seconds > 0",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{application}}"
+        }
+      ],
+      "description": "Heures depuis la dernière sauvegarde réussie de la base de chaque application (restaurée chaque semaine pour test).",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 26
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          },
+          "links": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Services",
+      "id": 10,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "État des services",
+      "id": 11,
       "gridPos": {
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 10
+        "y": 15
       },
       "datasource": {
         "type": "prometheus",
@@ -339,12 +646,12 @@
     {
       "type": "stat",
       "title": "Services découverts automatiquement",
-      "id": 7,
+      "id": 12,
       "gridPos": {
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 20
       },
       "datasource": {
         "type": "prometheus",
@@ -425,12 +732,12 @@
     {
       "type": "row",
       "title": "Serveurs",
-      "id": 8,
+      "id": 13,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 24
       },
       "collapsed": false,
       "panels": []
@@ -438,12 +745,12 @@
     {
       "type": "stat",
       "title": "CPU",
-      "id": 9,
+      "id": 14,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 20
+        "y": 25
       },
       "datasource": {
         "type": "prometheus",
@@ -508,12 +815,12 @@
     {
       "type": "stat",
       "title": "Mémoire",
-      "id": 10,
+      "id": 15,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 20
+        "y": 25
       },
       "datasource": {
         "type": "prometheus",
@@ -578,12 +885,12 @@
     {
       "type": "stat",
       "title": "Disque",
-      "id": 11,
+      "id": 16,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 20
+        "y": 25
       },
       "datasource": {
         "type": "prometheus",
@@ -648,12 +955,12 @@
     {
       "type": "stat",
       "title": "Détection par l'IA",
-      "id": 12,
+      "id": 17,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 20
+        "y": 25
       },
       "datasource": {
         "type": "prometheus",
@@ -724,12 +1031,12 @@
     {
       "type": "row",
       "title": "Auto-réparation, sauvegardes et alertes",
-      "id": 13,
+      "id": 18,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 29
       },
       "collapsed": false,
       "panels": []
@@ -737,12 +1044,12 @@
     {
       "type": "stat",
       "title": "Agent",
-      "id": 14,
+      "id": 19,
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 25
+        "y": 30
       },
       "datasource": {
         "type": "prometheus",
@@ -824,12 +1131,12 @@
     {
       "type": "stat",
       "title": "Réparations (24 h)",
-      "id": 15,
+      "id": 20,
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 25
+        "y": 30
       },
       "datasource": {
         "type": "prometheus",
@@ -890,12 +1197,12 @@
     {
       "type": "stat",
       "title": "Dernière sauvegarde",
-      "id": 16,
+      "id": 21,
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 8,
-        "y": 25
+        "y": 30
       },
       "datasource": {
         "type": "prometheus",
@@ -965,12 +1272,12 @@
     {
       "type": "stat",
       "title": "Test de restauration",
-      "id": 17,
+      "id": 22,
       "gridPos": {
         "h": 4,
         "w": 5,
         "x": 14,
-        "y": 25
+        "y": 30
       },
       "datasource": {
         "type": "prometheus",
@@ -1045,12 +1352,12 @@
     {
       "type": "stat",
       "title": "Alertes en cours",
-      "id": 18,
+      "id": 23,
       "gridPos": {
         "h": 4,
         "w": 5,
         "x": 19,
-        "y": 25
+        "y": 30
       },
       "datasource": {
         "type": "prometheus",
@@ -1119,12 +1426,12 @@
     {
       "type": "row",
       "title": "Évaluation par injection de pannes",
-      "id": 19,
+      "id": 24,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 34
       },
       "collapsed": false,
       "panels": []
@@ -1132,12 +1439,12 @@
     {
       "type": "text",
       "title": "",
-      "id": 20,
+      "id": 25,
       "gridPos": {
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 35
       },
       "options": {
         "mode": "markdown",

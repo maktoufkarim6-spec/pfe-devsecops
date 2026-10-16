@@ -58,6 +58,11 @@ LAST_SCORE = Gauge("aiops_last_score_timestamp", "Horodatage de la dernière év
 ERRORS = Counter("aiops_errors", "Erreurs pendant les cycles", ["node", "stage"])
 
 
+# Nature de chaque cible (nœud ou application) : sert aux règles d'alerte et à Grafana pour les distinguer.
+TARGET_INFO = Gauge("aiops_target_info", "1 par cible supervisée (kind : node ou application)",
+                    ["node", "kind", "application"])
+
+
 class _Bound:
     """Une métrique dont l'étiquette node est déjà posée."""
 
@@ -76,5 +81,5 @@ class _Bound:
 
 def for_node(node):
     """Toutes les métriques du module, liées au nœud donné (m.ACTIVE.set(1), m.Z.labels(feature=...))."""
-    metrics = {k: v for k, v in globals().items() if isinstance(v, (Gauge, Counter))}
+    metrics = {k: v for k, v in globals().items() if isinstance(v, (Gauge, Counter)) and k != "TARGET_INFO"}
     return SimpleNamespace(**{k: _Bound(v, node) for k, v in metrics.items()})

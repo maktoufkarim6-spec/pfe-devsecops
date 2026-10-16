@@ -40,6 +40,7 @@ class Config:
     discovery_file: str = "/decouverte/services.json"   # lu par Prometheus (file_sd)
     services_declares: list = field(default_factory=list)   # adresses déjà testées (déclarées à la main)
     nodes: list = field(default_factory=list)
+    applications: dict = field(default_factory=dict)   # application -> composants redémarrables (hors base)
 
     @classmethod
     def from_env(cls, env=None):
@@ -56,6 +57,7 @@ class Config:
                 setattr(cfg, name, cast(raw))
         cfg.disk_cleanup = env.get("AGENT_DISK_CLEANUP", "false").lower() in ("1", "true", "oui", "yes")
         cfg.nodes = parse_nodes(env.get("AGENT_NODES", "[]"))
+        cfg.applications = parse_applications(env.get("AGENT_APPLICATIONS", "{}"))
         cfg.services_declares = [str(x) for x in json.loads(env.get("AGENT_SERVICES_DECLARES", "[]") or "[]")]
         cfg.validate()
         return cfg
@@ -77,6 +79,25 @@ class Config:
     def k3s_node(self):
         """Nœud de contrôle k3s ; à défaut (configuration à un seul nœud), le premier nœud applicatif."""
         return next((n for n in self.nodes if n.k3s), None) or next((n for n in self.nodes if n.app), None)
+
+
+K8S_NAME = re.compile(r"^[a-z0-9]([-a-z0-9]{0,30}[a-z0-9])?$")
+
+
+def parse_applications(raw):
+    """AGENT_APPLICATIONS = {"boutique": ["api", "site"], ...} : composants que l'agent peut redémarrer."""
+    data = json.loads(raw or "{}")
+    if not isinstance(data, dict):
+        raise ValueError("AGENT_APPLICATIONS doit être un objet JSON")
+    out = {}
+    for app, comps in data.items():
+        if not K8S_NAME.match(str(app)) or not isinstance(comps, list):
+            raise ValueError(f"Application invalide dans AGENT_APPLICATIONS : {app!r}")
+        bad = [c for c in comps if not K8S_NAME.match(str(c)) or c == "base"]
+        if bad:
+            raise ValueError(f"Composants invalides pour {app} : {bad}")
+        out[str(app)] = [str(c) for c in comps]
+    return out
 
 
 def parse_nodes(raw):

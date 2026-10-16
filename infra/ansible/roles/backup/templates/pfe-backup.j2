@@ -110,6 +110,37 @@ k exec -i deploy/{{ app_db_deployment }} -- pg_restore --list < "$WORK/postgres-
 [ -s "$WORK/postgres-{{ app_db_name }}.contenu.txt" ]
 {% endif %}
 
+{% set apps_base = (plateforme_catalogue | default([])) | selectattr('base') | list
+   if (node_app | bool and inventory_hostname == k3s_server_host) else [] %}
+{% if apps_base %}
+
+# --- Bases PostgreSQL des applications de la plateforme (applications/<nom>/, Deployment « base »).
+# Une base en échec n'empêche pas la sauvegarde des autres : statut par application (pfe_backup_app_status).
+sauver_app() {   # $1 application (namespace), $2 nom de la base ; appelée dans un « if » : chaque étape est testée
+  local ns=$1 db=$2 f="$WORK/app-$1-$2"
+  k3s kubectl -n "$ns" exec -i deploy/base -c postgres -- sh -c 'psql -U "$POSTGRES_USER" -d "$1" -At -v ON_ERROR_STOP=1' _ "$db"     < /usr/local/lib/pfe-backup/comptage.sql > "$f.comptage.txt" || return 1
+  k3s kubectl -n "$ns" exec deploy/base -c postgres -- sh -c 'pg_dump -U "$POSTGRES_USER" -d "$1" -Fc' _ "$db" > "$f.dump" || return 1
+  k3s kubectl -n "$ns" exec -i deploy/base -c postgres -- pg_restore --list < "$f.dump" > "$f.contenu.txt" || return 1
+  [ -s "$f.contenu.txt" ]
+}
+apps_prom="# HELP pfe_backup_app_status 1 si la base de l'application a été sauvegardée la dernière nuit
+# TYPE pfe_backup_app_status gauge
+# HELP pfe_backup_app_last_success_timestamp_seconds Dernière sauvegarde réussie de la base de l'application
+# TYPE pfe_backup_app_last_success_timestamp_seconds gauge
+"
+{% for a in apps_base %}
+if sauver_app {{ a.nom }} {{ a.nom_base }}; then
+  st=1; state_set app_{{ a.nom }}_last_success "$(date +%s)"; log "base de l'application {{ a.nom }} sauvegardée"
+else
+  st=0; rm -f -- "$WORK/app-{{ a.nom }}-"*; log "ÉCHEC de la sauvegarde de la base de l'application {{ a.nom }} (les autres continuent)"
+fi
+apps_prom+="pfe_backup_app_status{application=\"{{ a.nom }}\"} $st
+pfe_backup_app_last_success_timestamp_seconds{application=\"{{ a.nom }}\"} $(state_get app_{{ a.nom }}_last_success)
+"
+{% endfor %}
+printf '%s' "$apps_prom" | write_prom pfe_backup_apps.prom
+{% endif %}
+
 # --- Description du jeu et empreintes (le fichier SHA256SUMS marque un jeu complet)
 {
   echo "noeud=$NODE"

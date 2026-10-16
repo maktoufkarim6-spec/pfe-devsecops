@@ -36,6 +36,7 @@ class Engine:
         self.cfg, self.prom, self.clock = cfg, prom, clock
         self.target = target or Target()
         self.m = M.for_node(self.target.name)
+        M.TARGET_INFO.labels(node=self.target.name, kind=self.target.kind, application=self.target.application).set(1)
         self.log = _NodeLog(log, {"node": self.target.name})
         self.model_path = self._path("model", "joblib")
         # Fenêtre de maintenance : fichier global (tous les nœuds) ou propre au nœud
@@ -87,6 +88,7 @@ class Engine:
 
     def announced_maintenance(self, now):
         """Maintenance annoncée par le nœud lui-même via Prometheus (multi-nœuds, sans accès au moteur).
+        Application (aucun nœud attitré) : une maintenance sur n'importe quel nœud la concerne.
         Une annonce plus longue que maintenance_max_minutes est ignorée : jamais de silence permanent."""
         sel = f'{{node="{self.target.node}"}}' if self.target.node else ""
         try:
@@ -363,6 +365,8 @@ class Engine:
     # ------------------------------------------------------------ prévisions
     def forecast(self, now):
         self.last_forecast = now
+        if not self.target.forecasts:   # application : pas de disque ni de RAM de serveur à prévoir
+            return
         for resource, feature in (("disk", "disk_host"), ("ram", "ram_host")):
             expr = next(f.expr for f in self.target.features if f.name == feature)
             data = self.prom.range(expr, now - self.cfg.forecast_hours * 3600, now, 60)

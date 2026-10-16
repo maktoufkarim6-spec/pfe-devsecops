@@ -4,10 +4,17 @@ L'agent ne choisit jamais une commande libre : il choisit dans une liste fermée
 pfe-runbook de chaque nœud revérifie avant d'agir. Pour les anomalies AIOps, le choix dépend du
 diagnostic du moteur (variable la plus déviante).
 """
+import re
 from dataclasses import dataclass
 
 # Actions connues du script pfe-runbook des nœuds (même liste des deux côtés)
-ACTIONS = ("status", "decouvrir", "restart-container", "rollout-restart", "stop-sonarqube", "clean-disk")
+ACTIONS = ("status", "decouvrir", "restart-container", "rollout-restart", "rollout-app", "stop-sonarqube",
+           "clean-disk")
+
+# Applications de la plateforme (applications/<nom>/) : alertes portant l'étiquette application
+APP_ALERTS = ("AnomalieApplication", "ApplicationHorsLigne")
+# Variable du moteur qui désigne un composant : cpu_<composant> ou ram_<composant>_mb
+COMPONENT_FEATURE = re.compile(r"^(?:cpu_(?P<cpu>[a-z0-9-]+)|ram_(?P<ram>[a-z0-9-]+)_mb)$")
 
 # Variables du moteur AIOps qui désignent l'API de l'application
 SERVER_FEATURES = ("cpu_server", "ram_server_mb")
@@ -22,6 +29,7 @@ class Plan:
     action: str = None
     arg: str = ""
     reason: str = ""
+    cible: str = ""     # étiquette node de l'alerte, si elle diffère du nœud qui agit (vérification de l'effet)
 
     @property
     def key(self):
@@ -41,10 +49,46 @@ def target_node(alert, cfg):
     return labels.get("node")
 
 
+def decide_application(alert, cfg, diagnose=None):
+    """Alerte d'une application de la plateforme. Seule action possible : redémarrage progressif du composant
+    que le moteur désigne (cpu_<c> ou ram_<c>_mb en hausse), jamais la base, toujours via le nœud de contrôle."""
+    labels = alert.get("labels", {})
+    name, app, cible = labels.get("alertname", ""), labels.get("application", ""), labels.get("node", "")
+    composants = cfg.applications.get(app)
+    ctl = cfg.k3s_node()
+    if composants is None:
+        return Plan(ctl.name if ctl else "-", reason=f"application inconnue de l'agent ({app!r})", cible=cible)
+    if ctl is None:
+        return Plan("-", reason="aucun nœud de contrôle k3s connu : pas d'action sur le cluster", cible=cible)
+    if name == "ApplicationHorsLigne":
+        return Plan(ctl.name, reason=f"{app} injoignable : Argo CD remet les pods manquants (self-heal) ; "
+                                     "pas de redémarrage à l'aveugle, escalade humaine si l'alerte dure", cible=cible)
+    diag = diagnose(cible) if diagnose and cible else None
+    feature, z = diag if isinstance(diag, tuple) else (diag, None)
+    if feature is None:
+        return Plan(ctl.name, reason=f"diagnostic AIOps de {app} indisponible : pas d'action à l'aveugle", cible=cible)
+    m = COMPONENT_FEATURE.match(feature)
+    if feature == "ram_base_mb":
+        return Plan(ctl.name, reason=f"anomalie sur la base de {app} : jamais redémarrée automatiquement, escalade humaine",
+                    cible=cible)
+    if not m:
+        return Plan(ctl.name, reason=f"anomalie IA de {app} sur {feature} : pas d'action automatique sûre, escalade humaine",
+                    cible=cible)
+    composant = m.group("cpu") or m.group("ram")
+    if composant not in composants:
+        return Plan(ctl.name, reason=f"{feature} : composant {composant!r} hors liste de {app}", cible=cible)
+    if z is not None and z < 0:
+        return Plan(ctl.name, reason=f"{feature} en baisse (z={z:+.1f}) : pas une surcharge, aucune action", cible=cible)
+    return Plan(ctl.name, "rollout-app", f"{app}/{composant}",
+                f"anomalie IA de {app} sur {feature} : redémarrage progressif de {composant}, sans coupure", cible=cible)
+
+
 def decide(alert, cfg, diagnose=None):
     """Choisit l'action pour une alerte en cours. diagnose(node) -> variable AIOps la plus déviante ou None."""
     labels = alert.get("labels", {})
     name = labels.get("alertname", "")
+    if name in APP_ALERTS and labels.get("source") not in ("agent", "backup"):
+        return decide_application(alert, cfg, diagnose)
     node_name = target_node(alert, cfg)
     if labels.get("source") in ("agent", "backup"):
         return Plan(node_name or "-", reason="alerte de l'agent ou des sauvegardes : jamais d'action sur soi-même")

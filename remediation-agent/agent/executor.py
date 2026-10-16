@@ -7,7 +7,9 @@ from dataclasses import dataclass
 
 from .policy import ACTIONS
 
+# Argument : un mot, ou <application>/<composant> pour rollout-app (revérifié par pfe-runbook)
 ARG = re.compile(r"^[a-z0-9-]{0,40}$")
+APP_ARG = re.compile(r"^[a-z0-9-]{1,32}/[a-z0-9-]{1,32}$")
 
 # Codes de retour de pfe-runbook
 OK, FAILED, USAGE, NOTHING, REFUSED = 0, 1, 2, 3, 4
@@ -32,7 +34,7 @@ class SshExecutor:
         self.clock = clock
 
     def command(self, node, action, arg=""):
-        if action not in ACTIONS or not ARG.match(arg or ""):
+        if action not in ACTIONS or not (APP_ARG if action == "rollout-app" else ARG).match(arg or ""):
             raise ValueError(f"Action refusée par l'agent : {action!r} {arg!r}")
         return ["ssh", "-F", "/dev/null", "-i", self.cfg.ssh_key,
                 "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",

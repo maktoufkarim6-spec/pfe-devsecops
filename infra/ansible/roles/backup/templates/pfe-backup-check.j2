@@ -73,6 +73,22 @@ if (( FORCE_TEST == 1 || $(date +%s) - last_test > 6 * 86400 + 43200 )); then
     TMP=$ROOT/.test-restauration
     rm -rf -- "${TMP:?}"; mkdir -p "$TMP"
     log "test de restauration du jeu $latest"
+    restaurer_app() {   # $1 application, $2 base : restauration réelle puis comparaison des comptages
+      local ns=$1 base=$2 db=pfe_test_restauration rc=0
+      ka() { k3s kubectl -n "$ns" "$@"; }
+      ka exec deploy/base -c postgres -- sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$1" && createdb -U "$POSTGRES_USER" "$1"' _ "$db" || return 1
+      ka exec -i deploy/base -c postgres -- sh -c 'pg_restore -U "$POSTGRES_USER" -d "$1" --no-owner --no-privileges --exit-on-error' _ "$db"         < "$SET/app-$ns-$base.dump" || rc=1
+      if (( rc == 0 )); then
+        ka exec -i deploy/base -c postgres -- sh -c 'psql -U "$POSTGRES_USER" -d "$1" -At -v ON_ERROR_STOP=1' _ "$db"           < /usr/local/lib/pfe-backup/comptage.sql > "$TMP/comptage-$ns.txt" || rc=1
+      fi
+      ka exec deploy/base -c postgres -- sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$1"' _ "$db" || true
+      (( rc == 0 )) || { log "$ns : restauration PostgreSQL impossible"; return 1; }
+      if ! diff -q "$SET/app-$ns-$base.comptage.txt" "$TMP/comptage-$ns.txt" >/dev/null; then
+        log "$ns : comptages différents après restauration"; diff "$SET/app-$ns-$base.comptage.txt" "$TMP/comptage-$ns.txt" | head -20
+        return 1
+      fi
+      log "$ns : base restaurée, comptages identiques ($(wc -l < "$TMP/comptage-$ns.txt") tables)"
+    }
     restore_test() {
       (cd "$SET" && sha256sum --quiet --strict -c SHA256SUMS) || { log "empreintes incorrectes"; return 1; }
 {% if inventory_hostname in groups['monitoring'] %}
@@ -114,6 +130,15 @@ if (( FORCE_TEST == 1 || $(date +%s) - last_test > 6 * 86400 + 43200 )); then
       fi
       log "PostgreSQL : base restaurée, comptages identiques ($(wc -l < "$TMP/comptage.txt") tables)"
 {% endif %}
+{% for a in (plateforme_catalogue | default([])) | selectattr('base') | list
+   if (node_app | bool and inventory_hostname == k3s_server_host) %}
+      # Application {{ a.nom }} : même test, dans une base temporaire de son propre PostgreSQL
+      if [ -f "$SET/app-{{ a.nom }}-{{ a.nom_base }}.dump" ]; then
+        restaurer_app {{ a.nom }} {{ a.nom_base }} || return 1
+      else
+        log "{{ a.nom }} : pas de base dans ce jeu (application récente ou sauvegarde en échec, voir pfe_backup_app_status)"
+      fi
+{% endfor %}
       return 0
     }
     if restore_test; then

@@ -135,7 +135,7 @@ class Agent:
         due = [p for p in self.pending if p[0] <= now]
         self.pending = [p for p in self.pending if p[0] > now]
         for _, action_id, alert_name, plan in due:
-            firing = self.context.still_firing(alert_name, plan.node)
+            firing = self.context.still_firing(alert_name, plan.cible or plan.node)
             result = "inconnu" if firing is None else ("persistant" if firing else "resolu")
             self.metrics.inc("pfe_agent_verifications_total", action=plan.label, result=result)
             self.journal.write(type="verification", id=action_id, mode=self.cfg.mode, alerte=alert_name,

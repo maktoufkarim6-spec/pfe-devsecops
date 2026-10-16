@@ -3,19 +3,13 @@
 # 3) ApplicationSet Argo CD : une Application par dossier, déployée avec le chart plateforme/chart.
 # L'application cobaye (k8s/, namespace default) n'est pas concernée : elle reste gérée comme avant.
 
-- name: Applications déclarées dans le dépôt (un dossier applications/<nom>/ avec son values.yaml)
-  ansible.builtin.find:
-    paths: "{{ playbook_dir }}/../../applications"
-    patterns: values.yaml
-    recurse: true
-    depth: 2
-  delegate_to: localhost
-  become: false
-  register: plateforme_fichiers
+- name: Catalogue des applications (déjà lu en tête de site.yml, relu si le rôle est lancé seul)
+  ansible.builtin.include_tasks: catalogue.yml
+  when: plateforme_catalogue is not defined
 
 - name: Liste des applications
   ansible.builtin.set_fact:
-    plateforme_apps: "{{ plateforme_fichiers.files | map(attribute='path') | map('dirname') | map('basename') | unique | sort }}"
+    plateforme_apps: "{{ plateforme_catalogue | map(attribute='nom') | list }}"
 
 - name: Noms valides (minuscules, chiffres, tirets ; pas de nom réservé)
   ansible.builtin.assert:
