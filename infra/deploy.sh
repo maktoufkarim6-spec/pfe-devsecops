@@ -227,10 +227,28 @@ case "$MODE" in
     EXTRA=(-e fermer_mots_de_passe=true)
     PLAYBOOK=cles-ssh.yml ;;
   deploiement)
-    read -rp "Adresse e-mail qui recevra les alertes (Entrée = pas d'e-mail pour l'instant) : " MAIL
+    # Adresses et mot de passe vérifiés ici : une réponse comme « oui » n'est jamais prise pour une adresse
+    COURRIEL='^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
+    while :; do
+      read -rp "Adresse e-mail qui recevra les alertes (Entrée = pas d'e-mail) : " MAIL
+      [ -z "$MAIL" ] || [[ "$MAIL" =~ $COURRIEL ]] && break
+      echo "  « $MAIL » n'est pas une adresse e-mail. Tapez une adresse (nom@exemple.fr), ou Entrée pour aucune."
+    done
     if [ -n "$MAIL" ]; then
-      read -rp "Adresse Gmail d'envoi : " FROM
-      read -rsp "Mot de passe d'application Gmail (non affiché) : " PFE_SMTP_PASSWORD; echo
+      while :; do
+        read -rp "Adresse Gmail d'envoi (Entrée = la même) : " FROM
+        FROM=${FROM:-$MAIL}
+        [[ "$FROM" =~ $COURRIEL ]] && break
+        echo "  « $FROM » n'est pas une adresse e-mail."
+      done
+      read -rsp "Mot de passe d'application Gmail, 16 caractères (non affiché) : " PFE_SMTP_PASSWORD; echo
+      PFE_SMTP_PASSWORD=${PFE_SMTP_PASSWORD// /}   # Google l'affiche par groupes de 4 séparés d'espaces
+      if [ -z "$PFE_SMTP_PASSWORD" ]; then
+        echo "  Mot de passe vide : alertes par e-mail NON activées (relancer deploy.sh pour les activer)."
+        MAIL=""
+      fi
+    fi
+    if [ -n "$MAIL" ]; then
       export PFE_SMTP_PASSWORD
       # Conservé sur ce serveur (lisible par ce compte seul) : la resynchronisation automatique en a besoin
       mkdir -p "$HOME/.pfe-secrets" && chmod 700 "$HOME/.pfe-secrets"
