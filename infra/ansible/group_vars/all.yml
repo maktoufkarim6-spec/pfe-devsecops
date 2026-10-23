@@ -104,10 +104,10 @@ k3s_server_host: >-
       | map(attribute='inventory_hostname') | list + groups['nodes']) | first }}
 app_ip: "{{ hostvars[k3s_server_host].ansible_host }}"
 # Page Jenkins « Lancer un build » : connexion Jenkins demandée, puis un clic sur « Build »
-jenkins_job_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job }}/build?delay=0sec"
-jenkins_applications_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job_applications }}/build?delay=0sec"
+jenkins_job_url: "{{ jenkins_url }}/job/{{ jenkins_job }}/build?delay=0sec"
+jenkins_applications_url: "{{ jenkins_url }}/job/{{ jenkins_job_applications }}/build?delay=0sec"
 # Formulaire du job commun avec le nom de l'application déjà rempli (bouton « Déployer » de chaque ligne de l'accueil)
-jenkins_applications_param_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job_applications }}/parambuild/?APPLICATION="
+jenkins_applications_param_url: "{{ jenkins_url }}/job/{{ jenkins_job_applications }}/parambuild/?APPLICATION="
 
 # HTTPS des applications (désactivé par défaut, voir docs/APPLICATIONS.md) : certificat Let's Encrypt gratuit,
 # demandé et renouvelé automatiquement par cert-manager, pour chaque application qui a un vrai nom de domaine
@@ -119,14 +119,34 @@ https_email: "{{ alert_email_to }}"
 https_emetteur: letsencrypt
 cert_manager_version: v1.21.2
 cert_manager_sha256: e03b668ec8675214af6b0a671699d088f2601fa3878e0dbe1b41d3feafd1879f
+
+# HTTPS des points d'entrée de la plateforme (avec https_actif ; docs/APPLICATIONS.md, section HTTPS).
+# Vides : adresses actuelles (IP:port), rien ne change. Le DNS de chaque nom doit pointer vers le bon serveur.
+#   https_domaine : grafana.<domaine> (serveur de supervision), jenkins.<domaine> et argocd.<domaine> (nœud de contrôle)
+#   app_domaine   : adresse de l'application cobaye (nœud de contrôle), par exemple app.monprojet.tn
+https_domaine: ""
+app_domaine: ""
+# Étape 2, une fois les adresses HTTPS vérifiées dans le navigateur : ferme les accès directs Jenkins (8080),
+# Argo CD (32252) et Grafana (3000). Remis à false (ou HTTPS désactivé) : rouverts au déploiement suivant.
+https_fermer_ports: false
+https_plateforme: "{{ https_actif | bool and https_domaine | length > 0 }}"
+https_app: "{{ https_actif | bool and app_domaine | length > 0 }}"
+https_ports_fermes: "{{ https_plateforme | bool and https_fermer_ports | bool }}"
+image_caddy: caddy:2.10.2          # reverse proxy HTTPS de Grafana (serveur de supervision)
+# Adresses des outils (sans / final) : page d'accueil, sondes, configuration de Jenkins
+jenkins_url: "{{ 'https://jenkins.' ~ https_domaine if https_plateforme | bool else 'http://' ~ app_ip ~ ':8080' }}"
+argocd_url: "{{ 'https://argocd.' ~ https_domaine if https_plateforme | bool else 'https://' ~ app_ip ~ ':32252' }}"
+grafana_url: "{{ 'https://grafana.' ~ https_domaine if https_plateforme | bool else 'http://' ~ monitoring_ip ~ ':3000' }}"
+app_url: "{{ 'https://' ~ app_domaine if https_app | bool else 'http://' ~ app_ip }}"
+
 image_blackbox: prom/blackbox-exporter:v0.25.0
 services_web:
-  - { nom: "Application", url: "http://{{ app_ip }}{{ app_url_path }}", lien: "http://{{ app_ip }}{{ app_url_path }}" }
-  - { nom: "Jenkins", url: "http://{{ app_ip }}:8080/login", lien: "http://{{ app_ip }}:8080/" }
-  - { nom: "Argo CD", url: "https://{{ app_ip }}:32252/", lien: "https://{{ app_ip }}:32252/" }
+  - { nom: "Application", url: "{{ app_url }}{{ app_url_path }}", lien: "{{ app_url }}{{ app_url_path }}" }
+  - { nom: "Jenkins", url: "{{ jenkins_url }}/login", lien: "{{ jenkins_url }}/" }
+  - { nom: "Argo CD", url: "{{ argocd_url }}/", lien: "{{ argocd_url }}/" }
   - { nom: "SonarQube", url: "http://{{ app_ip }}:9000/api/system/status", lien: "http://{{ app_ip }}:9000/", hors_build: true }
   - { nom: "Vault", url: "http://{{ app_ip }}:8200/v1/sys/health", lien: "http://{{ app_ip }}:8200/ui/" }
-  - { nom: "Grafana", url: "http://mon-grafana:3000/api/health", lien: "http://{{ monitoring_ip }}:3000/" }
+  - { nom: "Grafana", url: "http://mon-grafana:3000/api/health", lien: "{{ grafana_url }}/" }
   - { nom: "Prometheus", url: "http://mon-prometheus:9090/-/healthy", lien: "" }
   - { nom: "Alertmanager", url: "http://mon-alertmanager:9093/-/healthy", lien: "" }
   - { nom: "Moteur AIOps", url: "http://mon-aiops-engine:8000/metrics", lien: "" }
@@ -136,4 +156,10 @@ services_web:
 services_declares: >-
   {{ (services_web | map(attribute='url') | map('urlsplit', 'netloc') | list)
      + (services_web | map(attribute='lien') | select | map('urlsplit', 'netloc') | list)
-     + (services_web | map(attribute='url') | list) + (services_web | map(attribute='lien') | select | list) }}
+     + (services_web | map(attribute='url') | list) + (services_web | map(attribute='lien') | select | list)
+     + (https_declares if (https_plateforme | bool or https_app | bool) else []) }}
+# Avec le HTTPS : anciens accès directs, Caddy, et Ingress HTTP qui ne font que rediriger vers les adresses HTTPS
+https_declares: >-
+  {{ [app_ip ~ ':8080', app_ip ~ ':32252', monitoring_ip ~ ':3000', monitoring_ip ~ ':80', monitoring_ip ~ ':443']
+     + (['http://' ~ app_domaine ~ '/'] if https_app | bool else [])
+     + (['http://jenkins.' ~ https_domaine ~ '/', 'http://argocd.' ~ https_domaine ~ '/'] if https_plateforme | bool else []) }}

@@ -68,5 +68,5 @@
 - name: Mot de passe admin d'Argo CD
   ansible.builtin.debug:
     msg: >-
-      Argo CD : https://{{ ansible_host }}:32252/ (utilisateur admin). Mot de passe initial, sur ce nœud :
+      Argo CD : {{ argocd_url }}/ (utilisateur admin). Mot de passe initial, sur ce nœud :
       sudo k3s kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d

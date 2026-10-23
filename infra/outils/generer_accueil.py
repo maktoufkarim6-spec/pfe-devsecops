@@ -7,6 +7,8 @@ import statistics
 
 DS = {"type": "prometheus", "uid": "efx9ykc7u57nkf"}
 APP = "__APP_IP__"
+JENKINS = "__JENKINS_URL__"   # http://<ip>:8080, ou https://jenkins.<domaine> avec le HTTPS
+ARGOCD = "__ARGOCD_URL__"     # https://<ip>:32252, ou https://argocd.<domaine>
 RAPPORT = "__EVALUATION_URL__"
 DEPOT = "__REPO_WEB__"
 DEPLOYER = "__JENKINS_JOB_URL__"
@@ -138,14 +140,14 @@ panels.append(stat("Argo CD", 9, y, 5, 5,
     "Synced : le cluster correspond au dépôt Git. Healthy : tout démarre correctement. "
     "Bleu : synchronisation ou démarrage en cours ; rouge : à regarder dans Argo CD.",
     text_mode="name", steps=[{"color": "red", "value": None}, {"color": "blue", "value": 0.5}, {"color": "green", "value": 1}],
-    links=[{"title": "Ouvrir Argo CD", "url": f"https://{APP}:32252/applications", "targetBlank": True}]))
+    links=[{"title": "Ouvrir Argo CD", "url": f"{ARGOCD}/applications", "targetBlank": True}]))
 panels.append(stat("Dernier build Jenkins", 14, y, 6, 5,
     [tgt('max by (application, pipeline, version) (pfe_ci_dernier_build)', "{{application}} ({{version}})")],
     "Résultat du dernier build de chaque application (réussi, instable : Quality Gate non bloquante, ou échec). "
     "En cas d'échec rien n'est déployé : la version en ligne reste en place. Cliquer pour ouvrir le job.",
     mappings=val({"1": ("réussi", "green"), "0.5": ("instable", "orange"), "0": ("ÉCHEC", "red")}),
     steps=[{"color": "red", "value": None}, {"color": "orange", "value": 0.5}, {"color": "green", "value": 1}],
-    links=[{"title": "Ouvrir le job ${__field.labels.pipeline}", "url": f"http://{APP}:8080/job/${{__field.labels.pipeline}}/",
+    links=[{"title": "Ouvrir le job ${__field.labels.pipeline}", "url": f"{JENKINS}/job/${{__field.labels.pipeline}}/",
             "targetBlank": True}]))
 panels.append(stat("Synchronisation auto", 20, y, 4, 5,
     [tgt('max(pfe_sync_statut) or vector(-1)', "État"),
@@ -244,8 +246,8 @@ panels.append(text("", 0, y, 24, 6, md))
 ACCUEIL_LIEN = {"title": "Accueil", "type": "link", "url": "/d/pfe-accueil", "icon": "dashboard"}
 DETAILS_LIEN = {"title": "Détails techniques", "type": "link", "url": "/d/pfe-details", "icon": "dashboard"}
 OUTILS = [
-    {"title": "Jenkins", "type": "link", "url": f"http://{APP}:8080/", "icon": "external link", "targetBlank": True},
-    {"title": "Argo CD", "type": "link", "url": f"https://{APP}:32252/", "icon": "external link", "targetBlank": True},
+    {"title": "Jenkins", "type": "link", "url": f"{JENKINS}/", "icon": "external link", "targetBlank": True},
+    {"title": "Argo CD", "type": "link", "url": f"{ARGOCD}/", "icon": "external link", "targetBlank": True},
     {"title": "Dépôt GitHub", "type": "link", "url": DEPOT, "icon": "doc", "targetBlank": True},
 ]
 

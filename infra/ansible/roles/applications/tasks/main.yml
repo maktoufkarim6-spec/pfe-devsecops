@@ -69,6 +69,19 @@
       supplémentaires NON déployées. L'application cobaye n'est pas touchée.
   when: plateforme_crd.rc != 0
 
+# Aussi utilisé par l'application cobaye, Jenkins et Argo CD (rôle https) : installé même sans ApplicationSet
+- name: HTTPS (cert-manager et Let's Encrypt), si activé
+  when: https_actif | bool
+  block:
+    - name: Dossier de travail
+      ansible.builtin.file:
+        path: "{{ plateforme_dossier }}"
+        state: directory
+        mode: "0700"
+
+    - name: cert-manager et émetteurs Let's Encrypt
+      ansible.builtin.include_tasks: https.yml
+
 - name: Namespace, secrets et ApplicationSet
   when: plateforme_crd.rc == 0
   block:
@@ -92,10 +105,6 @@
         path: "{{ plateforme_dossier }}"
         state: directory
         mode: "0700"
-
-    - name: HTTPS des applications (cert-manager et Let's Encrypt), si activé
-      ansible.builtin.include_tasks: https.yml
-      when: https_actif | bool
 
     - name: ApplicationSet (une Application Argo CD par dossier applications/<nom>/)
       ansible.builtin.template:

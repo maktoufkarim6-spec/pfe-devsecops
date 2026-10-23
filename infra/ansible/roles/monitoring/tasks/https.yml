@@ -1,0 +1,75 @@
+# Grafana en HTTPS (https_actif + https_domaine) : Caddy écoute les ports 80 et 443 du serveur de supervision,
+# obtient puis renouvelle seul le certificat Let's Encrypt de grafana.<domaine> et transmet à Grafana par le réseau
+# Docker interne. Le port 3000 n'est fermé (https_fermer_ports) que si l'adresse HTTPS répond déjà.
+
+- name: Réglages HTTPS valides
+  ansible.builtin.assert:
+    that:
+      - https_domaine is match('^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$')
+      - https_email is match('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+      - https_emetteur in ['letsencrypt', 'letsencrypt-test']
+    fail_msg: >-
+      HTTPS : https_domaine doit être un nom de domaine en minuscules (ex. -e https_domaine=monprojet.tn, sans
+      « grafana. » devant), https_email une adresse e-mail valide, https_emetteur letsencrypt ou letsencrypt-test.
+    quiet: true
+
+- name: Ports 80 et 443 du serveur de supervision
+  ansible.builtin.command:
+    argv: [ss, -ltnH, "( sport = :80 or sport = :443 )"]
+  register: monitoring_https_ports
+  changed_when: false
+
+- name: Arrêt si un autre programme tient déjà les ports 80 ou 443 (rien n'est modifié)
+  ansible.builtin.assert:
+    that: monitoring_https_ports.stdout | length == 0 or 'mon-caddy' in monitoring_running.stdout_lines
+    fail_msg: >-
+      Les ports 80 ou 443 du serveur de supervision sont déjà utilisés (voir : sudo ss -ltnp) : Caddy ne peut pas
+      les prendre. Arrêtez ce programme ou retirez https_domaine, puis relancez le déploiement.
+
+- name: Configuration de Caddy
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ monitoring_dir }}/Caddyfile"
+    mode: "0644"
+  register: monitoring_caddyfile
+
+- name: Caddy (reverse proxy HTTPS de Grafana ; certificats conservés dans le volume pfe-caddy-data)
+  community.docker.docker_container:
+    name: mon-caddy
+    image: "{{ image_caddy }}"
+    restart_policy: unless-stopped
+    networks: [{ name: pfe-monitoring }]
+    published_ports: ["80:80", "443:443"]
+    read_only: true
+    tmpfs: ["/tmp:rw,size=16m"]
+    cap_drop: [ALL]
+    capabilities: [NET_BIND_SERVICE]
+    security_opts: ["no-new-privileges:true"]
+    memory: 128m
+    volumes:
+      - "{{ monitoring_dir }}/Caddyfile:/etc/caddy/Caddyfile:ro"
+      - "pfe-caddy-data:/data"
+      - "pfe-caddy-config:/config"
+    recreate: "{{ monitoring_caddyfile.changed }}"
+
+- name: Adresse HTTPS de Grafana en service ? (avant de fermer le port 3000)
+  ansible.builtin.uri:
+    url: "{{ grafana_url }}/api/health"
+    validate_certs: "{{ https_emetteur == 'letsencrypt' }}"
+  register: monitoring_https_grafana
+  until: monitoring_https_grafana.status == 200
+  retries: 12
+  delay: 10
+  failed_when: false
+  when: https_fermer_ports | bool
+
+- name: Port 3000 fermé seulement si l'adresse HTTPS répond
+  ansible.builtin.set_fact:
+    monitoring_fermer_3000: "{{ https_fermer_ports | bool and monitoring_https_grafana.status | default(0) == 200 }}"
+
+- name: Port 3000 laissé ouvert
+  ansible.builtin.debug:
+    msg: >-
+      {{ grafana_url }}/ ne répond pas ({{ monitoring_https_grafana.msg | default('') }}) : le port 3000 reste
+      ouvert. Vérifier le DNS de grafana.{{ https_domaine }} et l'ouverture des ports 80/443, puis relancer.
+  when: https_fermer_ports | bool and not monitoring_fermer_3000 | bool

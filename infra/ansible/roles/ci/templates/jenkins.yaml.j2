@@ -20,7 +20,7 @@ jenkins:
 
 unclassified:
   location:
-    url: "http://{{ ansible_host }}:8080/"
+    url: "{{ jenkins_url }}/"
   sonarGlobalConfiguration:
     buildWrapperEnabled: false
     installations:
