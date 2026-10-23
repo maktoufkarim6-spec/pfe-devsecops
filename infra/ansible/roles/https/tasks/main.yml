@@ -1,0 +1,80 @@
+# HTTPS de l'application cobaye, de Jenkins et d'Argo CD, sur le nœud de contrôle k3s (docs/APPLICATIONS.md) :
+# 1) adresses https://<app_domaine>, https://jenkins.<https_domaine>, https://argocd.<https_domaine> servies par
+#    Traefik, certificats Let's Encrypt de cert-manager (installé par le rôle applications), HTTP redirigé vers HTTPS ;
+# 2) accès directs (8080, 32252) fermés avec https_fermer_ports, rouverts sinon (ports.yml).
+# Sans HTTPS (https_actif faux, ou aucun domaine) : rien n'est créé, ports.yml ne fait que lire l'état.
+
+- name: Adresses HTTPS (Ingress Traefik et certificats)
+  when: https_app | bool or https_plateforme | bool
+  block:
+    - name: Noms de domaine valides
+      ansible.builtin.assert:
+        that: item is match('^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$')
+        fail_msg: >-
+          HTTPS : « {{ item }} » n'est pas un nom de domaine en minuscules
+          (ex. -e https_domaine=monprojet.tn -e app_domaine=app.monprojet.tn).
+        quiet: true
+      loop: "{{ [https_domaine if https_plateforme | bool else '', app_domaine if https_app | bool else ''] | select | list }}"
+
+    - name: Émetteur Let's Encrypt présent (installé par le rôle applications)
+      ansible.builtin.command: k3s kubectl get clusterissuer {{ https_emetteur }}
+      register: https_emetteur_present
+      changed_when: false
+      failed_when: false
+
+    - name: Arrêt si cert-manager manque
+      ansible.builtin.assert:
+        that: https_emetteur_present.rc == 0
+        fail_msg: >-
+          Émetteur {{ https_emetteur }} introuvable : cert-manager n'est pas installé. Relancer le déploiement complet
+          (bash deploy.sh avec -e https_actif=true), qui l'installe avant cette étape.
+
+    # L'adresse de l'application cobaye reprend les chemins de son Ingress sans nom d'hôte (k8s/, Argo CD), qui
+    # reste en place : l'application répond toujours sur http://<IP>/.
+    - name: Ingress de l'application cobaye (adresse IP)
+      ansible.builtin.command: k3s kubectl -n {{ app_namespace }} get ingress -o json
+      register: https_ingress_app
+      changed_when: false
+      when: https_app | bool
+
+    - name: Chemins servis sur l'adresse IP
+      ansible.builtin.set_fact:
+        https_chemins_app: >-
+          {{ (https_ingress_app.stdout | from_json)['items']
+             | rejectattr('metadata.name', 'in', [app_name ~ '-https', app_name ~ '-http'])
+             | map(attribute='spec.rules') | flatten | rejectattr('host', 'defined')
+             | map(attribute='http.paths') | flatten }}
+      when: https_app | bool
+
+    - name: Arrêt si l'application cobaye n'a pas d'Ingress
+      ansible.builtin.assert:
+        that: https_chemins_app | length > 0
+        fail_msg: >-
+          Aucun Ingress sans nom d'hôte dans le namespace {{ app_namespace }} : impossible de savoir quoi servir sur
+          https://{{ app_domaine }}/. Retirer app_domaine ou vérifier l'application (k8s/).
+      when: https_app | bool
+
+    - name: Manifeste des adresses HTTPS
+      ansible.builtin.template:
+        src: entrees.yaml.j2
+        dest: "{{ plateforme_dossier }}/https-entrees.yaml"
+        mode: "0600"
+
+    # Le webhook de cert-manager valide les Ingress annotés : quelques essais juste après son installation
+    - name: Adresses HTTPS appliquées
+      ansible.builtin.command: k3s kubectl apply -f {{ plateforme_dossier }}/https-entrees.yaml
+      register: https_apply
+      changed_when: "'configured' in https_apply.stdout or 'created' in https_apply.stdout"
+      retries: 6
+      delay: 10
+      until: https_apply.rc == 0
+
+    - name: Adresses HTTPS
+      ansible.builtin.debug:
+        msg: >-
+          {{ (([app_url ~ '/'] if https_app | bool else [])
+              + ([jenkins_url ~ '/', argocd_url ~ '/'] if https_plateforme | bool else [])) | join(', ') }} : certificat demandé à Let's Encrypt (1 à 2 minutes ; état :
+          sudo k3s kubectl get certificate -A).
+
+- name: Accès directs à Jenkins et Argo CD
+  ansible.builtin.import_tasks: ports.yml

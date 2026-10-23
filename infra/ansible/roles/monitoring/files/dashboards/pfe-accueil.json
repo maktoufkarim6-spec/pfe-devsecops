@@ -28,14 +28,14 @@
     {
       "title": "Jenkins",
       "type": "link",
-      "url": "http://__APP_IP__:8080/",
+      "url": "__JENKINS_URL__/",
       "icon": "external link",
       "targetBlank": true
     },
     {
       "title": "Argo CD",
       "type": "link",
-      "url": "https://__APP_IP__:32252/",
+      "url": "__ARGOCD_URL__/",
       "icon": "external link",
       "targetBlank": true
     },

@@ -107,7 +107,8 @@
          | replace('__APP_URL_PATH__', app_url_path) | replace('__REPO_WEB__', repo_web)
          | replace('__EVALUATION_URL__', evaluation_url) | replace('__JENKINS_JOB_URL__', jenkins_job_url)
          | replace('__JENKINS_APPS_URL__', jenkins_applications_url)
-         | replace('__JENKINS_APPS_PARAM_URL__', jenkins_applications_param_url) }}
+         | replace('__JENKINS_APPS_PARAM_URL__', jenkins_applications_param_url)
+         | replace('__JENKINS_URL__', jenkins_url) | replace('__ARGOCD_URL__', argocd_url) }}
     dest: "{{ monitoring_dir }}/grafana/{{ item.dest }}"
     mode: "0644"
   loop:
@@ -198,18 +199,26 @@
     command: ["--config.file=/etc/blackbox/blackbox.yml"]
     recreate: "{{ monitoring_blackbox_conf.changed }}"
 
+# Avant Grafana : le port 3000 n'est fermé que si l'adresse HTTPS répond déjà
+- name: Grafana en HTTPS (Caddy et certificat Let's Encrypt), si https_actif et https_domaine
+  ansible.builtin.import_tasks: https.yml
+  when: https_plateforme | bool
+
+# Avec le HTTPS (https_domaine), Grafana est servi par Caddy sur https://grafana.<domaine>/ ; une fois les ports
+# directs fermés (https_fermer_ports), le port 3000 n'est plus joignable que depuis le serveur lui-même.
 - name: Grafana (seul service exposé, avec authentification)
   community.docker.docker_container:
     name: mon-grafana
     image: "{{ image_grafana }}"
     restart_policy: unless-stopped
     networks: [{ name: pfe-monitoring }]
-    published_ports: ["3000:3000"]
-    env:
-      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-admin-password
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
-      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/pfe-accueil.json
+    published_ports: ["{{ '127.0.0.1:3000:3000' if monitoring_fermer_3000 | default(false) | bool else '3000:3000' }}"]
+    env: >-
+      {{ {'GF_SECURITY_ADMIN_PASSWORD__FILE': '/run/secrets/grafana-admin-password',
+          'GF_USERS_ALLOW_SIGN_UP': 'false',
+          'GF_AUTH_ANONYMOUS_ENABLED': 'false',
+          'GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH': '/var/lib/grafana/dashboards/pfe-accueil.json'}
+         | combine({'GF_SERVER_ROOT_URL': grafana_url ~ '/'} if https_plateforme | bool else {}) }}
     volumes:
       - "{{ monitoring_dir }}/grafana/provisioning:/etc/grafana/provisioning:ro"
       - "{{ monitoring_dir }}/grafana/dashboards:/var/lib/grafana/dashboards:ro"

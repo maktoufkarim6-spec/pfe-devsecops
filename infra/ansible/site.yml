@@ -147,6 +147,17 @@
       when: inventory_hostname == k3s_server_host
       tags: [applications]
 
+- name: HTTPS de l'application cobaye, de Jenkins et d'Argo CD (https_actif, voir docs/APPLICATIONS.md)
+  hosts: nodes
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Adresses HTTPS et accès directs (nœud de contrôle seulement ; sans HTTPS, simple lecture)
+      ansible.builtin.import_role:
+        name: https
+      when: inventory_hostname == k3s_server_host
+      tags: [applications]
+
 - name: Agent de remédiation
   hosts: monitoring
   become: true

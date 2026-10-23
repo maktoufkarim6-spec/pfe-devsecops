@@ -159,3 +159,25 @@ tests:
             exp_annotations:
               summary: "boutique : certificat HTTPS expiré ou expirant dans moins de 14 jours (9d 22h 30m 0s)"
               description: "Le renouvellement automatique a échoué (DNS du domaine, port 80 fermé, limite Let's Encrypt). Sur le nœud de contrôle : k3s kubectl -n boutique describe certificate"
+
+  # HTTPS des outils de la plateforme : alerte pour un nom de domaine, jamais pour l'adresse IP d'Argo CD
+  - interval: 5m
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="services",service="Jenkins",instance="https://jenkins.exemple.com/login"}'
+        values: '864000+0x30'
+      - series: 'probe_ssl_earliest_cert_expiry{job="services",service="Argo CD",instance="https://57.129.142.176:32252/"}'
+        values: '864000+0x30'
+      - series: 'probe_ssl_earliest_cert_expiry{job="services",service="Grafana",instance="https://grafana.exemple.com/"}'
+        values: '5184000+0x30'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: CertificatPlateformeBientotExpire
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: CertificatPlateformeBientotExpire
+        exp_alerts:
+          - exp_labels: {severity: warning, source: deploiement, job: services, service: Jenkins,
+                         instance: "https://jenkins.exemple.com/login"}
+            exp_annotations:
+              summary: "Jenkins : certificat HTTPS expiré ou expirant dans moins de 14 jours (9d 22h 30m 0s)"
+              description: "Le renouvellement automatique a échoué (DNS du domaine, port 80 fermé, limite Let's Encrypt). Grafana : docker logs mon-caddy sur le serveur de supervision ; les autres : sudo k3s kubectl get certificate -A sur le nœud de contrôle."

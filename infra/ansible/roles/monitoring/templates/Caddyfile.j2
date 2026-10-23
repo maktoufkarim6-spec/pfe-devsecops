@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+# Grafana en HTTPS : certificat Let's Encrypt obtenu puis renouvelé par Caddy (validation sur le port 80) ;
+# les visites en http:// sont redirigées vers https://.
+{
+	email {{ https_email }}
+	acme_ca {{ 'https://acme-staging-v02.api.letsencrypt.org/directory' if https_emetteur == 'letsencrypt-test' else 'https://acme-v02.api.letsencrypt.org/directory' }}
+}
+
+grafana.{{ https_domaine }} {
+	encode gzip
+	reverse_proxy mon-grafana:3000
+}

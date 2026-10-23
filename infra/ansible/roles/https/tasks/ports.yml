@@ -1,0 +1,119 @@
+# Accès directs du nœud de contrôle : Jenkins (port 8080, conteneur Docker) et Argo CD (NodePort 32252).
+# Fermés avec https_fermer_ports, et seulement si leur adresse HTTPS répond déjà ; rouverts dès que la fermeture
+# n'est plus demandée. Sans HTTPS ni fermeture passée, ces tâches ne font que lire l'état : rien ne change.
+
+- name: Adresses HTTPS de Jenkins et d'Argo CD en service ? (avant de fermer quoi que ce soit)
+  ansible.builtin.uri:
+    url: "{{ item }}"
+    validate_certs: "{{ https_emetteur == 'letsencrypt' }}"
+  loop: ["{{ jenkins_url }}/login", "{{ argocd_url }}/"]
+  register: https_verif
+  until: https_verif.status == 200
+  retries: 12
+  delay: 10
+  failed_when: false
+  when: https_ports_fermes | bool
+
+- name: Accès directs à fermer
+  ansible.builtin.set_fact:
+    https_fermer_jenkins: "{{ https_ports_fermes | bool and (https_verif.results | default([{}, {}]))[0].status | default(0) == 200 }}"
+    https_fermer_argocd: "{{ https_ports_fermes | bool and (https_verif.results | default([{}, {}]))[1].status | default(0) == 200 }}"
+
+- name: Accès direct laissé ouvert
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.url }} ne répond pas ({{ item.msg | default('') }}) : accès direct laissé ouvert. Vérifier le DNS et
+      le certificat (sudo k3s kubectl get certificate -A), puis relancer.
+  loop: "{{ https_verif.results | default([]) | rejectattr('skipped', 'defined') | rejectattr('status', 'equalto', 200) | list }}"
+  loop_control:
+    label: "{{ item.url | default('') }}"
+  when: https_ports_fermes | bool
+
+# ---------------------------------------------------------------- Jenkins : pare-feu sur le port 8080
+- name: Pare-feu HTTPS déjà posé ?
+  ansible.builtin.stat:
+    path: /etc/pfe-https.nft
+  register: https_nft
+
+- name: Port 8080 réservé au serveur, aux conteneurs et aux pods (Traefik)
+  when: https_fermer_jenkins | bool
+  block:
+    - name: Règles (table nftables dédiée, sans toucher aux règles de Docker et de k3s)
+      ansible.builtin.template:
+        src: https.nft.j2
+        dest: /etc/pfe-https.nft
+        mode: "0644"
+      register: https_nft_regles
+
+    - name: Service qui réapplique ces règles au démarrage
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/pfe-https-firewall.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=PFE : accès directs fermés une fois le HTTPS en place (Jenkins 8080)
+          After=network-online.target docker.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/sbin/nft -f /etc/pfe-https.nft
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Règles actives, et au démarrage
+      ansible.builtin.systemd_service:
+        name: pfe-https-firewall
+        enabled: true
+        state: "{{ 'restarted' if https_nft_regles is changed else 'started' }}"
+        daemon_reload: true
+
+- name: Port 8080 rouvert (fermeture retirée)
+  when: not https_fermer_jenkins | bool and https_nft.stat.exists
+  block:
+    - name: Règles retirées
+      ansible.builtin.command: nft delete table inet pfe_https
+      register: https_nft_retrait
+      changed_when: https_nft_retrait.rc == 0
+      failed_when: https_nft_retrait.rc != 0 and 'No such file' not in https_nft_retrait.stderr
+
+    - name: Service désactivé
+      ansible.builtin.systemd_service:
+        name: pfe-https-firewall
+        enabled: false
+        state: stopped
+      failed_when: false
+
+    - name: Fichiers des règles retirés
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: [/etc/systemd/system/pfe-https-firewall.service, /etc/pfe-https.nft]
+
+# ---------------------------------------------------------------- Argo CD : service interne, ou NodePort 32252
+- name: Service d'Argo CD
+  ansible.builtin.command: k3s kubectl -n argocd get service argocd-server -o json
+  register: https_argocd_service
+  changed_when: false
+  failed_when: false
+
+- name: État de l'accès direct à Argo CD
+  ansible.builtin.set_fact:
+    https_argocd_type: "{{ (https_argocd_service.stdout | from_json).spec.type if https_argocd_service.rc == 0 else '' }}"
+    https_argocd_ferme_ici: >-
+      {{ https_argocd_service.rc == 0 and ((https_argocd_service.stdout | from_json).metadata.annotations | default({}))
+         ['pfe.plateforme/acces-direct'] | default('') == 'ferme' }}
+
+- name: Accès direct à Argo CD fermé (service interne, joint seulement par Traefik)
+  ansible.builtin.command: >-
+    k3s kubectl -n argocd patch service argocd-server --type merge
+    -p '{"metadata":{"annotations":{"pfe.plateforme/acces-direct":"ferme"}},"spec":{"type":"ClusterIP","ports":[{"name":"http","port":80,"targetPort":8080},{"name":"https","port":443,"targetPort":8080}]}}'
+  when: https_fermer_argocd | bool and https_argocd_type not in ['', 'ClusterIP']
+
+# Seulement si la fermeture vient d'ici (annotation) : un Argo CD réglé autrement n'est jamais touché
+- name: Accès direct à Argo CD rouvert (port 32252, comme avant)
+  ansible.builtin.command: >-
+    k3s kubectl -n argocd patch service argocd-server --type merge
+    -p '{"metadata":{"annotations":{"pfe.plateforme/acces-direct":null}},"spec":{"type":"NodePort","ports":[{"name":"http","port":80,"targetPort":8080},{"name":"https","port":443,"targetPort":8080,"nodePort":32252}]}}'
+  when: not https_fermer_argocd | bool and https_argocd_ferme_ici | bool
