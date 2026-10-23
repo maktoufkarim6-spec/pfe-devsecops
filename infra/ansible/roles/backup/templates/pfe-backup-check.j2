@@ -105,8 +105,9 @@ if (( FORCE_TEST == 1 || $(date +%s) - last_test > 6 * 86400 + 43200 )); then
       [ "$(sqlite3 "$TMP/grafana.db" 'PRAGMA integrity_check')" = ok ] || { log "base Grafana corrompue"; return 1; }
       dashboards=$(sqlite3 "$TMP/grafana.db" 'select count(*) from dashboard')
       (( dashboards >= 1 )) || { log "aucun tableau de bord dans la base Grafana"; return 1; }
-      # Historique AIOps et journal de l'agent : archive lisible
-      zstd -dc "$SET/aiops-et-agent.tar.zst" | tar -tf - | grep -q '^aiops-data/' || return 1
+      # Historique AIOps et journal de l'agent : archive lisible jusqu'au bout. Pas de grep -q : il s'arrête au
+      # premier résultat, tar reçoit alors SIGPIPE (« stdout: write error ») et le test échoue à tort (pipefail).
+      zstd -dc "$SET/aiops-et-agent.tar.zst" | tar -tf - | grep '^aiops-data/' >/dev/null || return 1
       log "Grafana : $dashboards tableau(x) de bord ; archives AIOps lisibles"
 {% endif %}
 {% if node_app | bool and inventory_hostname == k3s_server_host and app_db_deployment %}
