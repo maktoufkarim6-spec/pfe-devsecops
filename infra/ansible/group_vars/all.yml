@@ -108,6 +108,17 @@ jenkins_job_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job }}/build?delay=0se
 jenkins_applications_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job_applications }}/build?delay=0sec"
 # Formulaire du job commun avec le nom de l'application déjà rempli (bouton « Déployer » de chaque ligne de l'accueil)
 jenkins_applications_param_url: "http://{{ app_ip }}:8080/job/{{ jenkins_job_applications }}/parambuild/?APPLICATION="
+
+# HTTPS des applications (désactivé par défaut, voir docs/APPLICATIONS.md) : certificat Let's Encrypt gratuit,
+# demandé et renouvelé automatiquement par cert-manager, pour chaque application qui a un vrai nom de domaine
+# (champ domaine ; jamais pour les adresses sslip.io). Activer : bash deploy.sh -e https_actif=true
+#   -e https_email=vous@exemple.com   (e-mail de contact Let's Encrypt : avis d'expiration)
+#   -e https_emetteur=letsencrypt-test (facultatif : certificats de test, non reconnus par les navigateurs)
+https_actif: false
+https_email: "{{ alert_email_to }}"
+https_emetteur: letsencrypt
+cert_manager_version: v1.21.2
+cert_manager_sha256: e03b668ec8675214af6b0a671699d088f2601fa3878e0dbe1b41d3feafd1879f
 image_blackbox: prom/blackbox-exporter:v0.25.0
 services_web:
   - { nom: "Application", url: "http://{{ app_ip }}{{ app_url_path }}", lien: "http://{{ app_ip }}{{ app_url_path }}" }

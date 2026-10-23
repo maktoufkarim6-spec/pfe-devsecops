@@ -14,6 +14,29 @@
 {{- end -}}
 {{- end -}}
 
+{{/* HTTPS : activé sur la plateforme ET vrai domaine choisi (Let's Encrypt ne délivre rien pour sslip.io ici) */}}
+{{- define "app.https" -}}
+{{- if and (eq (toString .Values.plateforme.https) "true") .Values.domaine -}}oui{{- end -}}
+{{- end -}}
+
+{{/* Règles d'Ingress (un chemin par composant public) ; argument : dict domaine, publics */}}
+{{- define "app.regles" -}}
+rules:
+  # Règle par nom d'hôte : prioritaire sur l'application cobaye (règle sans hôte)
+  - host: {{ .domaine }}
+    http:
+      paths:
+        {{- range .publics }}
+        - path: {{ .chemin | default "/" }}
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ .nom }}
+              port:
+                number: {{ .port }}
+        {{- end }}
+{{- end -}}
+
 {{- define "app.labels" -}}
 app.kubernetes.io/part-of: {{ .Release.Name }}
 app.kubernetes.io/managed-by: plateforme-pfe

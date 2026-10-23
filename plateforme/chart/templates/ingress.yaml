@@ -1,6 +1,7 @@
 {{- $publics := list }}
 {{- range .Values.composants }}{{ if .public }}{{ $publics = append $publics . }}{{ end }}{{ end }}
 {{- if $publics }}
+{{- $regles := dict "domaine" (include "app.domaine" .) "publics" $publics }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -8,20 +9,45 @@ metadata:
   labels:
     {{- include "app.labels" . | nindent 4 }}
   annotations:
+    {{- if include "app.https" . }}
+    # HTTPS : certificat Let's Encrypt demandé puis renouvelé par cert-manager (secret <nom>-certificat)
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    cert-manager.io/cluster-issuer: {{ .Values.plateforme.emetteur }}
+    {{- else }}
     traefik.ingress.kubernetes.io/router.entrypoints: web
+    {{- end }}
 spec:
-  rules:
-    # Règle par nom d'hôte : prioritaire sur l'application cobaye (règle sans hôte)
-    - host: {{ include "app.domaine" . }}
-      http:
-        paths:
-          {{- range $publics }}
-          - path: {{ .chemin | default "/" }}
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ .nom }}
-                port:
-                  number: {{ .port }}
-          {{- end }}
+  {{- if include "app.https" . }}
+  tls:
+    - hosts: [{{ include "app.domaine" . | quote }}]
+      secretName: {{ include "app.nom" . }}-certificat
+  {{- end }}
+  {{- include "app.regles" $regles | nindent 2 }}
+{{- if include "app.https" . }}
+---
+# HTTP : tout est redirigé vers HTTPS. La validation Let's Encrypt (/.well-known/acme-challenge/...) passe quand
+# même : cert-manager crée pour elle une règle plus précise, que Traefik choisit en priorité.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "app.nom" . }}-http
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: {{ .Release.Namespace }}-vers-https@kubernetescrd
+spec:
+  {{- include "app.regles" $regles | nindent 2 }}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: vers-https
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+{{- end }}
 {{- end }}

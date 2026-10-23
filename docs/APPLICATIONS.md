@@ -214,10 +214,49 @@ Limites : dépôts sources publics seulement (un dépôt privé demandera un cre
 poussées dans l'espace Docker Hub `kariimm557` ; pas de déclenchement automatique quand le dépôt source change
 (webhook à ajouter).
 
+## HTTPS (désactivé par défaut)
+
+Le HTTPS est prêt, mais il ne s'active qu'une fois un vrai nom de domaine disponible. Let's Encrypt ne délivre
+pas de certificat pour une adresse IP, et l'adresse automatique sslip.io reste en HTTP.
+
+**Activer**
+
+1. Un enregistrement DNS `*` (type A) de votre domaine pointe vers le nœud de contrôle. Les ports 80 et 443 de
+   ce nœud sont ouverts : Traefik les écoute déjà.
+2. Chaque application à passer en HTTPS a un `domaine`, par exemple `domaine: boutique.monprojet.tn` dans son
+   `values.yaml`, ou le champ DOMAINE du formulaire.
+3. Sur le serveur de supervision :
+
+   ```bash
+   bash deploy.sh -e https_actif=true -e https_email=vous@exemple.com
+   ```
+
+   Ajoutez `-e https_emetteur=letsencrypt-test` pour un premier essai : certificats de test, non reconnus par les
+   navigateurs, mais sans risque d'atteindre les limites de Let's Encrypt. Ces options sont gardées pour les
+   déploiements suivants et pour `pfe-sync`.
+
+**Ce qui se passe**
+
+| Étape | Qui |
+|---|---|
+| Installation de cert-manager (version fixée, empreinte vérifiée) et de deux émetteurs : `letsencrypt` et `letsencrypt-test` | Ansible (rôle `applications`, `tasks/https.yml`) |
+| Pour chaque application avec un domaine : un Ingress HTTPS avec son certificat (secret `<nom>-certificat`), et un Ingress HTTP qui redirige vers HTTPS | le chart (`templates/ingress.yaml`) |
+| Demande du certificat à Let's Encrypt (validation HTTP par Traefik), puis renouvellement automatique 30 jours avant l'échéance | cert-manager |
+| Règle réseau qui laisse Traefik joindre le serveur temporaire de validation | le chart (`templates/isolement.yaml`) |
+| Surveillance en `https://`, et alerte `CertificatBientotExpire` à 14 jours de l'échéance | Prometheus |
+
+Les applications sans domaine ne changent pas. Une nouvelle application créée par le formulaire avec un DOMAINE
+est directement en HTTPS.
+
+**Pas encore couvert** : l'application cobaye (`k8s/`), Grafana, Jenkins et Argo CD restent sur leurs adresses
+actuelles. **Vérifié** : rendu du chart (HTTPS désactivé identique à avant, HTTPS sans domaine inchangé, HTTPS
+avec domaine complet), adresses testées par le catalogue, émetteurs, tests promtool de l'alerte. **Pas encore
+vérifié** : l'obtention d'un vrai certificat, faute de domaine.
+
 ## Ce qui reste à faire (phases suivantes)
 
 - Déclenchement automatique quand le dépôt source d'une application change (webhook) ; dépôts privés.
-- **HTTPS** et vrais noms de domaine.
+- HTTPS pour l'application cobaye, Grafana, Jenkins et Argo CD.
 
 ## Vérifications faites
 

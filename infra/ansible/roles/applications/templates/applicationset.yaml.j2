@@ -38,6 +38,11 @@ spec:
           parameters:
             - name: plateforme.ip
               value: "{{ app_ip }}"
+            # HTTPS (group_vars : https_actif) : seulement pour les applications qui ont un domaine
+            - name: plateforme.https
+              value: "{{ https_actif | bool | lower }}"
+            - name: plateforme.emetteur
+              value: "{{ https_emetteur }}"
       destination:
         server: https://kubernetes.default.svc
         namespace: {% raw %}'{{ .path.basename }}'{% endraw %}
