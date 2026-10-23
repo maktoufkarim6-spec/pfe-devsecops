@@ -1,0 +1,66 @@
+# HTTPS des applications (https_actif) : cert-manager, puis deux émetteurs Let's Encrypt (réel et test).
+# Le chart ajoute ensuite le certificat et la redirection HTTP -> HTTPS à chaque application qui a un domaine.
+
+- name: Réglages HTTPS valides
+  ansible.builtin.assert:
+    that:
+      - https_email is match('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+      - https_emetteur in ['letsencrypt', 'letsencrypt-test']
+      - cert_manager_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: >-
+      HTTPS : https_email doit être une adresse e-mail valide (contact Let's Encrypt), par exemple
+      -e https_email=vous@exemple.com ; https_emetteur : letsencrypt ou letsencrypt-test.
+    quiet: true
+
+- name: Manifeste officiel de cert-manager (version fixée, empreinte vérifiée)
+  ansible.builtin.get_url:
+    url: "https://github.com/cert-manager/cert-manager/releases/download/{{ cert_manager_version }}/cert-manager.yaml"
+    dest: "{{ plateforme_dossier }}/cert-manager-{{ cert_manager_version }}.yaml"
+    checksum: "sha256:{{ cert_manager_sha256 }}"
+    mode: "0600"
+  register: https_manifeste
+
+# Côté serveur : les définitions de cert-manager sont trop grandes pour « kubectl apply » côté client
+- name: cert-manager installé ou mis à jour
+  ansible.builtin.command: >-
+    k3s kubectl apply --server-side --force-conflicts
+    -f {{ plateforme_dossier }}/cert-manager-{{ cert_manager_version }}.yaml
+  changed_when: https_manifeste is changed   # « serverside-applied » s'affiche même sans changement
+
+- name: cert-manager opérationnel
+  ansible.builtin.command: k3s kubectl -n cert-manager rollout status deployment {{ item }} --timeout=300s
+  loop: [cert-manager, cert-manager-cainjector, cert-manager-webhook]
+  changed_when: false
+
+- name: Émetteurs Let's Encrypt (validation HTTP par Traefik)
+  ansible.builtin.copy:
+    dest: "{{ plateforme_dossier }}/emetteurs.yaml"
+    mode: "0600"
+    content: |
+      {% for nom, serveur in [('letsencrypt', 'https://acme-v02.api.letsencrypt.org/directory'),
+                              ('letsencrypt-test', 'https://acme-staging-v02.api.letsencrypt.org/directory')] %}
+      ---
+      apiVersion: cert-manager.io/v1
+      kind: ClusterIssuer
+      metadata:
+        name: {{ nom }}
+      spec:
+        acme:
+          server: {{ serveur }}
+          email: {{ https_email | to_json }}
+          privateKeySecretRef:
+            name: {{ nom }}-compte
+          solvers:
+            - http01:
+                ingress:
+                  ingressClassName: traefik
+      {% endfor %}
+
+# Le webhook de cert-manager peut refuser les toutes premières secondes après son démarrage : on réessaie
+- name: Émetteurs appliqués
+  ansible.builtin.command: k3s kubectl apply -f {{ plateforme_dossier }}/emetteurs.yaml
+  register: https_emetteurs
+  changed_when: "'configured' in https_emetteurs.stdout or 'created' in https_emetteurs.stdout"
+  retries: 6
+  delay: 10
+  until: https_emetteurs.rc == 0

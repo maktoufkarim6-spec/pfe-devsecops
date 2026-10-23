@@ -2,9 +2,12 @@
 # applications/<nom>/values.yaml (un dossier = une application = un namespace Kubernetes).
 # Référence complète : docs/APPLICATIONS.md
 
-# Rempli par Argo CD (ApplicationSet) : adresse du nœud de contrôle, pour le domaine par défaut.
+# Rempli par Argo CD (ApplicationSet) : adresse du nœud de contrôle, pour le domaine par défaut, et HTTPS
+# (group_vars : https_actif, https_emetteur ; certificat seulement si « domaine » est renseigné).
 plateforme:
   ip: ""
+  https: false
+  emetteur: letsencrypt
 
 # Adresse web. Vide : <nom>.<ip avec des tirets>.sslip.io (fonctionne sans acheter de domaine).
 domaine: ""

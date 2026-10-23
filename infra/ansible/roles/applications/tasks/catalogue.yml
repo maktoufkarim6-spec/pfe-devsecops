@@ -1,6 +1,7 @@
 # Catalogue des applications de la plateforme, lu une fois dans le dépôt (applications/<nom>/values.yaml)
 # et partagé par la supervision, l'IA, l'agent et les sauvegardes (plateforme_catalogue).
-# Chaque entrée : nom, composants (tous), redemarrables (hors base), base (bool), nom_base, url (adresse testée).
+# Chaque entrée : nom, composants (tous), redemarrables (hors base), base (bool), nom_base, url (adresse testée,
+# en https quand le HTTPS est activé et que l'application a un domaine).
 
 - name: Fichiers des applications (un dossier applications/<nom>/ avec son values.yaml)
   ansible.builtin.find:
@@ -30,7 +31,7 @@
         redemarrables: {{ comps | to_json }}
         base: {{ ((v.base | default({})).active | default(false)) | bool | to_json }}
         nom_base: {{ ((v.base | default({})).nom_base | default('app')) | to_json }}
-        url: {{ ('http://' ~ domaine ~ (v.sonde | default((publics | first | default({})).chemin | default('/'), true))) | to_json if publics else '""' }}
+        url: {{ (('https://' if (https_actif | bool and v.domaine | default('', true)) else 'http://') ~ domaine ~ (v.sonde | default((publics | first | default({})).chemin | default('/'), true))) | to_json if publics else '""' }}
       {% endfor %}
 
 # Ces valeurs viennent du dépôt et finissent dans des scripts exécutés en root (sauvegardes, pfe-runbook) et
@@ -45,7 +46,7 @@
       - "'base' not in item.composants"
       - item.composants | unique | length == item.composants | length
       - item.nom_base is match('^[a-z_][a-z0-9_]{0,62}$')
-      - item.url == '' or item.url is match('^http://[a-z0-9.-]+(:[0-9]{1,5})?/[A-Za-z0-9/._~-]*$')
+      - item.url == '' or item.url is match('^https?://[a-z0-9.-]+(:[0-9]{1,5})?/[A-Za-z0-9/._~-]*$')
     fail_msg: "applications/{{ item.nom }}/values.yaml : nom, composants, base.nom_base ou adresse invalide ({{ item }})"
     quiet: true
   loop: "{{ plateforme_catalogue }}"

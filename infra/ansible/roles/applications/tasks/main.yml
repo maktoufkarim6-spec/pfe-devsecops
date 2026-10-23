@@ -93,6 +93,10 @@
         state: directory
         mode: "0700"
 
+    - name: HTTPS des applications (cert-manager et Let's Encrypt), si activé
+      ansible.builtin.include_tasks: https.yml
+      when: https_actif | bool
+
     - name: ApplicationSet (une Application Argo CD par dossier applications/<nom>/)
       ansible.builtin.template:
         src: applicationset.yaml.j2

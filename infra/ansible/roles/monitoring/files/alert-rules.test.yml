@@ -139,3 +139,23 @@ tests:
             exp_annotations:
               summary: "L'état des déploiements n'est plus lu depuis 10 minutes"
               description: "journalctl -u pfe-etat-cluster sur le nœud de contrôle (Kubernetes injoignable ?)."
+
+  # HTTPS : alerte quand le certificat expire dans moins de 14 jours (ici 10 j), rien à 60 j
+  - interval: 5m
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="applications",application="boutique",instance="https://boutique.exemple.com/"}'
+        values: '864000+0x30'
+      - series: 'probe_ssl_earliest_cert_expiry{job="applications",application="demo",instance="https://demo.exemple.com/"}'
+        values: '5184000+0x30'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: CertificatBientotExpire
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: CertificatBientotExpire
+        exp_alerts:
+          - exp_labels: {severity: warning, source: deploiement, job: applications, application: boutique,
+                         instance: "https://boutique.exemple.com/"}
+            exp_annotations:
+              summary: "boutique : certificat HTTPS expiré ou expirant dans moins de 14 jours (9d 22h 30m 0s)"
+              description: "Le renouvellement automatique a échoué (DNS du domaine, port 80 fermé, limite Let's Encrypt). Sur le nœud de contrôle : k3s kubectl -n boutique describe certificate"

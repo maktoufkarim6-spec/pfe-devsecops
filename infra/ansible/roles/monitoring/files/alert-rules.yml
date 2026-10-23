@@ -111,6 +111,19 @@ groups:
             Argo CD remet les pods manquants seul (self-heal). Si l'alerte dure : Argo CD (état de app-{{ $labels.application }}),
             puis k3s kubectl -n {{ $labels.application }} get pods sur le nœud de contrôle.
 
+      # HTTPS (https_actif) : cert-manager renouvelle 30 jours avant l'échéance ; à 14 jours, le renouvellement a raté
+      - alert: CertificatBientotExpire
+        expr: probe_ssl_earliest_cert_expiry{job="applications"} - time() < 14 * 86400
+        for: 1h
+        labels:
+          severity: warning
+          source: deploiement
+        annotations:
+          summary: "{{ $labels.application }} : certificat HTTPS expiré ou expirant dans moins de 14 jours ({{ $value | humanizeDuration }})"
+          description: >-
+            Le renouvellement automatique a échoué (DNS du domaine, port 80 fermé, limite Let's Encrypt).
+            Sur le nœud de contrôle : k3s kubectl -n {{ $labels.application }} describe certificate
+
   - name: parc
     rules:
       # Découverte horaire des adresses de infra/parc.yml (lecture seule) : un serveur vide attend d'être ajouté
