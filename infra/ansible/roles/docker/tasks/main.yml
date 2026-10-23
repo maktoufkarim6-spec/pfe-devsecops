@@ -22,3 +22,61 @@
     name: docker
     state: started
     enabled: true
+
+# Place disque : le cache de construction Docker et le journal système grossissent à chaque build
+# (aiops, agent, Jenkins). On ne supprime que ce qui se recrée tout seul : cache de construction de plus
+# de 7 jours et images sans nom. Jamais les volumes (données), jamais une image nommée ou utilisée.
+- name: Dossier de configuration du journal système
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Journal système limité à 500 Mo
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/pfe-taille.conf
+    mode: "0644"
+    content: |
+      [Journal]
+      SystemMaxUse=500M
+  register: journald_taille
+
+- name: Journal système relu avec sa nouvelle limite
+  ansible.builtin.systemd_service:
+    name: systemd-journald
+    state: restarted
+  when: journald_taille is changed
+
+- name: Nettoyage hebdomadaire du cache Docker (service et minuterie)
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    mode: "0644"
+    content: "{{ item.content }}"
+  loop:
+    - name: pfe-nettoyage-docker.service
+      content: |
+        [Unit]
+        Description=Nettoyage du cache de construction Docker et des images sans nom (jamais les volumes)
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/docker builder prune --force --filter until=168h
+        ExecStart=/usr/bin/docker image prune --force
+        Nice=10
+    - name: pfe-nettoyage-docker.timer
+      content: |
+        [Unit]
+        Description=Nettoyage du cache Docker chaque semaine
+        [Timer]
+        OnCalendar=Sun 03:30
+        RandomizedDelaySec=15min
+        Persistent=true
+        [Install]
+        WantedBy=timers.target
+  register: nettoyage_unites
+
+- name: Minuterie de nettoyage active
+  ansible.builtin.systemd_service:
+    name: pfe-nettoyage-docker.timer
+    enabled: true
+    state: started
+    daemon_reload: "{{ nettoyage_unites is changed }}"
