@@ -150,7 +150,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### 🚀 Déployer une application\nBouton **Déployer** sur sa ligne ci-dessous : son code (dernière version de son dépôt GitHub) est testé, contrôlé (SonarQube, Trivy) puis mis en ligne, en 10 minutes environ. Si un contrôle échoue, rien ne change."
+        "content": "### 🚀 Déployer : [__APP_NAME__](__JENKINS_JOB_URL__) · [une autre application](__JENKINS_APPS_URL__)\nOu le bouton **Déployer** sur sa ligne ci-dessous (nom déjà rempli). La dernière version de son dépôt GitHub est testée, contrôlée (SonarQube, Trivy) puis mise en ligne, en 10 minutes environ. Si un contrôle échoue, rien ne change."
       }
     },
     {
