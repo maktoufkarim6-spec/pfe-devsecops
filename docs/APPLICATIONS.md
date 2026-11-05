@@ -248,15 +248,84 @@ pas de certificat pour une adresse IP, et l'adresse automatique sslip.io reste e
 Les applications sans domaine ne changent pas. Une nouvelle application créée par le formulaire avec un DOMAINE
 est directement en HTTPS.
 
-**Pas encore couvert** : l'application cobaye (`k8s/`), Grafana, Jenkins et Argo CD restent sur leurs adresses
-actuelles. **Vérifié** : rendu du chart (HTTPS désactivé identique à avant, HTTPS sans domaine inchangé, HTTPS
-avec domaine complet), adresses testées par le catalogue, émetteurs, tests promtool de l'alerte. **Pas encore
-vérifié** : l'obtention d'un vrai certificat, faute de domaine.
+**Vérifié** : rendu du chart (HTTPS désactivé identique à avant, HTTPS sans domaine inchangé, HTTPS avec domaine
+complet), adresses testées par le catalogue, émetteurs, tests promtool de l'alerte. **Pas encore vérifié** :
+l'obtention d'un vrai certificat, faute de domaine.
+
+### Application cobaye, Grafana, Jenkins et Argo CD en HTTPS
+
+Mêmes principes, avec deux réglages de plus. Tant qu'ils sont vides (ou que `https_actif` est faux), tout reste
+sur les adresses actuelles : `http://<IP>/`, `http://<IP>:8080/`, `https://<IP>:32252/`, `http://<IP>:3000/`.
+
+| Réglage | Adresses obtenues | Serveur vers lequel le DNS doit pointer |
+|---|---|---|
+| `https_domaine=monprojet.tn` | `https://grafana.monprojet.tn/` | serveur de supervision (54.37.13.100) |
+| | `https://jenkins.monprojet.tn/` et `https://argocd.monprojet.tn/` | nœud de contrôle (57.129.142.176) |
+| `app_domaine=app.monprojet.tn` | `https://app.monprojet.tn/` (application cobaye) | nœud de contrôle (57.129.142.176) |
+
+**Étape 1 : ouvrir les adresses HTTPS** (les anciennes adresses restent ouvertes)
+
+1. Chez le fournisseur du domaine, créer les enregistrements DNS de type A du tableau. Si le domaine a déjà un
+   `*` vers le nœud de contrôle (applications), seul `grafana` doit être ajouté, vers le serveur de supervision.
+2. Vérifier que les ports 80 et 443 des deux serveurs sont ouverts (pare-feu de l'hébergeur). Sur le serveur de
+   supervision, ils doivent être libres : le déploiement s'arrête, sans rien modifier, s'ils sont déjà pris.
+3. Sur le serveur de supervision :
+
+   ```bash
+   bash deploy.sh -e https_actif=true -e https_email=vous@exemple.com -e https_domaine=monprojet.tn -e app_domaine=app.monprojet.tn
+   ```
+
+4. Attendre 1 à 2 minutes, puis ouvrir les quatre adresses dans le navigateur (cadenas fermé).
+
+**Étape 2 : fermer les anciens accès directs**, une fois les quatre adresses vérifiées. Même commande, avec en plus
+`-e https_fermer_ports=true` :
+
+| Ancien accès | Fermé comment |
+|---|---|
+| Grafana, port 3000 | le port n'est plus publié que pour le serveur lui-même (`127.0.0.1`) |
+| Jenkins, port 8080 | pare-feu dédié (table nftables `pfe_https`, fichier `/etc/pfe-https.nft`) : seuls le serveur, ses conteneurs et Traefik passent |
+| Argo CD, port 32252 | le service `argocd-server` redevient interne (ClusterIP), marqué `pfe.plateforme/acces-direct=ferme` |
+
+Sécurité : chaque accès n'est fermé que si son adresse HTTPS répond déjà ; sinon il reste ouvert, avec un message
+dans le déploiement. Pour rouvrir : relancer sans `https_fermer_ports=true` (ou avec `https_actif=false`).
+Seul ce que la plateforme a fermé est rouvert.
+
+**Avant l'étape 2, sur le Jenkins existant (installé à la main)**, deux réglages à faire une fois, sinon les
+builds ne se lancent plus à chaque push :
+
+- Jenkins → *Administrer Jenkins* → *System* → *URL de Jenkins* : `https://jenkins.monprojet.tn/` ;
+- GitHub → dépôt → *Settings* → *Webhooks* : remplacer `http://57.129.142.176:8080/github-webhook/` par
+  `https://jenkins.monprojet.tn/github-webhook/`.
+
+Sur un parc neuf, Ansible règle les deux tout seul.
+
+**Ce qui se passe**
+
+| Étape | Qui |
+|---|---|
+| Grafana : Caddy (conteneur `mon-caddy`, ports 80 et 443 du serveur de supervision) obtient et renouvelle le certificat, puis transmet à Grafana | Ansible (rôle `monitoring`, `tasks/https.yml`) |
+| Jenkins, Argo CD, application cobaye : un Ingress HTTPS avec son certificat (cert-manager) et un Ingress HTTP qui redirige vers HTTPS, comme pour les applications | Ansible (rôle `https`, `templates/entrees.yaml.j2`) |
+| Jenkins (conteneur Docker, hors de k3s) est joint par Traefik via un service `jenkins` du namespace `plateforme` qui pointe vers le port 8080 du nœud | rôle `https` |
+| Argo CD est joint en HTTPS par un service à part (`pfe-argocd-https`) : l'installation d'Argo CD n'est pas modifiée | rôle `https` |
+| L'application cobaye garde son Ingress de `k8s/` (adresse IP) ; l'adresse `app_domaine` sert les mêmes chemins | rôle `https` |
+| Page d'accueil Grafana, boutons « Déployer », sondes Prometheus : nouvelles adresses | rôle `monitoring` (marqueurs `__JENKINS_URL__`, `__ARGOCD_URL__`) |
+| Alerte `CertificatPlateformeBientotExpire` à 14 jours de l'échéance | Prometheus |
+
+**Retour en arrière** : `https_actif=false` remet les liens, les sondes et les accès directs comme avant. Les
+Ingress HTTPS, le service `jenkins` et le conteneur `mon-caddy` restent en place sans gêner : la plateforme ne
+supprime rien d'elle-même. Les retirer à la main si besoin (`sudo k3s kubectl delete ingress ...`,
+`docker stop mon-caddy`).
+
+**Vérifié** (sans serveur) : avec `https_actif` faux, rendu identique à avant (sondes, page d'accueil, découverte,
+configuration de Jenkins) ; avec HTTPS, manifestes valides dans les trois cas (application seule, outils seuls,
+les deux), Caddyfile, liens et sondes en `https://` ; logique de fermeture et de réouverture simulée avec un faux
+`k3s` ; `ansible-playbook --syntax-check` ; tests promtool de la nouvelle alerte. **Pas encore vérifié** : sur
+les vrais serveurs (certificats réels, passage de Traefik vers Jenkins, pare-feu nftables), faute de domaine.
 
 ## Ce qui reste à faire (phases suivantes)
 
 - Déclenchement automatique quand le dépôt source d'une application change (webhook) ; dépôts privés.
-- HTTPS pour l'application cobaye, Grafana, Jenkins et Argo CD.
+- SonarQube (9000) et Vault (8200) restent en HTTP sur l'adresse IP.
 
 ## Vérifications faites
 

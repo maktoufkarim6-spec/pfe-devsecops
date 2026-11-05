@@ -124,6 +124,21 @@ groups:
             Le renouvellement automatique a échoué (DNS du domaine, port 80 fermé, limite Let's Encrypt).
             Sur le nœud de contrôle : k3s kubectl -n {{ $labels.application }} describe certificate
 
+      # Même contrôle pour l'application cobaye, Jenkins, Argo CD et Grafana passés en HTTPS (https_domaine,
+      # app_domaine). Les adresses IP (certificat auto-signé d'Argo CD sur le port 32252) ne sont pas concernées.
+      - alert: CertificatPlateformeBientotExpire
+        expr: probe_ssl_earliest_cert_expiry{job="services",instance!~"https://[0-9.]+(:[0-9]+)?/.*"} - time() < 14 * 86400
+        for: 1h
+        labels:
+          severity: warning
+          source: deploiement
+        annotations:
+          summary: "{{ $labels.service }} : certificat HTTPS expiré ou expirant dans moins de 14 jours ({{ $value | humanizeDuration }})"
+          description: >-
+            Le renouvellement automatique a échoué (DNS du domaine, port 80 fermé, limite Let's Encrypt). Grafana :
+            docker logs mon-caddy sur le serveur de supervision ; les autres : sudo k3s kubectl get certificate -A
+            sur le nœud de contrôle.
+
   - name: parc
     rules:
       # Découverte horaire des adresses de infra/parc.yml (lecture seule) : un serveur vide attend d'être ajouté

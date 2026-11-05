@@ -40,14 +40,14 @@
     {
       "title": "Jenkins",
       "type": "link",
-      "url": "http://__APP_IP__:8080/",
+      "url": "__JENKINS_URL__/",
       "icon": "external link",
       "targetBlank": true
     },
     {
       "title": "Argo CD",
       "type": "link",
-      "url": "https://__APP_IP__:32252/",
+      "url": "__ARGOCD_URL__/",
       "icon": "external link",
       "targetBlank": true
     },
@@ -658,7 +658,7 @@
           "links": [
             {
               "title": "Ouvrir Argo CD",
-              "url": "https://__APP_IP__:32252/applications",
+              "url": "__ARGOCD_URL__/applications",
               "targetBlank": true
             }
           ]
@@ -752,7 +752,7 @@
           "links": [
             {
               "title": "Ouvrir le job ${__field.labels.pipeline}",
-              "url": "http://__APP_IP__:8080/job/${__field.labels.pipeline}/",
+              "url": "__JENKINS_URL__/job/${__field.labels.pipeline}/",
               "targetBlank": true
             }
           ]
