@@ -158,6 +158,7 @@ state_set last_duration "$(( $(date +%s) - START ))"
 state_set last_size "$size"
 log "sauvegarde locale terminée : $DEST ($(( size / 1048576 )) Mo)"
 prune "$LOCAL"
+alleger "$LOCAL"
 trap - ERR
 
 # --- Copie vers l'autre serveur. Le compte distant est en écriture seule, sans suppression possible :
