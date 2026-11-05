@@ -282,8 +282,8 @@ panels.append(stat("", 0, y, 24, 3, [tgt(f'count({ALERTES_EN_COURS}) or vector(0
 y += 3
 # 2. Les deux actions
 panels.append(text("", 0, y, 12, 4,
-    f"### 🚀 Déployer : [__APP_NAME__]({DEPLOYER}) · [une autre application]({DEPLOYER_APPS})\n"
-    "Ou le bouton **Déployer** sur sa ligne ci-dessous (nom déjà rempli). La dernière version de son dépôt GitHub "
+    "### 🚀 Mettre à jour une application\n"
+    "Bouton **Déployer** sur sa ligne dans le tableau ci-dessous. La dernière version de son dépôt GitHub "
     "est testée, contrôlée (SonarQube, Trivy) puis mise en ligne, en 10 minutes environ. Si un contrôle échoue, rien ne change."))
 panels.append(text("", 12, y, 12, 4,
     f"### [📦 Ajouter une application]({DEPLOYER_APPS})\n"
