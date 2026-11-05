@@ -94,6 +94,7 @@ backup_time: "02:30"            # sauvegarde + copie
 backup_check_time: "04:30"      # vérification des jeux reçus, test de restauration hebdomadaire
 backup_keep_daily: 7
 backup_keep_weekly: 4
+backup_keep_historique: 3       # seuls les 3 jeux les plus récents gardent l'historique Prometheus (~1,5 Go chacun)
 backup_min_free_gb: 3           # en dessous, la sauvegarde est annulée (et une alerte part)
 
 # Page d'accueil : services testés en continu (blackbox-exporter). lien = adresse à ouvrir dans le navigateur.

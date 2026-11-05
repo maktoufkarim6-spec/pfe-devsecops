@@ -48,6 +48,7 @@ for dir in "$RECEIVED"/*/; do
     fi
   done < <(sets_of "$dir")
   prune "$dir"
+  alleger "$dir"
   # Marqueurs des jeux supprimés par la rotation
   for m in "$STATE/verifie/$src"/*; do
     [ -e "$m" ] && [ ! -d "$dir/$(basename "$m")" ] && rm -f -- "$m"

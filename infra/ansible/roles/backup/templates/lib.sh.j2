@@ -10,6 +10,7 @@ STATE=/var/lib/pfe-backup         # horodatages et vérifications déjà faites
 TEXTFILE={{ textfile_dir }}       # métriques lues par node-exporter
 KEEP_DAILY={{ backup_keep_daily }}
 KEEP_WEEKLY={{ backup_keep_weekly }}
+KEEP_HISTORY={{ backup_keep_historique }}   # jeux qui gardent l'historique Prometheus (voir alleger)
 SET_RE='^[0-9]{8}T[0-9]{6}Z$'     # nom d'un jeu : date UTC de la sauvegarde
 
 log() { echo "$(date '+%F %T') $*"; logger -t pfe-backup -- "$*" 2>/dev/null || true; }
@@ -42,6 +43,23 @@ prune() {
     if [ ! -f "$dir/$s/SHA256SUMS" ] && (( $(date +%s) - $(set_epoch "$s") < 86400 )); then continue; fi
     log "rotation : suppression de $dir/$s"
     rm -rf -- "${dir:?}/${s:?}"
+  done < <(sets_of "$dir")
+}
+
+# Allègement : seuls les KEEP_HISTORY jeux complets les plus récents gardent l'historique Prometheus (le fichier
+# le plus lourd, environ 1,5 Go). Dans les plus anciens, il est retiré et sa ligne enlevée des empreintes ;
+# tout le reste du jeu (configuration, Grafana, AIOps, bases) est conservé. Le retrait est noté dans ALLEGE.txt.
+alleger() {
+  local dir=$1 s n=0
+  while read -r s; do
+    [ -n "$s" ] && [ -f "$dir/$s/SHA256SUMS" ] || continue
+    n=$((n + 1))
+    (( n <= KEEP_HISTORY )) && continue
+    [ -f "$dir/$s/prometheus.tar.zst" ] || continue
+    sed -i '/[[:space:]][*]\{0,1\}prometheus\.tar\.zst$/d' "$dir/$s/SHA256SUMS"
+    rm -f -- "$dir/$s/prometheus.tar.zst"
+    echo "$(date -u +%FT%TZ) historique Prometheus retiré (gardé dans les $KEEP_HISTORY jeux les plus récents)" >> "$dir/$s/ALLEGE.txt"
+    log "allègement : historique Prometheus retiré de $dir/$s"
   done < <(sets_of "$dir")
 }
 
