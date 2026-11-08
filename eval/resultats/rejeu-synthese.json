@@ -1,0 +1,340 @@
+{
+  "total": {
+    "n": 486,
+    "detectees": 424,
+    "rappel": [
+      0.8724279835390947,
+      0.8398190799088584,
+      0.8991953280140293
+    ],
+    "seuils_detectees": 133,
+    "rappel_seuils": [
+      0.2736625514403292,
+      0.23591518402274209,
+      0.31496003768158026
+    ],
+    "diagnostic": [
+      0.9929245283018868,
+      0.9794062080947211,
+      0.9975908861569834
+    ],
+    "delai_q1": 30.0,
+    "delai_mediane": 45.0,
+    "delai_q3": 60.0,
+    "discordantes_ia_seules": 311,
+    "discordantes_seuils_seuls": 20
+  },
+  "nominal": {
+    "n": 154,
+    "detectees": 143,
+    "rappel": [
+      0.9285714285714286,
+      0.8766307639631303,
+      0.9596506726163265
+    ],
+    "seuils_detectees": 46,
+    "rappel_seuils": [
+      0.2987012987012987,
+      0.23202986136764264,
+      0.37517128205715783
+    ],
+    "diagnostic": [
+      1.0,
+      0.9738384762900976,
+      1.0
+    ],
+    "delai_q1": 30.0,
+    "delai_mediane": 30.0,
+    "delai_q3": 45.0,
+    "discordantes_ia_seules": 103,
+    "discordantes_seuils_seuls": 6
+  },
+  "par_intensite": {
+    "0.25": {
+      "n": 177,
+      "detectees": 141,
+      "rappel": [
+        0.7966101694915254,
+        0.7313048467051615,
+        0.8493137720197337
+      ],
+      "seuils_detectees": 46,
+      "rappel_seuils": [
+        0.2598870056497175,
+        0.2008628346311817,
+        0.32911256925818877
+      ],
+      "diagnostic": [
+        0.9787234042553191,
+        0.9393144822954278,
+        0.9927381876557464
+      ],
+      "delai_q1": 45.0,
+      "delai_mediane": 75.0,
+      "delai_q3": 105.0,
+      "discordantes_ia_seules": 109,
+      "discordantes_seuils_seuls": 14
+    },
+    "0.5": {
+      "n": 155,
+      "detectees": 140,
+      "rappel": [
+        0.9032258064516129,
+        0.8464727202835498,
+        0.9404747796157209
+      ],
+      "seuils_detectees": 41,
+      "rappel_seuils": [
+        0.2645161290322581,
+        0.20138123218788223,
+        0.33904142787094366
+      ],
+      "diagnostic": [
+        1.0,
+        0.9732928443510084,
+        1.0
+      ],
+      "delai_q1": 30.0,
+      "delai_mediane": 45.0,
+      "delai_q3": 60.0,
+      "discordantes_ia_seules": 99,
+      "discordantes_seuils_seuls": 0
+    },
+    "1.0": {
+      "n": 154,
+      "detectees": 143,
+      "rappel": [
+        0.9285714285714286,
+        0.8766307639631303,
+        0.9596506726163265
+      ],
+      "seuils_detectees": 46,
+      "rappel_seuils": [
+        0.2987012987012987,
+        0.23202986136764264,
+        0.37517128205715783
+      ],
+      "diagnostic": [
+        1.0,
+        0.9738384762900976,
+        1.0
+      ],
+      "delai_q1": 30.0,
+      "delai_mediane": 30.0,
+      "delai_q3": 45.0,
+      "discordantes_ia_seules": 103,
+      "discordantes_seuils_seuls": 6
+    }
+  },
+  "par_panne": {
+    "boucle_cpu_api": {
+      "n": 9,
+      "detectees": 9,
+      "rappel": [
+        1.0,
+        0.7008472464490407,
+        1.0
+      ],
+      "seuils_detectees": 0,
+      "rappel_seuils": [
+        0.0,
+        0.0,
+        0.2991527535509594
+      ],
+      "diagnostic": [
+        1.0,
+        0.7008472464490407,
+        1.0
+      ],
+      "delai_q1": 30.0,
+      "delai_mediane": 30.0,
+      "delai_q3": 30.0,
+      "discordantes_ia_seules": 9,
+      "discordantes_seuils_seuls": 0
+    },
+    "conteneur_arrete": {
+      "n": 30,
+      "detectees": 30,
+      "rappel": [
+        1.0,
+        0.8864829086095221,
+        1.0
+      ],
+      "seuils_detectees": 0,
+      "rappel_seuils": [
+        0.0,
+        0.0,
+        0.113517091390478
+      ],
+      "diagnostic": [
+        1.0,
+        0.8864829086095221,
+        1.0
+      ],
+      "delai_q1": 30.0,
+      "delai_mediane": 30.0,
+      "delai_q3": 45.0,
+      "discordantes_ia_seules": 30,
+      "discordantes_seuils_seuls": 0
+    },
+    "fuite_memoire_api": {
+      "n": 8,
+      "detectees": 8,
+      "rappel": [
+        1.0,
+        0.6755843804891231,
+        1.0
+      ],
+      "seuils_detectees": 0,
+      "rappel_seuils": [
+        0.0,
+        0.0,
+        0.3244156195108769
+      ],
+      "diagnostic": [
+        1.0,
+        0.6755843804891231,
+        1.0
+      ],
+      "delai_q1": 56.25,
+      "delai_mediane": 60.0,
+      "delai_q3": 60.0,
+      "discordantes_ia_seules": 8,
+      "discordantes_seuils_seuls": 0
+    },
+    "pression_memoire": {
+      "n": 36,
+      "detectees": 36,
+      "rappel": [
+        1.0,
+        0.9035781695514236,
+        1.0
+      ],
+      "seuils_detectees": 11,
+      "rappel_seuils": [
+        0.3055555555555556,
+        0.18004270282805354,
+        0.46856578679083716
+      ],
+      "diagnostic": [
+        1.0,
+        0.9035781695514236,
+        1.0
+      ],
+      "delai_q1": 30.0,
+      "delai_mediane": 30.0,
+      "delai_q3": 30.0,
+      "discordantes_ia_seules": 25,
+      "discordantes_seuils_seuls": 0
+    },
+    "remplissage_disque": {
+      "n": 36,
+      "detectees": 25,
+      "rappel": [
+        0.6944444444444444,
+        0.5314342132091627,
+        0.8199572971719464
+      ],
+      "seuils_detectees": 25,
+      "rappel_seuils": [
+        0.6944444444444444,
+        0.5314342132091627,
+        0.8199572971719464
+      ],
+      "diagnostic": [
+        1.0,
+        0.8668035060468213,
+        1.0
+      ],
+      "delai_q1": 30.0,
+      "delai_mediane": 30.0,
+      "delai_q3": 45.0,
+      "discordantes_ia_seules": 6,
+      "discordantes_seuils_seuls": 6
+    },
+    "surcharge_cpu": {
+      "n": 35,
+      "detectees": 35,
+      "rappel": [
+        1.0,
+        0.9010957324106112,
+        1.0
+      ],
+      "seuils_detectees": 10,
+      "rappel_seuils": [
+        0.2857142857142857,
+        0.16326363398295565,
+        0.45055248069821086
+      ],
+      "diagnostic": [
+        1.0,
+        0.9010957324106112,
+        1.0
+      ],
+      "delai_q1": 45.0,
+      "delai_mediane": 45.0,
+      "delai_q3": 45.0,
+      "discordantes_ia_seules": 25,
+      "discordantes_seuils_seuls": 0
+    }
+  },
+  "par_noeud": {
+    "app-1": {
+      "n": 68,
+      "detectees": 65,
+      "rappel": [
+        0.9558823529411765,
+        0.8781260781761931,
+        0.984883654346468
+      ],
+      "seuils_detectees": 0,
+      "rappel_seuils": [
+        0.0,
+        0.0,
+        0.05347319658804926
+      ],
+      "diagnostic": [
+        1.0,
+        0.9441965323292892,
+        0.9999999999999999
+      ],
+      "delai_q1": 30.0,
+      "delai_mediane": 30.0,
+      "delai_q3": 45.0,
+      "discordantes_ia_seules": 65,
+      "discordantes_seuils_seuls": 0
+    },
+    "monitoring": {
+      "n": 86,
+      "detectees": 78,
+      "rappel": [
+        0.9069767441860465,
+        0.8270407914425881,
+        0.9521082887162688
+      ],
+      "seuils_detectees": 46,
+      "rappel_seuils": [
+        0.5348837209302325,
+        0.4302411599878987,
+        0.6365430468828602
+      ],
+      "diagnostic": [
+        1.0,
+        0.9530605462258804,
+        1.0
+      ],
+      "delai_q1": 30.0,
+      "delai_mediane": 30.0,
+      "delai_q3": 45.0,
+      "discordantes_ia_seules": 38,
+      "discordantes_seuils_seuls": 6
+    }
+  },
+  "fausses_alertes": {
+    "heures": 528.0,
+    "jours_noeud": 22,
+    "ouvertures": 92,
+    "par_jour": 4.182,
+    "jours_avec_seuil_fixe": 6
+  }
+}
